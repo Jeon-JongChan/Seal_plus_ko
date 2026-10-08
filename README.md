@@ -56,6 +56,72 @@ English
 </div>
 
 
+## Seal Plus 현재 변경 사항 (2026-10-09)
+
+이 저장소는 Seal 기반의 수정본입니다. 아래 내용은 이 프로젝트에서 추가·변경한 기능이며, 기존 상단 배지와 다운로드 링크는 원본 프로젝트를 가리킵니다. 이 수정본의 APK는 직접 빌드해야 하며 원본 배포 APK에 아래 기능이 포함되어 있다고 보장하지 않습니다.
+
+### 추가 기능과 편의성 개선
+
+| 번호 | 적용 내용 | 사용 방식·기준 |
+| --- | --- | --- |
+| 1 | 빠른 다운로드의 쿠키 설정 | 공통 다운로드 설정에서 사용 여부와 프로필 선택. 사용자가 켠 경우에만 적용합니다. |
+| 2 | 미디어 파일 관리와 폴더 분류 | 파일 크기와 길이로 평균 비트레이트 계산. 기본 경계 4Mbps, 설정 범위 1–100Mbps. 길이 조회 실패 시 미분류입니다. |
+| 3 | 이동한 파일의 중복 다운로드 방지 | 기록과 실제 파일을 확인하고 다운로드 루트·하위 폴더·선택한 SAF 트리에서 재탐색합니다. 내용 해시·영상 유사도 검사는 아닙니다. |
+| 4 | Instagram 이미지 다운로드 | 이미지·영상 구분, 이미지 MIME·파일 검증 후 저장. |
+| 5 | Instagram 계정 저장·목록 조회 | 계정 이름을 저장하고 접근 가능한 feed·clips를 페이지 순회합니다. 로그인 쿠키는 사용자가 지정한 경우에만 사용합니다. |
+| 6 | 혼합 캐러셀 선택 다운로드 | 이미지·영상을 개별 항목으로 선택하고 유형을 필터링합니다. 해상도는 서버가 제공한 후보 중 선택합니다. |
+| 7 | AV1 변환과 원본 대체 | 옵션 선택 시 FFmpeg libsvtav1으로 변환하고 검증한 출력의 이름 확정 후 원본을 삭제합니다. 기본 CRF 32, 조정 범위 20–50입니다. |
+
+직접 입력한 여러 HTTP(S) 링크의 추출·중복 제거도 개선했습니다. AV1과 자동 폴더 분류는 기본적으로 꺼져 있습니다. 비트레이트 분류는 압축 효율·오디오 크기 등에 영향을 받으므로 체감 화질 점수는 아닙니다. 변환 확정 전 실패·취소 시 원본을 보존하며, 확정 후 분류 실패까지 원본을 복구하는 구조는 아닙니다.
+
+Instagram API 변경·호출 제한·접근 권한에 따라 목록 조회가 실패하거나 제한될 수 있습니다. 비공개 계정은 로그인 계정의 접근 권한이 필요합니다. AI 유사 영상 판별·AI 화질 향상 기능은 구현하지 않았습니다.
+
+### 라이브러리와 빌드 설정
+
+| 항목 | 이전 → 현재 |
+| --- | --- |
+| Android Gradle Plugin | 8.7.2 → 8.7.3 |
+| AppCompat / Coil / Serialization | 1.7.0 → 1.7.1 / 2.5.0 → 2.7.0 / 1.7.2 → 1.7.3 |
+| OkHttp | 5.0.0-alpha10 → 4.12.0, Kotlin 2.0과 호환되는 정식판 사용 |
+| Room | 2.6.1 → 2.7.2, KSP2 활성화·공백 경로의 스키마 인자 처리 수정 |
+| Espresso / AndroidX Test Ext | 3.5.0 → 3.6.1 / 1.1.4 → 1.2.1 |
+| youtubedl-android·FFmpeg·aria2c 래퍼 | 0.17.3 → 0.18.1, 업스트림 사전 릴리스 |
+
+Kotlin 2.0.20·Gradle 8.10.2를 유지하며 compile/target SDK 35, min SDK 24를 사용합니다. Room DB 버전 5와 기존 자동 마이그레이션은 유지했습니다. 전체 버전은 [버전 목록](gradle/libs.versions.toml)에서 확인할 수 있습니다. 모든 의존성을 절대 최신 버전으로 올린 것은 아니며 기존 코드와 호환되는 조합을 사용합니다.
+
+확인한 번들 엔진은 FFmpeg 7.1.1·aria2c 1.37.0·yt-dlp 2025.11.12입니다. 래퍼 버전과 실제 엔진 버전은 다릅니다. yt-dlp는 오래된 버전 경고를 표시하며 기존 앱의 엔진 업데이트 경로를 사용할 수 있습니다. 이 경로가 FFmpeg 전체 번들을 업데이트하지는 않습니다.
+
+### Windows 포터블 빌드
+
+JDK·SDK·Gradle 캐시·AVD를 프로젝트의 `.build/`에 모았습니다. Android Studio 없이 Windows x64 PowerShell에서 실행할 수 있습니다. 프로젝트 루트에서 사용합니다.
+
+```powershell
+# 최초 설치와 빌드
+powershell -NoProfile -ExecutionPolicy Bypass -File .build/Setup.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .build/Build.ps1
+
+# 필요한 의존성이 준비된 경우 오프라인 빌드
+powershell -NoProfile -ExecutionPolicy Bypass -File .build/Build.ps1 -Offline
+
+# 에뮬레이터 준비와 창 없는 실행
+powershell -NoProfile -ExecutionPolicy Bypass -File .build/Setup.ps1 -Emulator
+powershell -NoProfile -ExecutionPolicy Bypass -File .build/Emulator.ps1
+```
+
+APK는 `app/build/outputs/apk/generic/debug/`에 생성합니다. 에뮬레이터는 x86_64 APK를 사용하고 실제 기기는 해당 ABI 또는 Universal APK를 사용합니다. 다른 PC에는 소스와 `.build/` 스크립트·숨김 `.build/tools/`·`gradle-cache/`·`android-user/`를 함께 복사해야 합니다. 현재 `.gitignore`는 `.build/` 전체를 제외하므로 clone만 한 경우 스크립트와 빌드 README도 없습니다. `.build/`를 별도로 전달받거나 JDK·SDK를 직접 준비해 프로젝트 Gradle Wrapper로 빌드해야 합니다. 스크립트만 전달받은 경우 도구 설치와 첫 빌드를 온라인으로 수행합니다. 에뮬레이터는 대상 PC의 CPU 가상화와 Windows Hypervisor Platform이 필요합니다.
+
+### 검증과 상세 문서
+
+단위 테스트 6개와 API 35 x86_64 Android 테스트 2개가 통과했습니다. 실제 FFmpeg AV1 변환·원본 대체·분류·이동 후 중복 탐색, 로컬 HTTP 영상 다운로드, 공백 있는 새 경로에서 오프라인 APK 빌드를 검증했습니다. 이동 검증은 같은 PC에서 대용량 도구·캐시를 junction으로 재사용했으며 다른 물리 PC에서 수행한 실험은 아닙니다.
+
+YouTube·Instagram 실사이트·로그인 쿠키·대량 목록·SAF 공급자·ARM 실기기·16KB 페이지 환경은 미검증입니다. ARM64 번들의 libwebp 정렬 관련 16KB 호환성 문제도 남아 있습니다. 외부 HTTPS 다운로드는 당시 에뮬레이터 DNS 오류로 실패하여 로컬 HTTP 검증과 구분합니다.
+
+- [포터블 환경 설치·실행·이동 안내](.build/README.md)
+- [코드 구조·데이터 흐름·변경 상세 HTML 보고서](.docs/20261009-0419-portable-build-and-code-report.html): 다크모드·오프라인 열람·밝은 배경 PDF 인쇄 지원.
+- [누적 변경·검증 기록](.docs/20261009-0157-dependency-and-link-improvements.md)
+
+`.docs/`와 `.build/`는 Git 제외 경로이므로 상세 보고서와 포터블 README 링크는 해당 로컬 폴더를 함께 전달받아야 열립니다. 저장소만 전달할 때도 이 README에서 기능·버전·검증 요약은 확인할 수 있습니다.
+
 ## 📱 Screenshots
 
 <div align="center">
