@@ -74,9 +74,14 @@ object UpdateUtil {
                 }
         }
 
+    /** 정상 HTTP 응답에서 최신 릴리스 정보를 읽습니다. */
     private fun getLatestRelease(): Release =
-        client.newCall(requestForReleases).execute().body.use {
-            val releaseList = jsonFormat.decodeFromString<List<Release>>(it.string())
+        client.newCall(requestForReleases).execute().use {
+            check(it.isSuccessful) { "릴리스 조회 실패 (${it.code})" }
+            val releaseList =
+                jsonFormat.decodeFromString<List<Release>>(
+                    (it.body ?: error("릴리스 응답이 비어 있습니다.")).string()
+                )
             val stable = UPDATE_CHANNEL.getInt() == STABLE
             val latestRelease =
                 releaseList
@@ -170,7 +175,7 @@ object UpdateUtil {
             val request = Request.Builder().url(targetUrl).build()
             try {
                 val response = client.newCall(request).execute()
-                val responseBody = response.body
+                val responseBody = response.body ?: error("업데이트 파일 응답이 비어 있습니다.")
                 return@withContext responseBody.downloadFileWithProgress(context.getLatestApk())
             } catch (e: Exception) {
                 e.printStackTrace()

@@ -21,6 +21,8 @@ import com.junkfood.seal.download.Task.RestartableAction.FetchInfo
 import com.junkfood.seal.download.Task.TypeInfo
 import com.junkfood.seal.util.DownloadUtil
 import com.junkfood.seal.util.FileUtil
+import com.junkfood.seal.util.InstagramUtil
+import com.junkfood.seal.util.MediaLibrary
 import com.junkfood.seal.util.NotificationUtil
 import com.junkfood.seal.util.PreferenceUtil
 import com.junkfood.seal.util.VideoInfo
@@ -29,9 +31,12 @@ import kotlin.collections.component1
 import kotlin.collections.component2
 import kotlin.collections.set
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
@@ -250,20 +255,32 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
         val taskInfo = task.type
         val playlistIndex = if (taskInfo is TypeInfo.Playlist) taskInfo.index else null
         scope
-            .launch(Dispatchers.Default) {
-                DownloadUtil.fetchVideoInfoFromUrl(
-                        url = url,
-                        playlistIndex = playlistIndex,
-                        preferences = preferences,
-                        taskKey = id,
-                    )
+            .launch(Dispatchers.Default, start = CoroutineStart.LAZY) {
+                (if (taskInfo is TypeInfo.Instagram)
+                        runCatching {
+                            InstagramUtil.fetch(taskInfo.media.postUrl, preferences, id)
+                                .first { it.id == taskInfo.media.id }
+                                .videoInfo()
+                        }
+                    else
+                        DownloadUtil.fetchVideoInfoFromUrl(
+                            url = url,
+                            playlistIndex = playlistIndex,
+                            preferences = preferences,
+                            taskKey = id,
+                        ))
                     .onSuccess {
+                        currentCoroutineContext().ensureActive()
                         info = it
                         downloadState = ReadyWithInfo
                         viewState = Task.ViewState.fromVideoInfo(it)
                     }
                     .onFailure { throwable ->
-                        if (throwable is YoutubeDL.CanceledException) {
+                        if (
+                            throwable is YoutubeDL.CanceledException ||
+                                throwable is kotlinx.coroutines.CancellationException ||
+                                downloadState is DownloadState.Canceled
+                        ) {
                             return@onFailure
                         }
                         task.downloadState = Error(throwable = throwable, action = FetchInfo)
@@ -275,9 +292,13 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
                         )
                     }
             }
-            .also { job -> downloadState = FetchingInfo(job = job, taskId = id) }
+            .also { job ->
+                downloadState = FetchingInfo(job = job, taskId = id)
+                job.start()
+            }
     }
 
+    /** 시작 상태를 먼저 등록하고 미디어 종류에 맞는 다운로드를 실행합니다. */
     private fun Task.download() {
         check(downloadState == ReadyWithInfo && info != null)
         if (type is TypeInfo.CustomCommand) {
@@ -285,30 +306,36 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
             return
         }
         scope
-            .launch(Dispatchers.Default) {
-                DownloadUtil.downloadVideo(
-                        videoInfo = info,
-                        taskId = id,
-                        downloadPreferences = preferences,
-                        progressCallback = { progressPercentage, _, text ->
-                            val progress = progressPercentage / 100f
-                            when (val preState = downloadState) {
-                                is Running -> {
-                                    downloadState =
-                                        preState.copy(progress = progress, progressText = text)
-                                    NotificationUtil.notifyProgress(
-                                        notificationId = notificationId,
-                                        progress = progressPercentage.toInt(),
-                                        text = text,
-                                        title = viewState.title,
-                                        taskId = id,
-                                    )
-                                }
-                                else -> {}
-                            }
-                        },
-                    )
+            .launch(Dispatchers.Default, start = CoroutineStart.LAZY) {
+                val taskContext = currentCoroutineContext()
+                val callback: (Float, Long, String) -> Unit = { progressPercentage, _, text ->
+                    taskContext.ensureActive()
+                    if (downloadState is Running) {
+                        downloadState =
+                            (downloadState as Running).copy(
+                                progress = progressPercentage / 100f,
+                                progressText = text,
+                            )
+                        NotificationUtil.notifyProgress(
+                            notificationId = notificationId,
+                            progress = progressPercentage.toInt(),
+                            text = text,
+                            title = viewState.title,
+                            taskId = id,
+                        )
+                    }
+                }
+                (if (type is TypeInfo.Instagram)
+                        InstagramUtil.download(type.media, preferences, id, callback)
+                    else
+                        DownloadUtil.downloadVideo(
+                            videoInfo = info,
+                            taskId = id,
+                            downloadPreferences = preferences,
+                            progressCallback = callback,
+                        ))
                     .onSuccess { pathList ->
+                        taskContext.ensureActive()
                         downloadState = Completed(pathList.firstOrNull())
 
                         val text =
@@ -334,7 +361,11 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
                         }
                     }
                     .onFailure { throwable ->
-                        if (throwable is YoutubeDL.CanceledException) {
+                        if (
+                            throwable is YoutubeDL.CanceledException ||
+                                throwable is kotlinx.coroutines.CancellationException ||
+                                downloadState is DownloadState.Canceled
+                        ) {
                             return@onFailure
                         }
                         downloadState = Error(throwable = throwable, action = Download)
@@ -346,13 +377,20 @@ class DownloaderV2Impl(private val appContext: Context) : DownloaderV2, KoinComp
                         )
                     }
             }
-            .also { job -> downloadState = Running(job = job, taskId = id) }
+            .also { job ->
+                downloadState = Running(job = job, taskId = id)
+                job.start()
+            }
     }
 
+    /** 조회 대기·HTTP·엔진·FFmpeg를 모두 중단하고 취소 상태를 보존합니다. */
     private fun Task.cancelImpl(): Boolean {
         when (val preState = downloadState) {
             is DownloadState.Cancelable -> {
-                val res = YoutubeDL.destroyProcessById(preState.taskId)
+                InstagramUtil.cancel(preState.taskId)
+                MediaLibrary.cancel(preState.taskId)
+                YoutubeDL.destroyProcessById(preState.taskId)
+                val res = true
                 if (res) {
                     preState.job.cancel()
                     val progress = if (preState is Running) preState.progress else null

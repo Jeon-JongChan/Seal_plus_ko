@@ -49,7 +49,6 @@ import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -91,7 +90,7 @@ fun InputUrlPage(
     LaunchedEffect(Unit) {
         clipboardManager.getText()?.let {
             urlList.clear()
-            urlList.addAll(findURLsFromString(it.toString()).toSet())
+            urlList.addAll(findURLsFromString(it.toString()))
         }
     }
 
@@ -125,6 +124,7 @@ private fun InputUrlPreview() {
     ) {}
 }
 
+/** 입력·붙여넣기·저장한 링크를 다운로드 설정 화면으로 전달합니다. */
 @Composable
 private fun InputUrlPageImpl(
     modifier: Modifier = Modifier,
@@ -136,6 +136,7 @@ private fun InputUrlPageImpl(
 ) {
 
     var url by remember { mutableStateOf("") }
+    val parsedUrls = remember(url) { findURLsFromString(url) }
     var showPasteDialog by remember { mutableStateOf(false) }
     var showSavedUrlDialog by remember { mutableStateOf(false) }
 
@@ -157,6 +158,8 @@ private fun InputUrlPageImpl(
                 }
             },
         )
+
+        InstagramAccounts(onActionPost = onActionPost)
 
         LazyRow(
             modifier = Modifier.padding(top = 8.dp).fillMaxWidth(),
@@ -205,14 +208,13 @@ private fun InputUrlPageImpl(
             }
 
             item(key = "saved urls") {
-                val addToSavedLinks by remember {
-                    derivedStateOf { url.isNotBlank() && !savedLinks.contains(url) }
-                }
+                val addToSavedLinks =
+                    parsedUrls.size == 1 && !savedLinks.contains(parsedUrls.single())
                 if (addToSavedLinks || savedLinks.isNotEmpty()) {
                     SuggestionChip(
                         modifier = Modifier.animateItem(),
                         onClick = {
-                            if (addToSavedLinks) onSaveLink(url)
+                            if (addToSavedLinks) onSaveLink(parsedUrls.single())
                             else {
                                 showSavedUrlDialog = true
                             }
@@ -256,8 +258,9 @@ private fun InputUrlPageImpl(
             FilledButtonWithIcon(
                 icon = Icons.AutoMirrored.Outlined.ArrowForward,
                 text = stringResource(R.string.proceed),
+                enabled = parsedUrls.isNotEmpty(),
             ) {
-                onActionPost(Action.ProceedWithURLs(listOf(url)))
+                onActionPost(Action.ProceedWithURLs(parsedUrls))
             }
         }
     }

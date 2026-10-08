@@ -5,23 +5,28 @@ import com.junkfood.seal.download.Task.TypeInfo
 import com.junkfood.seal.download.Task.ViewState
 import com.junkfood.seal.util.DownloadUtil
 import com.junkfood.seal.util.Format
+import com.junkfood.seal.util.InstagramMedia
 import com.junkfood.seal.util.VideoInfo
 import com.junkfood.seal.util.toHttpsUrl
+import kotlin.math.roundToInt
 import kotlinx.coroutines.Job
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
-import kotlin.math.roundToInt
 
 private val TypeInfo.id: String
     get() =
         when (this) {
             is TypeInfo.CustomCommand -> "${template.id}_${template.name}"
             is TypeInfo.Playlist -> "$index"
+            is TypeInfo.Instagram -> media.id
             TypeInfo.URL -> ""
         }
 
-private fun makeId(url: String, type: TypeInfo, preferences: DownloadUtil.DownloadPreferences): String =
-    "${url}_${type.id}_${preferences.hashCode()}"
+private fun makeId(
+    url: String,
+    type: TypeInfo,
+    preferences: DownloadUtil.DownloadPreferences,
+): String = "${url}_${type.id}_${preferences.hashCode()}"
 
 @Serializable
 data class Task(
@@ -45,6 +50,9 @@ data class Task(
         @Serializable data class CustomCommand(val template: CommandTemplate) : TypeInfo
 
         @Serializable data object URL : TypeInfo
+
+        /** 혼합 게시물의 각 파일을 독립적으로 취소·재시도할 수 있는 작업입니다. */
+        @Serializable data class Instagram(val media: InstagramMedia) : TypeInfo
     }
 
     @Serializable

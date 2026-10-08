@@ -285,9 +285,8 @@ private fun ErrorPage(modifier: Modifier = Modifier, state: Error, onActionPost:
             when (this) {
                 is Action.FetchFormats -> url
                 is Action.FetchPlaylist -> url
-                else -> {
-                    throw IllegalArgumentException()
-                }
+                is Action.InspectInstagram -> urls.joinToString("\n")
+                else -> ""
             }
         }
     Column(modifier = modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -314,7 +313,7 @@ private fun ErrorPage(modifier: Modifier = Modifier, state: Error, onActionPost:
         )
 
         Row(modifier = Modifier) {
-            FilledTonalButton(onClick = { onActionPost(state.action) }) { Text("Retry") }
+            FilledTonalButton(onClick = { onActionPost(state.action) }) { Text("다시 시도") }
             Spacer(Modifier.width(8.dp))
             Button(
                 onClick = {
@@ -354,46 +353,58 @@ private fun DownloadDialogContent(
         when (state) {
             is Configure -> {
                 check(state.urlList.isNotEmpty())
-                if (state.urlList.size == 1) {
-                    ConfigurePage(
-                        url = state.urlList.first(),
-                        config = config,
-                        preferences = preferences,
-                        onPresetEdit = onPresetEdit,
-                        onConfigSave = {
-                            Config.updatePreferences(newValue = it, oldValue = config)
-                        },
-                        settingChips = {
-                            AdditionalSettings(
-                                modifier = Modifier.padding(horizontal = 16.dp),
-                                isQuickDownload = false,
-                                preference = preferences,
-                                selectedType = config.downloadType,
-                                onPreferenceUpdate = {
-                                    onPreferencesUpdate(
-                                        DownloadUtil.DownloadPreferences.createFromPreferences()
-                                    )
-                                },
-                            )
-                        },
-                        onActionPost = { onActionPost(it) },
+                Column {
+                    MediaDownloadOptions(
+                        preferences,
+                        onPreferencesUpdate,
+                        instagram =
+                            state.urlList.any { com.junkfood.seal.util.InstagramUtil.accepts(it) },
                     )
-                } else {
-                    ConfigurePagePlaylistVariant(
-                        initialDownloadType = config.downloadType ?: Video,
-                        preferences = preferences,
-                        onPreferencesUpdate = onPreferencesUpdate,
-                        onPresetEdit = onPresetEdit,
-                        onDismissRequest = { onActionPost(Action.HideSheet) },
-                    ) {
-                        onActionPost(
-                            Action.DownloadWithPreset(
-                                urlList = state.urlList,
-                                preferences = preferences.copy(extractAudio = it == Audio),
-                            )
+                    if (state.urlList.size == 1) {
+                        ConfigurePage(
+                            url = state.urlList.first(),
+                            config = config,
+                            preferences = preferences,
+                            onPresetEdit = onPresetEdit,
+                            onConfigSave = {
+                                Config.updatePreferences(newValue = it, oldValue = config)
+                            },
+                            settingChips = {
+                                AdditionalSettings(
+                                    modifier = Modifier.padding(horizontal = 16.dp),
+                                    isQuickDownload = false,
+                                    preference = preferences,
+                                    selectedType = config.downloadType,
+                                    onPreferenceUpdate = {
+                                        onPreferencesUpdate(
+                                            DownloadUtil.DownloadPreferences.createFromPreferences()
+                                        )
+                                    },
+                                )
+                            },
+                            onActionPost = { onActionPost(it) },
                         )
+                    } else {
+                        ConfigurePagePlaylistVariant(
+                            initialDownloadType = config.downloadType ?: Video,
+                            preferences = preferences,
+                            onPreferencesUpdate = onPreferencesUpdate,
+                            onPresetEdit = onPresetEdit,
+                            onDismissRequest = { onActionPost(Action.HideSheet) },
+                        ) {
+                            onActionPost(
+                                Action.DownloadWithPreset(
+                                    urlList = state.urlList,
+                                    preferences = preferences.copy(extractAudio = it == Audio),
+                                )
+                            )
+                        }
                     }
                 }
+            }
+
+            is DownloadDialogViewModel.SheetState.InstagramSelection -> {
+                InstagramSelectionPage(state, onActionPost)
             }
 
             is Error -> {

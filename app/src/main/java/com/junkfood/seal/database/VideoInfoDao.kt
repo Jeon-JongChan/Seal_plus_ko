@@ -25,6 +25,10 @@ interface VideoInfoDao {
     @Query("select * from DownloadedVideoInfo")
     suspend fun getDownloadHistory(): List<DownloadedVideoInfo>
 
+    /** 실제 파일 이동 결과를 기존 다운로드 이력에 반영합니다. */
+    @Query("UPDATE DownloadedVideoInfo SET videoPath = :newPath WHERE videoPath = :oldPath")
+    suspend fun updateMediaPath(oldPath: String, newPath: String)
+
     @Query("select * from DownloadedVideoInfo where id=:id")
     suspend fun getInfoById(id: Int): DownloadedVideoInfo
 

@@ -35,7 +35,16 @@ object DatabaseUtil {
 
     fun getDownloadHistoryFlow() = dao.getDownloadHistoryFlow()
 
-    private suspend fun getDownloadHistory() = dao.getDownloadHistory()
+    /** 하위 폴더 이동 후에도 원본 링크를 비교할 수 있도록 다운로드 이력을 반환합니다. */
+    suspend fun getDownloadHistory() = dao.getDownloadHistory()
+
+    /** 파일 관리자에서 이동한 경로를 갱신합니다. */
+    suspend fun updateMediaPath(oldPath: String, newPath: String) =
+        dao.updateMediaPath(oldPath, newPath)
+
+    /** 중복 잠금을 해제하기 전에 링크와 최종 경로의 기록을 확정합니다. */
+    suspend fun insertInfoImmediately(info: DownloadedVideoInfo) =
+        dao.insertInfoDistinctByPath(info)
 
     fun getTemplateFlow() = dao.getTemplateFlow()
 

@@ -109,6 +109,14 @@ const val USE_CUSTOM_AUDIO_PRESET = "custom_audio_preset"
 
 const val MERGE_MULTI_AUDIO_STREAM = "multi_audio_stream"
 
+const val MEDIA_SELECTION = "media_selection"
+const val IMAGE_RESOLUTION = "image_resolution"
+const val CLASSIFY_MEDIA = "classify_media"
+const val QUALITY_THRESHOLD = "quality_threshold_mbps"
+const val TRANSCODE_AV1 = "transcode_av1"
+const val AV1_CRF = "av1_crf"
+const val INSTAGRAM_ACCOUNTS = "instagram_accounts"
+
 const val DOWNLOAD_TYPE_INITIALIZATION = "download_type_init"
 private const val DOWNLOAD_TYPE = "download_type"
 
@@ -451,6 +459,12 @@ object PreferenceUtil {
             .getOrNull() ?: emptyMap()
 
     fun getSavedLinks(): Set<String> = kv.decodeStringSet(SAVED_LINKS) ?: emptySet()
+
+    /** 사용자가 추가한 인스타그램 계정 이름을 읽습니다. */
+    fun getInstagramAccounts(): Set<String> = kv.decodeStringSet(INSTAGRAM_ACCOUNTS) ?: emptySet()
+
+    /** 명시적으로 추가·제거한 계정 목록을 저장합니다. */
+    fun updateInstagramAccounts(accounts: Set<String>) = kv.encode(INSTAGRAM_ACCOUNTS, accounts)
 
     fun updateSavedLinks(links: Set<String>) = kv.encode(SAVED_LINKS, links)
 

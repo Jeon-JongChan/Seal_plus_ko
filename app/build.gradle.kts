@@ -10,7 +10,6 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.compose.compiler)
-    alias(libs.plugins.room)
     alias(libs.plugins.ktfmt.gradle)
 }
 
@@ -68,8 +67,11 @@ android {
         }
     }
 
-    room { schemaDirectory("$projectDir/schemas") }
-    ksp { arg("room.incremental", "true") }
+    // KSP 인자 공급자의 공백 파싱 제한을 피하도록 경로를 키·값으로 직접 전달합니다.
+    ksp {
+        arg("room.schemaLocation", file("schemas").absolutePath)
+        arg("room.incremental", "true")
+    }
 
     androidComponents {
         onVariants { variant ->
@@ -157,6 +159,11 @@ android {
 ktfmt { kotlinLangStyle() }
 
 kotlin { jvmToolchain(21) }
+
+// 경로 인자를 직접 전달해도 스키마 변경이 증분 빌드 입력에 반영되도록 추적합니다.
+tasks.matching { it.name.startsWith("ksp") }.configureEach {
+    inputs.dir(layout.projectDirectory.dir("schemas")).withPathSensitivity(PathSensitivity.RELATIVE)
+}
 
 dependencies {
     implementation(project(":color"))

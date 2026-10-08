@@ -135,6 +135,8 @@ private const val TAG = "VideoListPage"
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNavigateBack: () -> Unit) {
+    var showFileManager by remember { mutableStateOf(false) }
+    if (showFileManager) MediaFileManagerDialog { showFileManager = false }
     val viewState by viewModel.stateFlow.collectAsStateWithLifecycle()
     val fullVideoList by viewModel.videoListFlow.collectAsStateWithLifecycle(emptyList())
     val searchedVideoList by
@@ -324,6 +326,13 @@ fun VideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNavigateBac
                                 expanded = expanded,
                                 onDismissRequest = { expanded = false },
                             ) {
+                                DropdownMenuItem(
+                                    text = { Text("영상 파일 관리자") },
+                                    onClick = {
+                                        showFileManager = true
+                                        expanded = false
+                                    },
+                                )
                                 if (visibleItemCount.intValue > 0) {
                                     DropdownMenuItem(
                                         leadingIcon = {

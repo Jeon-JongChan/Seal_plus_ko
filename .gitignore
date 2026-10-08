@@ -17,3 +17,8 @@
 local.properties
 /keystore.properties
 .kotlin
+.graphify/
+.codex
+.docs
+AGENTS.md
+.build/
