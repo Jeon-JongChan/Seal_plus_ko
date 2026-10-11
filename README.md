@@ -93,22 +93,27 @@ Kotlin 2.0.20·Gradle 8.10.2를 유지하며 compile/target SDK 35, min SDK 24�
 
 ### Windows 포터블 빌드
 
-JDK·SDK·Gradle 캐시·AVD를 프로젝트의 `.build/`에 모았습니다. Android Studio 없이 Windows x64 PowerShell에서 실행할 수 있습니다. 프로젝트 루트에서 사용합니다.
+JDK·SDK·Gradle 캐시·AVD를 프로젝트의 `.build/`에 모았습니다. Android Studio 없이 Windows x64 PowerShell에서 실행할 수 있습니다. GitHub에서 코드만 내려받은 뒤 프로젝트 루트에서 사용합니다. 설치와 첫 빌드에는 인터넷이 필요하고, SDK 라이선스에 동의하고 설치합니다. 시스템 환경 변수는 변경하지 않습니다.
 
 ```powershell
 # 최초 설치와 빌드
-powershell -NoProfile -ExecutionPolicy Bypass -File .build/Setup.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File Setup-Portable.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .build/Build.ps1
+
+# 기본은 APK만 생성. 단위 테스트까지 실행하려면 -Test
+powershell -NoProfile -ExecutionPolicy Bypass -File .build/Build.ps1 -Test
 
 # 필요한 의존성이 준비된 경우 오프라인 빌드
 powershell -NoProfile -ExecutionPolicy Bypass -File .build/Build.ps1 -Offline
 
-# 에뮬레이터 준비와 창 없는 실행
-powershell -NoProfile -ExecutionPolicy Bypass -File .build/Setup.ps1 -Emulator
-powershell -NoProfile -ExecutionPolicy Bypass -File .build/Emulator.ps1
+# 에뮬레이터 준비와 부팅 후 앱 자동 실행
+powershell -NoProfile -ExecutionPolicy Bypass -File Setup-Portable.ps1 -Emulator
+powershell -NoProfile -ExecutionPolicy Bypass -File Start-App.ps1
 ```
 
-APK는 `app/build/outputs/apk/generic/debug/`에 생성합니다. 에뮬레이터는 x86_64 APK를 사용하고 실제 기기는 해당 ABI 또는 Universal APK를 사용합니다. 다른 PC에는 소스와 `.build/` 스크립트·숨김 `.build/tools/`·`gradle-cache/`·`android-user/`를 함께 복사해야 합니다. 현재 `.gitignore`는 `.build/` 전체를 제외하므로 clone만 한 경우 스크립트와 빌드 README도 없습니다. `.build/`를 별도로 전달받거나 JDK·SDK를 직접 준비해 프로젝트 Gradle Wrapper로 빌드해야 합니다. 스크립트만 전달받은 경우 도구 설치와 첫 빌드를 온라인으로 수행합니다. 에뮬레이터는 대상 PC의 CPU 가상화와 Windows Hypervisor Platform이 필요합니다.
+APK는 `app/build/outputs/apk/generic/debug/`에 생성합니다. 에뮬레이터는 x86_64 APK를 사용하고 실제 기기는 해당 ABI 또는 Universal APK를 사용합니다. 설치 진입점과 `.build/`의 실행 스크립트·README는 Git에 포함하며, 도구·캐시·AVD·로그는 제외합니다. 다른 PC에서는 설치 스크립트를 다시 실행하거나 기존 `.build/` 전체를 복사할 수 있습니다. 에뮬레이터는 대상 PC의 CPU 가상화와 Windows Hypervisor Platform이 필요합니다. GPU 기본값은 `auto`이며 `-Gpu host`로 강제하거나 드라이버 문제 시 `-Gpu software`로 실행할 수 있습니다. 실행 중인 AVD는 종료 후 재실행해야 변경 옵션이 적용됩니다.
+
+설치 스크립트는 루트 `Start-App.ps1`도 생성합니다. 이 명령은 에뮬레이터 창을 열고 부팅을 기다린 뒤, 빌드된 x86_64 Debug APK가 있으면 업데이트 설치하고 앱을 실행합니다. 루트 Gradle의 `build/` 출력은 `.build/gradle-output/`으로 통합했으며, APK 출력 경로는 유지됩니다.
 
 ### 검증과 상세 문서
 
@@ -120,7 +125,7 @@ YouTube·Instagram 실사이트·로그인 쿠키·대량 목록·SAF 공급자�
 - [코드 구조·데이터 흐름·변경 상세 HTML 보고서](.docs/20261009-0419-portable-build-and-code-report.html): 다크모드·오프라인 열람·밝은 배경 PDF 인쇄 지원.
 - [누적 변경·검증 기록](.docs/20261009-0157-dependency-and-link-improvements.md)
 
-`.docs/`와 `.build/`는 Git 제외 경로이므로 상세 보고서와 포터블 README 링크는 해당 로컬 폴더를 함께 전달받아야 열립니다. 저장소만 전달할 때도 이 README에서 기능·버전·검증 요약은 확인할 수 있습니다.
+`.docs/`는 Git 제외 경로이므로 상세 보고서는 해당 로컬 폴더를 함께 전달받아야 열립니다. 포터블 README와 스크립트는 코드와 함께 제공됩니다. 저장소만 전달할 때도 이 README에서 기능·버전·검증 요약은 확인할 수 있습니다.
 
 ## 📱 Screenshots
 
@@ -233,3 +238,9 @@ Some of the UI designs and codes are borrowed from [Read You](https://github.com
 <a href="#start-of-content">👆 Scroll to top</a>
 </td></table>
 </div>
+
+## 번역과 내장 기능 플러그인
+
+기존 지원 언어를 유지하면서 영어·한국어·스페인어의 미디어 설정, 인스타그램 목록, 즐겨찾기와 오류 안내를 번역했습니다. 기능별 문구는 각 `values*`의 `media_strings.xml`, `instagram_strings.xml`, `navigation_strings.xml`에서 관리합니다.
+
+추가 기능은 `app/src/main/java/com/plugin/`의 내장 플러그인으로 분리하며 **플러그인 관리**에서 6개 기능을 각각 켜고 끕니다. 기존 설치와 신규 설치 모두 처음에는 꺼져 있고, 꺼도 기존 파일·작업·세부 설정은 유지됩니다. 원본의 번역·버그 수정·DB 호환성은 유지합니다. [기능 코드·번역 추가 안내](app/src/main/java/com/plugin/README.md)를 참고하세요. 번역 검사: `powershell -NoProfile -ExecutionPolicy Bypass -File .build/Test-Localization.ps1`.

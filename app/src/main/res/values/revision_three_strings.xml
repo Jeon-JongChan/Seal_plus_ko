@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="loc_download_auto">Auto</string>
+    <string name="loc_download_image">Images</string>
+    <string name="loc_image_supported_sites">Image downloads support Instagram and TikTok posts. Choose Auto or Video for video links.</string>
+    <string name="loc_quality_pick">Choose quality</string>
+    <string name="loc_account_separate_menu">Use List downloads → Instagram accounts for profile links.</string>
+    <string name="loc_page_success">%1$d / %2$d pages saved</string>
+    <string name="loc_retry_failed_pages">Retry failed pages</string>
+    <string name="loc_delete_files_and_history">Also delete files and related history</string>
+    <string name="loc_media_info_overlay">Media info</string>
+    <string name="loc_original_codec">Original: %1$s</string>
+    <string name="loc_av1_replaced">AV1 · original replaced</string>
+    <string name="loc_av1_copied">AV1 · original kept</string>
+    <string name="loc_media_directory_settings">Media folders and quality tiers</string>
+    <string name="loc_media_directory_hint">Download folder / platform / Images or Videos. Private files use .Seal.</string>
+    <string name="loc_platform_folders">Separate folders by platform</string>
+    <string name="loc_image_folder_name">Image folder name</string>
+    <string name="loc_video_folder_name">Video folder name</string>
+    <string name="loc_image_tiers">Image tiers: short side x long side, comma separated</string>
+    <string name="loc_video_tiers">Video tiers: height:30fps MB/s:60fps MB/s</string>
+    <string name="loc_codec_ratios">H265, VP9, AV1 ratios to H264 (0–1)</string>
+    <string name="loc_tier_rules_hint">Images use both dimensions regardless of orientation. Videos use the highest tier satisfying original resolution and average file MB/s, adjusted for codec and FPS (48fps and above use the 60fps column). Unknown codec or FPS and files below the minimum stay in the base folder. These are estimates from total file size including audio. Existing files change only when reclassified.</string>
+    <string name="loc_base_media_folder">Base media folder</string>
+    <string name="loc_page_missing">%1$d deleted / missing pages</string>
+</resources>

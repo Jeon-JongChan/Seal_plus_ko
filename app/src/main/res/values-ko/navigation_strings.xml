@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 기능별 번역: 같은 리소스 이름을 영어·한국어·스페인어에서 함께 관리합니다. -->
+<resources>
+    <string name="loc_plugins">플러그인</string>
+    <string name="loc_menu_favorites">메뉴 즐겨찾기</string>
+    <string name="loc_edit_favorites">즐겨찾기 편집</string>
+    <string name="loc_favorites_hint">자주 쓰는 설정을 즐겨찾기에 추가하세요.</string>
+</resources>

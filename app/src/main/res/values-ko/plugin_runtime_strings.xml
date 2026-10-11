@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="plugin_queue_restore_failed">대기열 백업을 복구하지 못했습니다. 기존 백업은 보존됩니다.</string>
+</resources>

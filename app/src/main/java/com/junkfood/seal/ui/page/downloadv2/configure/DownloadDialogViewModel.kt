@@ -6,8 +6,6 @@ import com.junkfood.seal.database.objects.CommandTemplate
 import com.junkfood.seal.download.DownloaderV2
 import com.junkfood.seal.download.Task
 import com.junkfood.seal.util.DownloadUtil
-import com.junkfood.seal.util.InstagramMedia
-import com.junkfood.seal.util.InstagramUtil
 import com.junkfood.seal.util.PlaylistResult
 import com.junkfood.seal.util.VideoInfo
 import com.yausername.youtubedl_android.YoutubeDL
@@ -39,12 +37,6 @@ class DownloadDialogViewModel(private val downloader: DownloaderV2) : ViewModel(
         data class Loading(val taskKey: String, val job: Job) : SheetState
 
         data class Error(val action: Action, val throwable: Throwable) : SheetState
-
-        /** 이미지와 영상을 구분해 선택하는 인스타그램 목록 화면입니다. */
-        data class InstagramSelection(
-            val items: List<InstagramMedia>,
-            val preferences: DownloadUtil.DownloadPreferences,
-        ) : SheetState
     }
 
     sealed interface SheetValue {
@@ -85,19 +77,6 @@ class DownloadDialogViewModel(private val downloader: DownloaderV2) : ViewModel(
         ) : Action
 
         data object Cancel : Action
-
-        /** 단일 게시물 또는 계정의 미디어 목록을 조회합니다. */
-        data class InspectInstagram(
-            val url: String,
-            val preferences: DownloadUtil.DownloadPreferences,
-            val urls: List<String> = listOf(url),
-        ) : Action
-
-        /** 목록에서 선택한 미디어를 기존 대기열에 넣습니다. */
-        data class DownloadInstagram(
-            val items: List<InstagramMedia>,
-            val preferences: DownloadUtil.DownloadPreferences,
-        ) : Action
     }
 
     private val mSelectionStateFlow: MutableStateFlow<SelectionState> =
@@ -125,8 +104,6 @@ class DownloadDialogViewModel(private val downloader: DownloaderV2) : ViewModel(
                 is Action.ShowSheet -> showDialog(this)
                 Action.Cancel -> cancel()
                 Action.Reset -> resetSelectionState()
-                is Action.InspectInstagram -> inspectInstagram(this)
-                is Action.DownloadInstagram -> downloadInstagram(this)
             }
         }
     }
@@ -137,10 +114,6 @@ class DownloadDialogViewModel(private val downloader: DownloaderV2) : ViewModel(
 
     private fun fetchPlaylist(action: Action.FetchPlaylist) {
         val (url, preferences) = action
-        if (InstagramUtil.accepts(url) && !preferences.extractAudio) {
-            inspectInstagram(Action.InspectInstagram(url, preferences))
-            return
-        }
 
         val job =
             viewModelScope.launch(Dispatchers.IO) {
@@ -175,10 +148,6 @@ class DownloadDialogViewModel(private val downloader: DownloaderV2) : ViewModel(
 
     private fun fetchFormat(action: Action.FetchFormats) {
         val (url, audioOnly, preferences) = action
-        if (InstagramUtil.accepts(url) && !audioOnly) {
-            inspectInstagram(Action.InspectInstagram(url, preferences))
-            return
-        }
 
         val job =
             viewModelScope.launch(Dispatchers.IO) {
@@ -209,60 +178,7 @@ class DownloadDialogViewModel(private val downloader: DownloaderV2) : ViewModel(
         urlList: List<String>,
         preferences: DownloadUtil.DownloadPreferences,
     ) {
-        val instagram = urlList.filter { InstagramUtil.accepts(it) && !preferences.extractAudio }
-        urlList
-            .filterNot { it in instagram }
-            .forEach { downloader.enqueue(Task(url = it, preferences = preferences)) }
-        if (instagram.isNotEmpty())
-            inspectInstagram(Action.InspectInstagram(instagram.first(), preferences, instagram))
-        else hideDialog()
-    }
-
-    /** 취소 가능한 요청으로 게시물·계정 목록을 읽고 파일 선택 화면을 엽니다. */
-    private fun inspectInstagram(action: Action.InspectInstagram) {
-        val key = "Instagram_${action.url.hashCode()}"
-        val job =
-            viewModelScope.launch(Dispatchers.IO) {
-                runCatching {
-                        action.urls
-                            .flatMap { InstagramUtil.fetch(it, action.preferences, key) }
-                            .distinctBy { it.id }
-                    }
-                    .onSuccess { items ->
-                        mSheetStateFlow.update {
-                            SheetState.InstagramSelection(items, action.preferences)
-                        }
-                    }
-                    .onFailure { error ->
-                        if (error is kotlinx.coroutines.CancellationException) throw error
-                        mSheetStateFlow.update { SheetState.Error(action, error) }
-                    }
-            }
-        mSheetStateFlow.update { SheetState.Loading(key, job) }
-    }
-
-    /** 캐러셀 파일별로 독립 작업과 메타데이터를 만들어 다운로드합니다. */
-    private fun downloadInstagram(action: Action.DownloadInstagram) {
-        action.items
-            .filter {
-                com.junkfood.seal.util.MediaRules.accepts(
-                    action.preferences.mediaSelection,
-                    it.image,
-                )
-            }
-            .distinctBy { it.id }
-            .forEach { media ->
-                val info = media.videoInfo()
-                val task = Task(media.postUrl, Task.TypeInfo.Instagram(media), action.preferences)
-                downloader.enqueue(
-                    task,
-                    Task.State(
-                        Task.DownloadState.ReadyWithInfo,
-                        info,
-                        Task.ViewState.fromVideoInfo(info),
-                    ),
-                )
-            }
+        urlList.forEach { downloader.enqueue(Task(url = it, preferences = preferences)) }
         hideDialog()
     }
 
@@ -304,10 +220,11 @@ class DownloadDialogViewModel(private val downloader: DownloaderV2) : ViewModel(
     private fun cancel(): Boolean {
         return when (val state = sheetState) {
             is SheetState.Loading -> {
-                InstagramUtil.cancel(state.taskKey)
-                YoutubeDL.destroyProcessById(id = state.taskKey)
-                state.job.cancel()
-                return true
+                val res = YoutubeDL.destroyProcessById(id = state.taskKey)
+                if (res) {
+                    state.job.cancel()
+                }
+                return res
             }
             else -> false
         }

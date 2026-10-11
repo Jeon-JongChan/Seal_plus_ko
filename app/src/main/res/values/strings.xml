@@ -381,7 +381,6 @@
     <string name="look_and_feel"><![CDATA[Look & feel]]></string>
     <string name="interface_and_interaction"><![CDATA[Interface & interaction]]></string>
 
-
     <string name="use_previous_selection">Use previous selection</string>
     <string name="none">None</string>
     <string name="reset">Reset</string>
@@ -450,4 +449,24 @@
         <item quantity="one">%d audio</item>
         <item quantity="other">%d audios</item>
     </plurals>
+
+
+    <string name="loc_cookie_check">Check cookies</string>
+    <string name="loc_cookie_login_hint">Sign in first under Settings → Network → Cookies.</string>
+
+    <string name="loc_retry_action">Try again</string>
+
+    <string name="loc_sponsors_fetch_failed">Could not load sponsors (%1$d)</string>
+    <string name="loc_sponsors_response_empty">The sponsors response is empty.</string>
+    <string name="loc_release_fetch_failed">Could not load releases (%1$d)</string>
+    <string name="loc_release_response_empty">The releases response is empty.</string>
+    <string name="loc_update_response_empty">The update file response is empty.</string>
+
+    <string name="loc_av1_speed">Encoding speed: %1$d</string>
+    <string name="loc_av1_fast">Fast</string>
+    <string name="loc_av1_balanced">Balanced</string>
+    <string name="loc_av1_compression">Compression first</string>
+    <string name="loc_av1_speed_details">Advanced</string>
+    <string name="loc_av1_speed_input">Preset (0–12)</string>
+    <string name="loc_av1_speed_hint">Higher numbers encode faster; lower numbers spend more time on compression. Fast: 10, balanced: 8, compression first: 6. Quality (CRF) stays unchanged.</string>
 </resources>

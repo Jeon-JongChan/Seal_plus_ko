@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="plugin_queue_restore_failed">Could not restore the download queue. The existing backup has been preserved.</string>
+</resources>

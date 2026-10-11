@@ -1,0 +1,23 @@
+<resources>
+    <string name="plugin_manage">플러그인 관리</string>
+    <string name="plugin_behavior">선택 플러그인은 처음에 꺼져 있습니다. 필수 호환 플러그인은 항상 활성화됩니다. 기능 스위치는 화면과 새 다운로드에 적용되며 기존 작업·파일은 유지합니다.</string>
+    <string name="plugin_open">하위 설정 및 기능 열기</string>
+    <string name="plugin_social">소셜 게시물·이미지 다운로드</string>
+    <string name="plugin_social_desc">인스타그램·틱톡의 이미지, 영상과 여러 페이지 게시물을 분석합니다. 끄면 기존 영상 다운로드 엔진을 사용합니다.</string>
+    <string name="plugin_list_desc">계정·미디어·일반 재생목록을 별도 화면에서 조회합니다. 소셜 플러그인을 켜지 않아도 독립적으로 작동합니다.</string>
+    <string name="plugin_media_desc">저장 파일 재사용, AV1 변환과 컨테이너 설정입니다. 폴더 분류는 미디어 폴더·파일 관리에서 설정합니다.</string>
+    <string name="plugin_library_desc">이미지·영상 폴더와 해상도별 분류, 이력 필터, 게시물 묶음·파일 관리를 제공합니다. 영상 인코딩 없이 작동합니다.</string>
+    <string name="plugin_queue">대기열 확장</string>
+    <string name="plugin_queue_desc">게시물 묶음, 상세 정보, 다중 선택·삭제와 내장 열람을 제공합니다. 끄면 원본 대기열 화면을 사용합니다.</string>
+    <string name="plugin_interaction">입력·메뉴 편의 기능</string>
+    <string name="plugin_interaction_desc">URL 입력과 설정을 한 화면에 표시하고 메뉴 즐겨찾기·빠른 쿠키 프로필을 사용합니다. 끄면 원본의 입력 후 설정 화면을 사용합니다.</string>
+    <string name="plugin_social_disabled">소셜 다운로드 플러그인을 켠 뒤 다시 시도해 주세요.</string>
+    <string name="plugin_list_social_hint">인스타그램 계정·이미지 목록을 받으려면 플러그인 관리에서 소셜 다운로드도 켜 주세요.</string>
+    <string name="plugin_cookie_profile">빠른 쿠키 프로필</string>
+    <string name="plugin_cookie_profile_hint">기존 네트워크 설정에서 등록한 프로필을 선택합니다. 선택만으로 쿠키 전송이 켜지지는 않습니다.</string>
+    <string name="plugin_compatibility">데이터·저장소 호환</string>
+    <string name="plugin_compatibility_desc">항상 활성화 (필수). 기존 작업·이력과 저장소 안전성을 유지하며 끌 수 없습니다.</string>
+    <string name="plugin_list_disabled">목록 다운로드 플러그인을 켠 뒤 다시 시도하세요.</string>
+    <string name="plugin_library">미디어 폴더·파일 관리</string>
+    <string name="loc_disabled_tier_hint">꺼진 해상도 구간은 기본 이미지·영상 폴더에 저장합니다. 낮은 구간으로 대체 분류하지 않습니다.</string>
+</resources>

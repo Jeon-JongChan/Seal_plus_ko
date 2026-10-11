@@ -1,0 +1,23 @@
+<resources>
+    <string name="plugin_manage">Administrar complementos</string>
+    <string name="plugin_behavior">Los complementos opcionales empiezan desactivados. El complemento de compatibilidad permanece activo. Los cambios afectan a pantallas y descargas nuevas; se conservan las tareas y los archivos existentes.</string>
+    <string name="plugin_open">Abrir ajustes y función</string>
+    <string name="plugin_social">Publicaciones sociales e imágenes</string>
+    <string name="plugin_social_desc">Analiza imágenes, vídeos y publicaciones de varias páginas de Instagram y TikTok. Al desactivarlo se utiliza el motor de vídeo original.</string>
+    <string name="plugin_list_desc">Pantalla propia para cuentas, medios y listas normales. Funciona sin activar el complemento social.</string>
+    <string name="plugin_media_desc">Reutilización de archivos, conversión AV1 y contenedor. La clasificación se configura en Carpetas multimedia y archivos.</string>
+    <string name="plugin_library_desc">Carpetas de imágenes y vídeos, niveles por resolución, filtros del historial y gestión de archivos. Funciona sin codificación de vídeo.</string>
+    <string name="plugin_queue">Cola ampliada</string>
+    <string name="plugin_queue_desc">Publicaciones agrupadas, información detallada, selección múltiple, eliminación y visor interno. Al desactivarlo se utiliza la cola original.</string>
+    <string name="plugin_interaction">Opciones de entrada y menú</string>
+    <string name="plugin_interaction_desc">Muestra enlaces y ajustes juntos, con favoritos del menú y un perfil rápido de cookies. Al desactivarlo se usa la entrada original de dos pasos.</string>
+    <string name="plugin_social_disabled">Activa el complemento de descargas sociales y vuelve a intentarlo.</string>
+    <string name="plugin_list_social_hint">Activa las descargas sociales para descargar cuentas de Instagram o listas de imágenes.</string>
+    <string name="plugin_cookie_profile">Perfil rápido de cookies</string>
+    <string name="plugin_cookie_profile_hint">Elige un perfil registrado en los ajustes de red. Seleccionarlo no activa el envío de cookies.</string>
+    <string name="plugin_compatibility">Compatibilidad de datos y almacenamiento</string>
+    <string name="plugin_compatibility_desc">Siempre activo (obligatorio). Conserva tareas, historial y seguridad del almacenamiento. No se puede desactivar.</string>
+    <string name="plugin_list_disabled">Activa el complemento de listas y vuelve a intentarlo.</string>
+    <string name="plugin_library">Carpetas multimedia y archivos</string>
+    <string name="loc_disabled_tier_hint">Los niveles desactivados se guardan en la carpeta base de imágenes o vídeos, sin sustituirlos por niveles inferiores.</string>
+</resources>

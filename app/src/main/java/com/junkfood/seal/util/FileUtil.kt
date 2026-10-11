@@ -15,6 +15,7 @@ import androidx.documentfile.provider.DocumentFile
 import com.junkfood.seal.App.Companion.context
 import com.junkfood.seal.R
 import java.io.File
+import okhttp3.internal.closeQuietly
 
 const val AUDIO_REGEX = "(mp3|aac|opus|m4a)$"
 const val THUMBNAIL_REGEX = "\\.(jpg|png)$"
@@ -126,59 +127,41 @@ object FileUtil {
             }
 
     @CheckResult
-    /** 폴더 구조를 유지하며 SAF로 복사하고 모든 파일 검증이 성공한 경우에만 임시 원본을 정리합니다. */
     fun moveFilesToSdcard(tempPath: File, sdcardUri: String): Result<List<String>> {
         val uriList = mutableListOf<String>()
+        val destDir =
+            Uri.parse(sdcardUri).run {
+                DocumentsContract.buildDocumentUriUsingTree(
+                    this,
+                    DocumentsContract.getTreeDocumentId(this),
+                )
+            }
         val res =
             tempPath.runCatching {
                 walkTopDown().forEach {
-                    if (it.isDirectory || it.name.endsWith(".part")) return@forEach
-                    var parent =
-                        androidx.documentfile.provider.DocumentFile.fromTreeUri(
-                            context,
-                            Uri.parse(sdcardUri),
-                        ) ?: error("저장 폴더에 접근하지 못했습니다.")
-                    val relativeParent = it.parentFile!!.relativeTo(tempPath).path
-                    if (relativeParent.isNotEmpty())
-                        relativeParent.split(File.separatorChar).forEach { name ->
-                            parent =
-                                parent.findFile(name)?.also { folder -> check(folder.isDirectory) }
-                                    ?: parent.createDirectory(name)
-                                    ?: error("하위 저장 폴더를 만들지 못했습니다.")
-                        }
-                    check(parent.findFile(it.name) == null) { "저장 폴더에 같은 이름의 파일이 있습니다: ${it.name}" }
+                    if (it.isDirectory) return@forEach
                     val mimeType =
                         MimeTypeMap.getSingleton().getMimeTypeFromExtension(it.extension) ?: "*/*"
 
                     val destUri =
                         DocumentsContract.createDocument(
                             context.contentResolver,
-                            parent.uri,
+                            destDir,
                             mimeType,
-                            ".seal-${it.name}.part",
-                        ) ?: error("저장 파일을 만들지 못했습니다.")
+                            it.name,
+                        ) ?: return@forEach
 
-                    val expectedLength = it.length()
-                    it.inputStream().use { input ->
-                        val output =
-                            context.contentResolver.openOutputStream(destUri)
-                                ?: error("저장 파일을 열지 못했습니다.")
-                        output.use { stream ->
-                            check(input.copyTo(stream) == expectedLength) { "저장 파일 크기 검증에 실패했습니다." }
-                        }
-                    }
-                    val stored =
-                        androidx.documentfile.provider.DocumentFile.fromSingleUri(context, destUri)
-                    check(stored?.length() == expectedLength) { "저장된 파일 크기가 다릅니다. 임시 원본을 보존했습니다." }
-                    // 실패한 복사본은 완성 파일명으로 노출하지 않아 중복 검사에서 제외됩니다.
-                    check(parent.findFile(it.name) == null && stored!!.renameTo(it.name)) {
-                        "검증한 저장 파일의 이름을 확정하지 못했습니다."
-                    }
-                    uriList.add(stored.uri.toString())
+                    val inputStream = it.inputStream()
+                    val outputStream =
+                        context.contentResolver.openOutputStream(destUri) ?: return@forEach
+                    inputStream.copyTo(outputStream)
+                    inputStream.closeQuietly()
+                    outputStream.closeQuietly()
+                    uriList.add(destUri.toString())
                 }
                 uriList
             }
-        if (res.isSuccess) tempPath.deleteRecursively()
+        tempPath.deleteRecursively()
         return res
     }
 

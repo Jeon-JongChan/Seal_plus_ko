@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="loc_list_downloads">List downloads</string>
+    <string name="loc_playlist_tab">Playlist URLs</string>
+    <string name="loc_playlist_description">Load a playlist URL from YouTube or another supported site, then select all or some items to download.</string>
+    <string name="loc_playlist_url">Playlist URL</string>
+    <string name="loc_load_playlist">Load playlist</string>
+    <string name="loc_invalid_playlist_url">Enter a valid HTTP or HTTPS playlist URL.</string>
+</resources>

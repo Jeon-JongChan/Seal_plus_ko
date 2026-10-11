@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="loc_unified_download">미디어 다운로드</string>
+    <string name="loc_media_url">게시물 또는 영상 링크</string>
+    <string name="loc_auto_media_hint">이미지와 영상을 자동으로 구분합니다. 두 종류가 섞인 게시물에서만 파일을 선택합니다.</string>
+    <string name="loc_download_all_media">항상 모두 다운로드</string>
+    <string name="loc_download_all_media_hint">혼합 게시물의 선택창을 생략하고 모든 이미지와 영상을 다운로드합니다.</string>
+    <string name="loc_media_page">%1$d페이지 · %2$s</string>
+    <string name="loc_media_fetch_failed">게시물의 미디어 정보를 가져오지 못했습니다.</string>
+    <string name="loc_inspecting_media">미디어 정보를 확인하는 중…</string>
+    <string name="loc_video_container">영상 파일 확장자</string>
+    <string name="loc_file_delete_failed">파일을 삭제하지 못했습니다. 이력을 유지합니다.</string>
+    <string name="loc_image_plugin_description">인스타그램 게시물 또는 계정의 이미지를 다운로드합니다.</string>
+    <string name="loc_image_url">인스타그램 게시물 또는 계정 URL</string>
+    <string name="loc_fetch_images">이미지 다운로드</string>
+</resources>

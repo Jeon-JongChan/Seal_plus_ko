@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="loc_edit_classification_json">Editar criterios de calidad (JSON)</string>
+    <string name="loc_codec_reference">Referencia: H.265, VP9 y AV1 pueden ocupar menos que H.264. El ahorro depende del vídeo y no se aplica como multiplicador.</string>
+    <string name="loc_classification_json_hint">images: short/long en píxeles. videos: height en píxeles, mbps30/mbps60 en MB/s para 30/60 fps. Los criterios se aplican directamente.</string>
+    <string name="loc_saved_path">Ubicación: %1$s</string>
+    <string name="loc_sound_off">Silencio</string>
+    <string name="loc_sound_on">Sonido</string>
+    <string name="loc_delete_page">Eliminar esta página</string>
+    <string name="loc_delete_page_hint">¿Eliminar este archivo y su historial? Se conservan las otras páginas.</string>
+    <string name="loc_choose_storage_folder">Elegir carpeta y conceder acceso</string>
+    <string name="loc_no_folder_videos">No se encontraron vídeos en la carpeta elegida.</string>
+    <string name="loc_all_folders">Todas las carpetas</string>
+    <string name="loc_list_auto_detect">Detección automática de cuenta o lista</string>
+    <string name="loc_list_input">Cuenta, perfil o URL de lista</string>
+    <string name="loc_scan">Explorar</string>
+    <string name="loc_reels">Reels</string>
+    <string name="loc_posts">Publicaciones</string>
+    <string name="loc_public_profile_unavailable">No se pudo obtener el perfil público. Inténtalo de nuevo más tarde.</string>
+    <string name="loc_public_profile_partial">Se cargaron %1$d publicaciones de la página pública. No es el historial completo de la cuenta.</string>
+</resources>

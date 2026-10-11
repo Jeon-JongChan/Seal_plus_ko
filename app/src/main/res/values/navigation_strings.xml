@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 기능별 번역: 같은 리소스 이름을 영어·한국어·스페인어에서 함께 관리합니다. -->
+<resources>
+    <string name="loc_plugins">Plugins</string>
+    <string name="loc_menu_favorites">Menu favorites</string>
+    <string name="loc_edit_favorites">Edit favorites</string>
+    <string name="loc_favorites_hint">Add frequently used settings to your favorites.</string>
+</resources>

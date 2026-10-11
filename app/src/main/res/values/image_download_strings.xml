@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="loc_unified_download">Media download</string>
+    <string name="loc_media_url">Post or video URL</string>
+    <string name="loc_auto_media_hint">Detect images and videos automatically. Choose files only when a post contains both.</string>
+    <string name="loc_download_all_media">Always download all media</string>
+    <string name="loc_download_all_media_hint">Skip file selection for mixed posts and download all images and videos.</string>
+    <string name="loc_media_page">Page %1$d · %2$s</string>
+    <string name="loc_media_fetch_failed">Could not retrieve the post’s media information.</string>
+    <string name="loc_inspecting_media">Checking media…</string>
+    <string name="loc_video_container">Video file extension</string>
+    <string name="loc_file_delete_failed">Could not delete the file. The history was kept.</string>
+    <string name="loc_image_plugin_description">Download images from an Instagram post or account.</string>
+    <string name="loc_image_url">Instagram post or account URL</string>
+    <string name="loc_fetch_images">Download images</string>
+</resources>

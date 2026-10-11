@@ -1,0 +1,226 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 7,
+    "identityHash": "1017f5d9aa31a0b6363a9d3df2d5e054",
+    "entities": [
+      {
+        "tableName": "DownloadedVideoInfo",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `videoTitle` TEXT NOT NULL, `videoAuthor` TEXT NOT NULL, `videoUrl` TEXT NOT NULL, `thumbnailUrl` TEXT NOT NULL, `videoPath` TEXT NOT NULL, `extractor` TEXT NOT NULL DEFAULT 'Unknown', `postPageIndex` INTEGER NOT NULL DEFAULT 0, `postPageCount` INTEGER NOT NULL DEFAULT 1, `quality_width` INTEGER, `quality_height` INTEGER, `quality_frameRate` REAL, `quality_duration` REAL, `quality_bytes` INTEGER, `quality_codec` TEXT, `source_quality_width` INTEGER, `source_quality_height` INTEGER, `source_quality_frameRate` REAL, `source_quality_duration` REAL, `source_quality_bytes` INTEGER, `source_quality_codec` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "videoTitle",
+            "columnName": "videoTitle",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "videoAuthor",
+            "columnName": "videoAuthor",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "videoUrl",
+            "columnName": "videoUrl",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "thumbnailUrl",
+            "columnName": "thumbnailUrl",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "videoPath",
+            "columnName": "videoPath",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "extractor",
+            "columnName": "extractor",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'Unknown'"
+          },
+          {
+            "fieldPath": "postPageIndex",
+            "columnName": "postPageIndex",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "postPageCount",
+            "columnName": "postPageCount",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "quality.width",
+            "columnName": "quality_width",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "quality.height",
+            "columnName": "quality_height",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "quality.frameRate",
+            "columnName": "quality_frameRate",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "quality.duration",
+            "columnName": "quality_duration",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "quality.bytes",
+            "columnName": "quality_bytes",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "quality.codec",
+            "columnName": "quality_codec",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceQuality.width",
+            "columnName": "source_quality_width",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "sourceQuality.height",
+            "columnName": "source_quality_height",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "sourceQuality.frameRate",
+            "columnName": "source_quality_frameRate",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "sourceQuality.duration",
+            "columnName": "source_quality_duration",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "sourceQuality.bytes",
+            "columnName": "source_quality_bytes",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "sourceQuality.codec",
+            "columnName": "source_quality_codec",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "CommandTemplate",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `name` TEXT NOT NULL, `template` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "template",
+            "columnName": "template",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "CookieProfile",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `url` TEXT NOT NULL, `content` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "url",
+            "columnName": "url",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "content",
+            "columnName": "content",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      },
+      {
+        "tableName": "OptionShortcut",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `option` TEXT NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "option",
+            "columnName": "option",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '1017f5d9aa31a0b6363a9d3df2d5e054')"
+    ]
+  }
+}

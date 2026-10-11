@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="loc_unified_download">Descargar contenido</string>
+    <string name="loc_media_url">Enlace de publicación o vídeo</string>
+    <string name="loc_auto_media_hint">Detecta imágenes y vídeos automáticamente. Elige archivos solo si la publicación contiene ambos.</string>
+    <string name="loc_download_all_media">Descargar siempre todo</string>
+    <string name="loc_download_all_media_hint">Omite la selección en publicaciones mixtas y descarga todas las imágenes y vídeos.</string>
+    <string name="loc_media_page">Página %1$d · %2$s</string>
+    <string name="loc_media_fetch_failed">No se pudo obtener la información de la publicación.</string>
+    <string name="loc_inspecting_media">Comprobando el contenido…</string>
+    <string name="loc_video_container">Extensión del archivo de vídeo</string>
+    <string name="loc_file_delete_failed">No se pudo eliminar el archivo. Se conserva el historial.</string>
+    <string name="loc_image_plugin_description">Descarga imágenes de una publicación o cuenta de Instagram.</string>
+    <string name="loc_image_url">URL de una publicación o cuenta de Instagram</string>
+    <string name="loc_fetch_images">Descargar imágenes</string>
+</resources>

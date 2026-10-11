@@ -1,6 +1,7 @@
 package com.junkfood.seal.util
 
 import android.util.Base64
+import android.util.Log
 import androidx.annotation.CheckResult
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -43,10 +44,7 @@ object SponsorUtil {
                 sponsorData
                     ?: jsonFormat
                         .decodeFromString<SponsorData>(
-                            newCall(request).execute().use { response ->
-                                check(response.isSuccessful) { "후원자 조회 실패 (${response.code})" }
-                                (response.body ?: error("후원자 응답이 비어 있습니다.")).string()
-                            }
+                            newCall(request).execute().body.string().also { Log.d(TAG, it) }
                         )
                         .apply { sponsorData = this }
             }

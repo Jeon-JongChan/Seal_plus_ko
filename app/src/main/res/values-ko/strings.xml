@@ -433,4 +433,31 @@
     <string name="resume">재개</string>
     <string name="delete">삭제</string>
     <string name="media_info">미디어 정보</string>
+
+
+    <string name="loc_cookie_check">쿠키 확인</string>
+    <string name="loc_cookie_login_hint">설정 → 네트워크 → 쿠키에서 먼저 로그인하세요.</string>
+
+    <string name="loc_retry_action">다시 시도</string>
+
+    <string name="loc_sponsors_fetch_failed">후원자 조회 실패 (%1$d)</string>
+    <string name="loc_sponsors_response_empty">후원자 응답이 비어 있습니다.</string>
+    <string name="loc_release_fetch_failed">릴리스 조회 실패 (%1$d)</string>
+    <string name="loc_release_response_empty">릴리스 응답이 비어 있습니다.</string>
+    <string name="loc_update_response_empty">업데이트 파일 응답이 비어 있습니다.</string>
+
+    <string name="trouble_shooting">문제 해결</string>
+    <string name="issue_tracker">문제 추적기</string>
+    <string name="trouble_shooting_desc">일반적인 오류를 해결하고 알려진 문제를 확인합니다</string>
+    <string name="issue_tracker_hint">오류가 발생했나요? 새 문제를 신고하기 전에 문제 추적기를 검색하세요. 많은 일반적인 문제의 해결 방법이 이미 기록되어 있습니다.</string>
+    <string name="saved_urls">저장한 링크</string>
+    <string name="add_new_url">새 링크 추가</string>
+    <string name="add_to">%1$s에 추가</string>
+    <string name="loc_av1_speed">인코딩 속도: %1$d</string>
+    <string name="loc_av1_fast">빠름</string>
+    <string name="loc_av1_balanced">균형</string>
+    <string name="loc_av1_compression">압축 우선</string>
+    <string name="loc_av1_speed_details">상세설정</string>
+    <string name="loc_av1_speed_input">속도 숫자 (0–12)</string>
+    <string name="loc_av1_speed_hint">숫자가 높을수록 빠르고, 낮을수록 압축에 시간을 더 씁니다. 빠름: 10, 균형: 8, 압축 우선: 6. 화질(CRF)은 유지됩니다.</string>
 </resources>

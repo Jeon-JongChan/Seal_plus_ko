@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 기능별 번역: 같은 리소스 이름을 영어·한국어·스페인어에서 함께 관리합니다. -->
+<resources>
+    <string name="loc_instagram_accounts">Instagram accounts</string>
+    <string name="loc_media_all">Videos and images</string>
+    <string name="loc_media_videos">Videos only</string>
+    <string name="loc_media_images">Images only</string>
+    <string name="loc_image_height_limit">Image resolution · maximum height</string>
+    <string name="loc_image_resolution">Image resolution</string>
+    <string name="loc_image_resolution_hint">Original uses the highest available resolution. 1080 and 720 set the maximum height.</string>
+    <string name="loc_instagram_account_hint">Load posts and reels using an account name or profile URL.</string>
+    <string name="loc_instagram_account_input">Account name or profile URL</string>
+    <string name="loc_instagram_register_fetch">Save and load account</string>
+    <string name="loc_instagram_fetch_posts">Load posts</string>
+    <string name="loc_instagram_accounts_count">Instagram accounts (%1$d)</string>
+    <string name="loc_select_all_toggle">Select or clear all</string>
+    <string name="loc_selected_count">Selected: %1$d</string>
+    <string name="loc_instagram_media_count">Instagram · videos %1$d / images %2$d</string>
+    <string name="loc_image_preview">Image preview</string>
+    <string name="loc_video_preview">Video preview</string>
+    <string name="loc_image_author">Image · %1$s</string>
+    <string name="loc_video_author">Video · %1$s</string>
+    <string name="loc_download_selected">Download selected</string>
+    <string name="loc_image_download">Download images</string>
+    <string name="loc_instagram_proxy_hint">Instagram requests support HTTP and SOCKS proxies without authentication. Check your proxy settings.</string>
+    <string name="loc_instagram_cookie_missing">No usable Instagram login cookies. Sign in again under Settings → Network → Cookies.</string>
+    <string name="loc_instagram_access_denied">Could not verify access. Enable cookies if needed and try again.</string>
+    <string name="loc_instagram_fetch_failed">Instagram request failed (%1$d)</string>
+    <string name="loc_instagram_auth_page">Instagram returned a login or verification page. Complete sign-in and verification in your browser.</string>
+    <string name="loc_instagram_login_required">Instagram login is required. Refresh your login cookies under Settings → Network → Cookies.</string>
+    <string name="loc_instagram_challenge_required">Instagram requires additional verification. Complete it in your browser.</string>
+    <string name="loc_instagram_temporarily_limited">Instagram requests are temporarily limited. Wait before trying again.</string>
+    <string name="loc_instagram_request_denied">Instagram rejected the request. Check your login and access permissions.</string>
+    <string name="loc_instagram_invalid_url">Enter a valid Instagram URL.</string>
+    <string name="loc_instagram_invalid_post">The post URL is invalid.</string>
+    <string name="loc_instagram_invalid_account">Check the account name.</string>
+    <string name="loc_instagram_account_missing">Could not find the account.</string>
+    <string name="loc_instagram_posts_paging_error">Instagram post pages repeated or were missing. Try again.</string>
+    <string name="loc_instagram_reels_paging_error">Reel pages repeated or were missing.</string>
+    <string name="loc_instagram_no_media">No downloadable videos or images found.</string>
+    <string name="loc_instagram_selected_missing">Could not find the selected file in the post.</string>
+    <string name="loc_image_folder_create_failed">Could not create the image folder.</string>
+    <string name="loc_image_download_failed">Image download failed (%1$d)</string>
+    <string name="loc_image_response_empty">The image response is empty.</string>
+    <string name="loc_image_response_invalid">The response is not an image.</string>
+    <string name="loc_image_already_exists">The same image file already exists.</string>
+    <string name="loc_image_downloading">Downloading image</string>
+    <string name="loc_image_file_empty">The image file is empty.</string>
+    <string name="loc_image_file_invalid">The image file is invalid.</string>
+    <string name="loc_image_save_failed">Could not save the image.</string>
+    <string name="loc_instagram_rate_limited">Instagram request limit reached. Wait before trying again. Do not repeatedly toggle cookies and resend requests.</string>
+    <string name="loc_instagram_retry_after">Instagram request limit reached. Try again after %1$d seconds. Do not repeatedly toggle cookies and resend requests.</string>
+</resources>

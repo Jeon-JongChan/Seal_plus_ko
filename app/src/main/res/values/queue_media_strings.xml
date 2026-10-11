@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 대기열 미디어 관리와 빠른 설정 문구입니다. -->
+<resources>
+    <string name="loc_deleted">Deleted</string>
+    <string name="loc_clean_deleted">Clear deleted items and history</string>
+    <string name="loc_image_count">%1$d images</string>
+    <string name="loc_open_image">Open image %1$d</string>
+    <string name="loc_quick_cookie_profile">Quick apply: %1$s</string>
+    <string name="loc_media_mixed">Video + images</string>
+    <string name="loc_choose_folder">Choose a folder</string>
+    <string name="loc_media_link">Media link</string>
+    <string name="loc_queue_select">Select</string>
+    <string name="loc_queue_delete_selected">Remove selected</string>
+    <string name="loc_queue_delete_all">Clear queue</string>
+    <string name="loc_queue_delete_hint">Remove these items from the queue? Active downloads will be canceled. To also delete files and history, enable the option below.</string>
+</resources>
+ 

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 대기열 미디어 관리와 빠른 설정 문구입니다. -->
+<resources>
+    <string name="loc_deleted">Eliminado</string>
+    <string name="loc_clean_deleted">Limpiar elementos eliminados e historial</string>
+    <string name="loc_image_count">%1$d imágenes</string>
+    <string name="loc_open_image">Abrir imagen %1$d</string>
+    <string name="loc_quick_cookie_profile">Aplicación rápida: %1$s</string>
+    <string name="loc_media_mixed">Vídeo + imágenes</string>
+    <string name="loc_choose_folder">Elegir una carpeta</string>
+    <string name="loc_media_link">Enlace multimedia</string>
+    <string name="loc_queue_select">Seleccionar</string>
+    <string name="loc_queue_delete_selected">Eliminar seleccionados</string>
+    <string name="loc_queue_delete_all">Vaciar cola</string>
+    <string name="loc_queue_delete_hint">¿Eliminar estos elementos de la cola? Las descargas activas se cancelarán. Activa la opción inferior para eliminar también archivos e historial.</string>
+</resources>

@@ -38,11 +38,11 @@ import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLException
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import com.yausername.youtubedl_android.YoutubeDLResponse
-import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import java.util.Locale
 
 object DownloadUtil {
 
@@ -239,12 +239,6 @@ object DownloadUtil {
         val forceIpv4: Boolean,
         val mergeAudioStream: Boolean,
         val mergeToMkv: Boolean,
-        val mediaSelection: Int = 0,
-        val imageResolution: Int = 0,
-        val classifyMedia: Boolean = false,
-        val qualityThresholdMbps: Int = 4,
-        val transcodeAv1: Boolean = false,
-        val av1Crf: Int = 32,
     ) {
         companion object {
             val EMPTY =
@@ -306,12 +300,6 @@ object DownloadUtil {
                 val downloadSubtitle = SUBTITLE.getBoolean()
                 val embedSubtitle = EMBED_SUBTITLE.getBoolean()
                 return DownloadPreferences(
-                    mediaSelection = MEDIA_SELECTION.getInt().coerceIn(0, 2),
-                    imageResolution = IMAGE_RESOLUTION.getInt(),
-                    classifyMedia = CLASSIFY_MEDIA.getBoolean(),
-                    qualityThresholdMbps = QUALITY_THRESHOLD.getInt(4).coerceIn(1, 100),
-                    transcodeAv1 = TRANSCODE_AV1.getBoolean(),
-                    av1Crf = AV1_CRF.getInt(32).coerceIn(20, 50),
                     extractAudio = EXTRACT_AUDIO.getBoolean(),
                     createThumbnail = THUMBNAIL.getBoolean(),
                     downloadPlaylist = PLAYLIST.getBoolean(),
@@ -543,12 +531,11 @@ object DownloadUtil {
                     7 -> "+res"
                     else -> ""
                 }
-            val sorter =
-                if (videoFormat == FORMAT_COMPATIBILITY) {
-                    connectWithDelimiter(format, res, delimiter = ",")
-                } else {
-                    connectWithDelimiter(res, format, delimiter = ",")
-                }
+            val sorter = if (videoFormat == FORMAT_COMPATIBILITY) {
+                connectWithDelimiter(format, res, delimiter = ",")
+            } else {
+                connectWithDelimiter(res, format, delimiter = ",")
+            }
             return@run sorter
         }
 
@@ -643,9 +630,7 @@ object DownloadUtil {
         filePaths: List<String>,
     ): List<String> =
         filePaths.onEach {
-            kotlinx.coroutines.runBlocking {
-                DatabaseUtil.insertInfoImmediately(videoInfo.toDownloadedVideoInfo(videoPath = it))
-            }
+            DatabaseUtil.insertInfo(videoInfo.toDownloadedVideoInfo(videoPath = it))
         }
 
     private fun VideoInfo.toDownloadedVideoInfo(
@@ -666,75 +651,13 @@ object DownloadUtil {
 
     private fun insertSplitChapterIntoHistory(videoInfo: VideoInfo, filePaths: List<String>) =
         filePaths.onEach {
-            kotlinx.coroutines.runBlocking {
-                DatabaseUtil.insertInfoImmediately(
-                    videoInfo
-                        .toDownloadedVideoInfo(videoPath = it)
-                        .copy(videoTitle = it.getFileName())
-                )
-            }
+            DatabaseUtil.insertInfo(
+                videoInfo.toDownloadedVideoInfo(videoPath = it).copy(videoTitle = it.getFileName())
+            )
         }
 
     @CheckResult
-    /** 같은 링크의 기존 파일을 재사용하고 동시 중복 다운로드를 방지합니다. */
     fun downloadVideo(
-        videoInfo: VideoInfo? = null,
-        playlistUrl: String = "",
-        playlistItem: Int = 0,
-        taskId: String,
-        downloadPreferences: DownloadPreferences,
-        progressCallback: ((Float, Long, String) -> Unit)?,
-    ): Result<List<String>> {
-        if (videoInfo == null) return Result.failure(IllegalArgumentException("영상 정보를 확인하지 못했습니다."))
-        return MediaLibrary.withDownloadLock(
-            MediaRules.identity(videoInfo.webpageUrl ?: videoInfo.originalUrl.orEmpty())
-        ) {
-            runCatching { MediaLibrary.findExisting(videoInfo, downloadPreferences) }
-                .fold(
-                    onSuccess = { existing ->
-                        if (existing.isNotEmpty()) {
-                            runCatching {
-                                // 재시도 시 이미 받은 원본에는 후처리만 적용하고 다운로드를 반복하지 않습니다.
-                                val paths =
-                                    existing.map { path ->
-                                        if (path.startsWith("content://")) path
-                                        else
-                                            MediaLibrary.finish(
-                                                    listOf(path),
-                                                    downloadPreferences,
-                                                    taskId,
-                                                    progressCallback,
-                                                )
-                                                .single()
-                                    }
-                                kotlinx.coroutines.runBlocking {
-                                    existing
-                                        .zip(paths)
-                                        .filter { (old, new) -> old != new }
-                                        .forEach { (old, new) ->
-                                            DatabaseUtil.updateMediaPath(old, new)
-                                        }
-                                }
-                                progressCallback?.invoke(100f, 0, "이미 저장된 파일을 사용합니다.")
-                                if (downloadPreferences.privateMode) emptyList() else paths
-                            }
-                        } else
-                            downloadVideoInternal(
-                                videoInfo,
-                                playlistUrl,
-                                playlistItem,
-                                taskId,
-                                downloadPreferences,
-                                progressCallback,
-                            )
-                    },
-                    onFailure = { Result.failure(it) },
-                )
-        }
-    }
-
-    /** 기존 영상 다운로드 요청을 실행하고 실제 출력 파일에 후처리를 적용합니다. */
-    private fun downloadVideoInternal(
         videoInfo: VideoInfo? = null,
         playlistUrl: String = "",
         playlistItem: Int = 0,
@@ -755,16 +678,11 @@ object DownloadUtil {
                         )
                 }
             val request = YoutubeDLRequest(url)
-            val outputFiles =
-                context.getConfigFile("files-${taskId.hashCode()}").apply { writeText("") }
             val pathBuilder = StringBuilder()
             val outputBuilder = StringBuilder()
 
             request
                 .apply {
-                    addCommands(
-                        listOf("--print-to-file", "after_move:filepath", outputFiles.absolutePath)
-                    )
                     addOption("--no-mtime")
                     //                addOption("-v")
                     if (cookies) {
@@ -894,9 +812,6 @@ object DownloadUtil {
                             videoInfo = videoInfo,
                             downloadPath = pathBuilder.toString(),
                             sdcardUri = sdcardUri,
-                            taskId = taskId,
-                            outputPaths = outputFiles.readLines(),
-                            progress = progressCallback,
                         )
                     } else Result.failure(th)
                 }
@@ -905,30 +820,17 @@ object DownloadUtil {
                 videoInfo = videoInfo,
                 downloadPath = pathBuilder.toString(),
                 sdcardUri = sdcardUri,
-                taskId = taskId,
-                outputPaths = outputFiles.readLines(),
-                progress = progressCallback,
             )
         }
     }
 
-    /** 완료된 실제 출력 경로에 후처리를 적용하고 저장 위치와 이력을 확정합니다. */
     private fun onFinishDownloading(
         preferences: DownloadPreferences,
         videoInfo: VideoInfo,
         downloadPath: String,
         sdcardUri: String,
-        taskId: String,
-        outputPaths: List<String>,
-        progress: ((Float, Long, String) -> Unit)?,
     ): Result<List<String>> =
         preferences.run {
-            val actualPaths = outputPaths.map { it.trim() }.filter { java.io.File(it).isFile }
-            val processed =
-                runCatching { MediaLibrary.finish(actualPaths, preferences, taskId, progress) }
-                    .getOrElse {
-                        return Result.failure(it)
-                    }
             val fileName =
                 preferences.newTitle.ifEmpty {
                     videoInfo.filename
@@ -952,11 +854,10 @@ object DownloadUtil {
                         }
                     }
             } else {
-                (processed.takeIf { it.isNotEmpty() }
-                        ?: FileUtil.scanFileToMediaLibraryPostDownload(
-                            title = fileName,
-                            downloadDir = downloadPath,
-                        ))
+                FileUtil.scanFileToMediaLibraryPostDownload(
+                        title = fileName,
+                        downloadDir = downloadPath,
+                    )
                     .run {
                         if (privateMode) Result.success(emptyList())
                         else

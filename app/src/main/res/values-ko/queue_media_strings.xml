@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 대기열 미디어 관리와 빠른 설정 문구입니다. -->
+<resources>
+    <string name="loc_deleted">삭제됨</string>
+    <string name="loc_clean_deleted">삭제된 항목과 이력 정리</string>
+    <string name="loc_image_count">이미지 %1$d장</string>
+    <string name="loc_open_image">이미지 %1$d 열기</string>
+    <string name="loc_quick_cookie_profile">빠른 적용: %1$s</string>
+    <string name="loc_media_mixed">영상 + 이미지</string>
+    <string name="loc_choose_folder">폴더 선택</string>
+    <string name="loc_media_link">미디어 링크</string>
+    <string name="loc_queue_select">선택</string>
+    <string name="loc_queue_delete_selected">선택 삭제</string>
+    <string name="loc_queue_delete_all">전체 삭제</string>
+    <string name="loc_queue_delete_hint">선택한 항목을 대기열에서 삭제할까요? 진행 중인 다운로드는 취소됩니다. 파일과 이력도 지우려면 아래 옵션을 선택하세요.</string>
+</resources>

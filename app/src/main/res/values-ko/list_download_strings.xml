@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="loc_list_downloads">목록 다운로드</string>
+    <string name="loc_playlist_tab">재생목록 URL</string>
+    <string name="loc_playlist_description">YouTube 등 지원 사이트의 재생목록 URL로 목록을 불러온 뒤 전체 또는 일부 항목을 선택해 다운로드합니다.</string>
+    <string name="loc_playlist_url">재생목록 URL</string>
+    <string name="loc_load_playlist">재생목록 불러오기</string>
+    <string name="loc_invalid_playlist_url">올바른 HTTP 또는 HTTPS 재생목록 주소를 입력하세요.</string>
+</resources>

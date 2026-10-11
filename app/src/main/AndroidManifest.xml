@@ -29,7 +29,7 @@
     </queries>
 
     <application
-        android:name=".App"
+        android:name="com.junkfood.seal.App"
         android:allowBackup="true"
         android:enableOnBackInvokedCallback="true"
         android:extractNativeLibs="true"
@@ -45,7 +45,7 @@
             android:label="CrashReportActivity"
             android:theme="@style/Theme.Seal" />
         <activity
-            android:name=".QuickDownloadActivity"
+            android:name="com.plugin.ui.PluginQuickDownloadActivity"
             android:excludeFromRecents="true"
             android:exported="true"
             android:label="@string/title_activity_share"
@@ -71,6 +71,11 @@
             </intent-filter>
         </activity>
 
+        <activity-alias
+            android:name=".QuickDownloadActivity"
+            android:targetActivity="com.plugin.ui.PluginQuickDownloadActivity"
+            android:exported="true" />
+
         <service
             android:name=".DownloadService"
             android:enabled="true"
@@ -78,7 +83,7 @@
             android:foregroundServiceType="specialUse" />
 
         <activity
-            android:name=".MainActivity"
+            android:name="com.plugin.ui.PluginMainActivity"
             android:configChanges="orientation"
             android:exported="true"
             android:launchMode="singleTask"

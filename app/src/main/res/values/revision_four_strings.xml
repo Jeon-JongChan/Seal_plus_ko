@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="loc_edit_classification_json">Edit quality rules (JSON)</string>
+    <string name="loc_codec_reference">Reference only: H.265, VP9 and AV1 can use less space than H.264. Actual savings depend on the video; these estimates are not classification multipliers.</string>
+    <string name="loc_classification_json_hint">images: short/long in pixels. videos: height in pixels, mbps30/mbps60 in MB/s for 30/60 fps. These thresholds apply directly.</string>
+    <string name="loc_saved_path">Saved location: %1$s</string>
+    <string name="loc_sound_off">Muted</string>
+    <string name="loc_sound_on">Sound</string>
+    <string name="loc_delete_page">Delete this page</string>
+    <string name="loc_delete_page_hint">Delete this file and its download history? Other pages are kept.</string>
+    <string name="loc_choose_storage_folder">Choose folder and grant access</string>
+    <string name="loc_no_folder_videos">No videos found in the chosen folder.</string>
+    <string name="loc_all_folders">All folders</string>
+    <string name="loc_list_auto_detect">Account or playlist: automatic detection</string>
+    <string name="loc_list_input">Account name, profile or playlist URL</string>
+    <string name="loc_scan">Scan</string>
+    <string name="loc_reels">Reels</string>
+    <string name="loc_posts">Posts</string>
+    <string name="loc_public_profile_unavailable">Could not retrieve the public profile. Please try again later.</string>
+    <string name="loc_public_profile_partial">Loaded %1$d posts from the public page. This is not the complete account history.</string>
+</resources>

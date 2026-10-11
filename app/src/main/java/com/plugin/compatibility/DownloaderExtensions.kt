@@ -1,0 +1,113 @@
+package com.plugin.compatibility
+
+import androidx.compose.runtime.snapshots.Snapshot
+import com.junkfood.seal.App
+import com.junkfood.seal.R
+import com.junkfood.seal.download.DownloaderV2
+import com.plugin.queue.PluginTask as Task
+import com.plugin.queue.PluginTask.DownloadState
+import com.plugin.queue.PluginTask.DownloadState.Completed
+import com.junkfood.seal.util.DatabaseUtil
+import com.junkfood.seal.util.ToastUtil
+import com.plugin.compatibility.MediaRules
+import com.plugin.compatibility.MediaLibrary
+import com.plugin.runtime.PluginDownloaderV2
+import com.plugin.runtime.PluginTaskEngine
+import com.plugin.runtime.pluginQueue
+import com.plugin.queue.PluginTaskDownloader
+import com.plugin.compatibility.QueueMedia
+
+/** 묶음 등록을 실제 엔진 또는 검사 구현에 전달합니다. */
+fun DownloaderV2.enqueueBatch(tasks: Map<Task, Task.State>) {
+    pluginQueue().enqueueBatch(tasks)
+}
+
+/** 전용 대기열의 엔진 또는 미리보기에 묶음 요청을 전달합니다. */
+fun PluginTaskDownloader.enqueueBatch(tasks: Map<Task, Task.State>) {
+    if (this is PluginTaskEngine) enqueueBatch(tasks) else putBatch(tasks)
+}
+
+/** 한 게시물의 모든 페이지를 함께 등록하고 추가 토스트는 게시물당 한 번 표시합니다. */
+internal fun PluginTaskDownloader.putBatch(tasks: Map<Task, Task.State>) {
+        val states = getTaskStateMap()
+        val snapshot = states.toMap()
+        // 갱신된 CDN 주소가 달라도 같은 작업 ID는 교체하고 이미 실행 중인 작업은 유지합니다.
+        val pending = tasks.filterKeys { task -> snapshot.none { (old, state) ->
+            old.id == task.id && state.downloadState is DownloadState.Cancelable
+        } }
+        val ids = pending.keys.map { it.id }.toSet()
+        androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot {
+            states.keys.filter { it.id in ids }.forEach { states.remove(it) }
+            states.putAll(pending)
+        }
+        pending.keys.distinctBy { QueueMedia.postKey(it) }.forEach {
+            ToastUtil.makeToastSuspend(App.context.getString(R.string.task_added))
+        }
+    }
+
+    /** 삭제된 페이지의 완료 작업을 남겨 게시물 전체 수와 삭제 상태를 보존합니다. */
+    fun PluginTaskDownloader.removeCompletedFile(path: String) {
+        getTaskStateMap().toMap().forEach { (task, state) ->
+            val updated = state.withoutCompletedFile(path)
+            if (updated != state && getTaskStateMap()[task] == state) {
+                // 일반 단일 파일은 기존 제거 동작을 유지하고 게시물만 삭제된 페이지를 보관합니다.
+                if ((updated.downloadState as Completed).missing && QueueMedia.postKey(task) == task.id) remove(task)
+                else getTaskStateMap()[task] = updated
+            }
+        }
+    }
+
+/** 마지막 파일도 경로와 작업을 남기고, 복제 파일 중 일부만 삭제되면 기존 파일 수를 보존합니다. */
+fun Task.State.withoutCompletedFile(path: String): Task.State {
+    val completed = downloadState as? Completed ?: return this
+    if (completed.filePaths.none { MediaRules.sameFilePath(it, path) }) return this
+    val remaining = completed.filePaths.filterNot { MediaRules.sameFilePath(it, path) }
+    return copy(
+        downloadState = if (remaining.isEmpty()) completed.copy(missing = true)
+            else Completed(remaining.first(), remaining),
+        viewState = viewState.copy(mediaCount = maxOf(viewState.mediaCount, completed.filePaths.distinct().size)),
+    )
+}
+
+    /** 이동된 완료 파일의 경로를 복구하고 접근 가능한 저장소의 삭제된 파일을 표시합니다. */
+    suspend fun PluginTaskDownloader.refreshCompletedFiles() {
+        val history = PluginDatabaseUtil.getDownloadHistory().associateBy { it.videoPath }
+        getTaskStateMap().toMap().forEach { (task, state) ->
+            val completed = state.downloadState as? Completed ?: return@forEach
+            if (completed.filePaths.isEmpty()) return@forEach
+            val resolved = completed.filePaths.map { old ->
+                val current = MediaLibrary.resolveDownloadedPath(old, task.preferences)
+                if (current != null && current != old) PluginDatabaseUtil.updateMediaPath(old, current)
+                current
+            }
+            val paths = completed.filePaths.mapIndexed { index, old -> resolved[index] ?: old }
+            val updated = Completed(resolved.firstOrNull { it != null } ?: paths.first(), paths, resolved.all { it == null })
+            var viewState = state.viewState
+            val records = completed.filePaths.mapNotNull { history[it] }
+            // 과거 이력에서 URL 작업으로 복구하며 빠뜨린 게시물 전체 수도 기존 데이터로 보완합니다.
+            val pageCount = maxOf(state.videoInfo?.postPageCount ?: 0, records.maxOfOrNull { it.postPageCount } ?: 0)
+            val videoInfo = if (pageCount > (state.videoInfo?.postPageCount ?: 0)) {
+                (state.videoInfo ?: com.junkfood.seal.util.VideoInfo()).apply { this.postPageCount = pageCount }
+            } else state.videoInfo
+            if ((viewState.codec.isBlank() || (!viewState.isImage && viewState.duration <= 0)) && !updated.missing) {
+                val saved = records.firstOrNull { it.sourceQuality != null } ?: history[completed.filePath] ?: history[updated.filePath]
+                val quality = saved?.quality ?: updated.filePath?.let { MediaLibrary.readMediaQuality(it) }
+                if (saved != null && saved.quality == null && quality != null) {
+                    val newPath = updated.filePath ?: saved.videoPath
+                    PluginMediaMetadataStore.save(newPath, quality = quality)
+                    PluginDatabaseUtil.insertInfoImmediately(saved.copy(videoPath = newPath))
+                }
+                if (quality != null) viewState = viewState.copy(width = quality.width, height = quality.height, duration = quality.duration.toInt(),
+                    averageMbps = quality.averageMbps, originalCodec = saved?.sourceQuality?.codec ?: quality.codec,
+                    codec = records.mapNotNull { it.quality?.codec }.distinct().joinToString(" / ").ifBlank { quality.codec },
+                    av1Mode = if (saved?.sourceQuality == null) 0 else if (task.preferences.keepAv1Original) 2 else 1)
+            }
+            if (getTaskStateMap()[task]?.downloadState == completed &&
+                (updated != completed || viewState != state.viewState || videoInfo != state.videoInfo))
+                getTaskStateMap()[task] = state.copy(downloadState = updated, viewState = viewState, videoInfo = videoInfo)
+        }
+    }
+
+/** 기존 파일 삭제 진입점도 표시용 복사본 대신 실제 전용 상태를 갱신합니다. */
+fun DownloaderV2.removeCompletedFile(path: String) = pluginQueue().removeCompletedFile(path)
+

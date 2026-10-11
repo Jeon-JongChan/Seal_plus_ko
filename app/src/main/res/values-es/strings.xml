@@ -446,4 +446,24 @@
     <string name="add_to">Añadir a %1$s</string>
     <string name="add_new_url">Añadir nuevo enlace</string>
     <string name="saved_urls">Enlaces guardados</string>
+
+
+    <string name="loc_cookie_check">Comprobar cookies</string>
+    <string name="loc_cookie_login_hint">Inicia sesión primero en Ajustes → Red → Cookies.</string>
+
+    <string name="loc_retry_action">Reintentar</string>
+
+    <string name="loc_sponsors_fetch_failed">No se pudieron cargar los patrocinadores (%1$d)</string>
+    <string name="loc_sponsors_response_empty">La respuesta de los patrocinadores está vacía.</string>
+    <string name="loc_release_fetch_failed">No se pudieron cargar las versiones (%1$d)</string>
+    <string name="loc_release_response_empty">La respuesta de las versiones está vacía.</string>
+    <string name="loc_update_response_empty">La respuesta del archivo de actualización está vacía.</string>
+
+    <string name="loc_av1_speed">Velocidad de codificación: %1$d</string>
+    <string name="loc_av1_fast">Rápido</string>
+    <string name="loc_av1_balanced">Equilibrado</string>
+    <string name="loc_av1_compression">Priorizar compresión</string>
+    <string name="loc_av1_speed_details">Avanzado</string>
+    <string name="loc_av1_speed_input">Preset (0–12)</string>
+    <string name="loc_av1_speed_hint">Los valores altos codifican más rápido; los bajos dedican más tiempo a la compresión. Rápido: 10, equilibrado: 8, compresión: 6. La calidad (CRF) no cambia.</string>
 </resources>

@@ -1,0 +1,23 @@
+<resources>
+    <string name="plugin_manage">Manage plugins</string>
+    <string name="plugin_behavior">Optional plugins start disabled. The required compatibility plugin stays enabled. Feature switches affect screens and new downloads; existing tasks and files are preserved.</string>
+    <string name="plugin_open">Open settings and feature</string>
+    <string name="plugin_social">Social posts and images</string>
+    <string name="plugin_social_desc">Analyze Instagram and TikTok images, videos and multi-page posts. When disabled, use the original video engine.</string>
+    <string name="plugin_list_desc">A dedicated list screen for accounts, media and regular playlists. Works independently of the social plugin.</string>
+    <string name="plugin_media_desc">Saved-file reuse, AV1 conversion and container settings. Folder classification is configured in Media folders and file manager.</string>
+    <string name="plugin_library_desc">Image/video folders, individual resolution tiers, history filters, grouped posts and file management. Works without video encoding.</string>
+    <string name="plugin_queue">Enhanced queue</string>
+    <string name="plugin_queue_desc">Grouped posts, detailed information, multi-selection, deletion and an internal viewer. When disabled, use the original queue.</string>
+    <string name="plugin_interaction">Input and menu conveniences</string>
+    <string name="plugin_interaction_desc">Show URL input and settings together, with menu favorites and a quick cookie profile. When disabled, use the original two-step input.</string>
+    <string name="plugin_social_disabled">Enable the social download plugin and try again.</string>
+    <string name="plugin_list_social_hint">Enable social downloads in plugin management to download Instagram accounts or image lists.</string>
+    <string name="plugin_cookie_profile">Quick cookie profile</string>
+    <string name="plugin_cookie_profile_hint">Choose a profile registered in network settings. Selecting a profile does not enable cookie transmission.</string>
+    <string name="plugin_compatibility">Data and storage compatibility</string>
+    <string name="plugin_compatibility_desc">Always enabled (required). Preserves existing tasks, history and storage safety. This plugin cannot be disabled.</string>
+    <string name="plugin_list_disabled">Enable the list download plugin and try again.</string>
+    <string name="plugin_library">Media folders and file manager</string>
+    <string name="loc_disabled_tier_hint">Disabled resolution tiers stay in the base image or video folder. Lower tiers are not substituted.</string>
+</resources>

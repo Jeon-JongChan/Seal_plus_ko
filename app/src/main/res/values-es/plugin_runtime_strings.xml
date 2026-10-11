@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="plugin_queue_restore_failed">No se pudo restaurar la cola de descargas. Se ha conservado la copia de seguridad existente.</string>
+</resources>

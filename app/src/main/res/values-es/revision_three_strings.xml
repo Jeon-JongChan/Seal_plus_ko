@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="loc_download_auto">Automático</string>
+    <string name="loc_download_image">Imágenes</string>
+    <string name="loc_image_supported_sites">Las descargas de imágenes admiten publicaciones de Instagram y TikTok. Para enlaces de vídeo, elige Automático o Vídeo.</string>
+    <string name="loc_quality_pick">Elegir calidad</string>
+    <string name="loc_account_separate_menu">Para perfiles, usa Descargas de listas → Cuentas de Instagram.</string>
+    <string name="loc_page_success">%1$d / %2$d páginas guardadas</string>
+    <string name="loc_retry_failed_pages">Reintentar páginas fallidas</string>
+    <string name="loc_delete_files_and_history">Eliminar también archivos e historial relacionado</string>
+    <string name="loc_media_info_overlay">Información</string>
+    <string name="loc_original_codec">Original: %1$s</string>
+    <string name="loc_av1_replaced">AV1 · original reemplazado</string>
+    <string name="loc_av1_copied">AV1 · original conservado</string>
+    <string name="loc_media_directory_settings">Carpetas y niveles de calidad</string>
+    <string name="loc_media_directory_hint">Carpeta de descargas / plataforma / Images o Videos. Los archivos privados usan .Seal.</string>
+    <string name="loc_platform_folders">Separar carpetas por plataforma</string>
+    <string name="loc_image_folder_name">Nombre de carpeta de imágenes</string>
+    <string name="loc_video_folder_name">Nombre de carpeta de vídeos</string>
+    <string name="loc_image_tiers">Niveles de imagen: lado corto x largo, separados por comas</string>
+    <string name="loc_video_tiers">Niveles de vídeo: altura:30fps MB/s:60fps MB/s</string>
+    <string name="loc_codec_ratios">Proporciones H265, VP9, AV1 respecto a H264 (0–1)</string>
+    <string name="loc_tier_rules_hint">Las imágenes comparan ambas dimensiones sin importar la orientación. Los vídeos usan el nivel más alto que cumple la resolución original y los MB/s medios, ajustados por códec y FPS. Desde 48fps se usa la columna de 60fps. Códec o FPS desconocidos y archivos inferiores al mínimo permanecen en la carpeta base. El tamaño incluye audio y es una estimación. Los archivos existentes cambian solo al reclasificarlos.</string>
+    <string name="loc_base_media_folder">Carpeta multimedia base</string>
+    <string name="loc_page_missing">%1$d páginas eliminadas / ausentes</string>
+</resources>
