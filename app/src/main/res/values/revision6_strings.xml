@@ -3,6 +3,9 @@
     <string name="revision6_file_count">%1$d media files</string>
     <string name="revision6_directory_settings_only">Change the path in Settings &gt; Download directory.</string>
     <string name="revision6_storage_permission">Allow storage access</string>
+    <string name="revision6_storage_permission_hint">Allow storage access to scan and organize files saved by other apps.</string>
+    <string name="revision6_storage_permission_granted">Storage access is allowed.</string>
+    <string name="revision6_storage_settings">Storage access settings</string>
     <string name="revision6_folder_access_error">Cannot read this folder. Check storage access permission.\n%1$s</string>
     <string name="revision6_cleanup">Clean empty folders after scanning</string>
     <string name="revision6_cleaned">%1$d empty folders cleaned</string>

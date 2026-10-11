@@ -3,6 +3,9 @@
     <string name="revision6_file_count">미디어 %1$d개</string>
     <string name="revision6_directory_settings_only">경로 변경은 설정 &gt; 다운로드 디렉토리에서 가능합니다.</string>
     <string name="revision6_storage_permission">저장소 접근 허용</string>
+    <string name="revision6_storage_permission_hint">다른 앱에서 저장한 파일을 스캔하고 정리하려면 저장소 접근을 허용해 주세요.</string>
+    <string name="revision6_storage_permission_granted">저장소 접근이 허용되어 있습니다.</string>
+    <string name="revision6_storage_settings">저장소 접근 설정</string>
     <string name="revision6_folder_access_error">폴더를 읽을 수 없습니다. 저장소 접근 권한을 확인하세요.\n%1$s</string>
     <string name="revision6_cleanup">스캔 후 빈 폴더 정리</string>
     <string name="revision6_cleaned">정리한 빈 폴더 %1$d개</string>

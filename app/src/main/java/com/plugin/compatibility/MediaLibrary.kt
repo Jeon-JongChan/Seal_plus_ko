@@ -41,7 +41,8 @@ object MediaLibrary {
 
     /** Seal과 지정한 다운로드 폴더의 모든 하위 폴더에서 영상을 읽습니다. */
     fun listVideos(preferences: DownloadUtil.DownloadPreferences, includeClassified: Boolean = true): List<MediaFile> {
-        val extensions = setOf("mp4", "mkv", "webm", "mov", "m4v", "jpg", "jpeg", "png", "webp", "avif", "gif")
+        val extensions = setOf("mp4", "mkv", "webm", "mov", "m4v", "jpg", "jpeg", "png", "webp", "avif", "gif",
+            "mp3", "m4a", "aac", "opus", "ogg", "flac", "wav", "alac")
         val roots = if (preferences.sdcard) emptyList() else listOf(File(
             if (preferences.privateDirectory) com.junkfood.seal.App.privateDownloadDir else videoDownloadDir))
         val files =
@@ -99,12 +100,12 @@ object MediaLibrary {
         val recorded = history.map { it.videoPath }.toMutableSet()
         for (file in files) {
             val candidates = byName[file.name].orEmpty()
-            val old = candidates.singleOrNull()
-            // 파일과 원본 이력 양쪽에서 유일하며 URL의 ID까지 일치해야 이동된 파일로 인정합니다.
-            if (old != null && old.videoPath != file.path && !exists(old.videoPath) &&
-                fileCounts[file.name] == 1 && MediaRules.canReconnect(file.name, old.videoUrl) &&
+            val oldPath = MediaRules.reconnectionSource(file.name, candidates)
+            // 저장된 파일명이 정확히 일치하고 실제 파일이 유일해야 이전 경로를 교체합니다.
+            if (oldPath != null && oldPath != file.path && !exists(oldPath) &&
+                fileCounts[file.name] == 1 &&
                 history.none { it.videoPath == file.path && it.extractor != "External" }) {
-                PluginDatabaseUtil.reconnectMediaPath(old.videoPath, file.path)
+                PluginDatabaseUtil.reconnectMediaPath(oldPath, file.path)
                 PluginMediaMetadataStore.save(file.path, quality = file.quality)
                 recorded.add(file.path)
             }
@@ -162,7 +163,7 @@ object MediaLibrary {
     suspend fun classify(file: MediaFile, preferences: DownloadUtil.DownloadPreferences): String {
         val classificationQuality = file.sourceQuality ?: file.quality
         val group = if (preferences.classifyMedia) MediaRules.classificationFolder(classificationQuality,
-            preferences.imageTiers, preferences.videoTiers, preferences.codecRatios) else null
+            preferences.imageTiers, preferences.videoTiers, preferences.codecRatios, preferences.classificationTarget) else null
         val newPath =
             if (file.parentUri == null)
                 finish(
@@ -353,8 +354,12 @@ object MediaLibrary {
         val original = history.filter { it.extractor != "External" &&
             (if (it.videoPath.startsWith("content://")) Uri.parse(it.videoPath).lastPathSegment?.substringAfterLast('/')
             else File(it.videoPath).name) == name }
-        // 뷰어·재사용 경로에서도 백업 이력을 제목만으로 다른 파일에 연결하지 않습니다.
-        if (original.isNotEmpty() && (original.size != 1 || !MediaRules.canReconnect(name, original.single().videoUrl))) return null
+        // 등록·뷰어·재사용에서 같은 백업 연결 기준을 사용합니다.
+        if (original.isNotEmpty()) {
+            val source = MediaRules.reconnectionSource(name, original)
+            // 이미 경로를 갱신한 이력은 이전 경로를 참조하는 완료 카드에서도 재사용합니다.
+            if (source == null || (original.any { it.videoPath == path } && source != path)) return null
+        }
         // 새 파일 탐색기를 만들지 않고 기존 중복 파일 검색의 이름·하위 폴더·SAF 처리를 재사용합니다.
         val found = findExisting(VideoInfo(id = "", title = name, webpageUrl = path, ext = name.substringAfterLast('.').lowercase()),
             preferences, setOf(name)).filter {
@@ -465,7 +470,7 @@ object MediaLibrary {
                 file = output
                 val image = actualQuality?.codec?.startsWith("image/") == true
                 val tier = if (preferences.classifyMedia) MediaRules.classificationFolder(originalQuality,
-                    preferences.imageTiers, preferences.videoTiers, preferences.codecRatios) else null
+                    preferences.imageTiers, preferences.videoTiers, preferences.codecRatios, preferences.classificationTarget) else null
                 if ((video || image) && (mediaRoot != null || preferences.classifyMedia || preserveParent)) {
                     val parent = file.parentFile!!
                     var base = if (preserveParent) {

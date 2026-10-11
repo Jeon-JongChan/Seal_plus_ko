@@ -390,6 +390,8 @@ class PluginTaskEngine(private val appContext: Context) : PluginTaskDownloader, 
                         if (siblings.values.any { it.downloadState !is Completed } || !completedNotifications.add(postKey))
                             return@onSuccess
 
+                        ToastUtil.makeToastSuspend(appContext.getString(R.string.download_success_msg))
+
                         val text =
                             appContext.getString(
                                 if (pathList.isEmpty()) R.string.status_completed

@@ -16,6 +16,7 @@ data class PluginPreferencesRecord(
     val downloadAllMedia: Boolean = false,
     val imageResolution: Int = 0,
     val classifyMedia: Boolean = false,
+    val classificationTarget: Int = 0,
     val qualityThresholdMbps: Int = 4,
     val transcodeAv1: Boolean = false,
     val keepAv1Original: Boolean = false,
@@ -71,6 +72,8 @@ val DownloadPreferences.mediaSelection: Int get() = getRecord().mediaSelection
 val DownloadPreferences.downloadAllMedia: Boolean get() = getRecord().downloadAllMedia
 val DownloadPreferences.imageResolution: Int get() = getRecord().imageResolution
 val DownloadPreferences.classifyMedia: Boolean get() = getRecord().classifyMedia
+/** 하위 폴더 분류 대상입니다: 0은 둘 다, 1은 비디오, 2는 이미지입니다. */
+val DownloadPreferences.classificationTarget: Int get() = getRecord().classificationTarget
 val DownloadPreferences.qualityThresholdMbps: Int get() = getRecord().qualityThresholdMbps
 val DownloadPreferences.transcodeAv1: Boolean get() = getRecord().transcodeAv1
 val DownloadPreferences.keepAv1Original: Boolean get() = getRecord().keepAv1Original
@@ -96,6 +99,7 @@ fun DownloadPreferences.copyPluginOptions(
     downloadAllMedia: Boolean = this.downloadAllMedia,
     imageResolution: Int = this.imageResolution,
     classifyMedia: Boolean = this.classifyMedia,
+    classificationTarget: Int = this.classificationTarget,
     qualityThresholdMbps: Int = this.qualityThresholdMbps,
     transcodeAv1: Boolean = this.transcodeAv1,
     keepAv1Original: Boolean = this.keepAv1Original,
@@ -120,6 +124,7 @@ fun DownloadPreferences.copyPluginOptions(
         downloadAllMedia = downloadAllMedia,
         imageResolution = imageResolution,
         classifyMedia = classifyMedia,
+        classificationTarget = classificationTarget,
         qualityThresholdMbps = qualityThresholdMbps,
         transcodeAv1 = transcodeAv1,
         keepAv1Original = keepAv1Original,

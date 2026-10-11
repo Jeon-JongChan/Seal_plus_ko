@@ -22,7 +22,6 @@ val abiFilterList = (properties["ABI_FILTERS"] as String).split(';')
 val abiCodes = mapOf("armeabi-v7a" to 1, "arm64-v8a" to 2, "x86" to 3, "x86_64" to 4)
 
 val baseVersionName = currentVersion.name
-val currentVersionCode = currentVersion.code.toInt()
 
 android {
     compileSdk = 35
@@ -46,8 +45,8 @@ android {
         applicationId = "com.junkfood.seal"
         minSdk = 24
         targetSdk = 35
-        versionCode = 200_000_150
-        check(versionCode == currentVersionCode)
+        // 표시 버전과 독립된 번호를 올려 이전 2.0 개발판 APK보다 낮아지지 않게 합니다.
+        versionCode = 200_000_160
 
         versionName = baseVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

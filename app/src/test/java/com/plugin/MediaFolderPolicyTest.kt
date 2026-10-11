@@ -11,18 +11,50 @@ import org.junit.Test
 
 /** 이미지·영상 구간의 독립 선택과 등록 작업의 설정 보존을 검증합니다. */
 class MediaFolderPolicyTest {
+    /** 분류 대상이 다른 종류와 다운로드 종류 선택을 바꾸지 않고 사본에도 보존되는지 검증합니다. */
+    @Test
+    fun classificationTargetIsIndependentAndPreserved() {
+        val image = VideoQuality(1920, 1080, 0.0, 0.0, 1_000_000, "image/jpeg")
+        val video = VideoQuality(1920, 1080, 30.0, 60.0, 120_000_000, "video/avc")
+        assertNotNull(MediaRules.classificationFolder(image, target = 0))
+        assertNotNull(MediaRules.classificationFolder(video, target = 0))
+        assertNull(MediaRules.classificationFolder(image, target = 1))
+        assertNotNull(MediaRules.classificationFolder(video, target = 1))
+        assertNotNull(MediaRules.classificationFolder(image, target = 2))
+        assertNull(MediaRules.classificationFolder(video, target = 2))
+        val options = DownloadPreferences.EMPTY.copyPluginOptions(classificationTarget = 2, mediaSelection = 1)
+        val copied = options.copyPreservingPluginOptions { copy() }
+        assertEquals(2, copied.classificationTarget)
+        assertEquals(1, copied.mediaSelection)
+    }
     /** 기본 ID 파일만 연결하며 제목 전용·구간·다른 ID와 로컬 URL은 제외합니다. */
     @Test
     fun reconnectRequiresSourceId() {
         assertTrue(MediaRules.canReconnect("제목 [abc_123].mp4", "https://youtube.com/watch?v=abc_123"))
         assertTrue(MediaRules.canReconnect("사진 [123456].jpg", "https://tiktok.com/@user/photo/123456"))
         assertTrue(MediaRules.canReconnect("사진 [64].jpg", "https://instagram.com/p/BA/"))
+        assertTrue(MediaRules.canReconnect("Video by deerdeer0303 [Dc_KWEXyzXP].mp4", "https://www.instagram.com/reel/Dc_KWEXyzXP/?stkn=test"))
         assertTrue(MediaRules.canReconnect("사진 [123456].jpg", "https://instagram.com/p/BA/#seal-media=123456"))
         assertTrue(MediaRules.canReconnect("제목 [abc_123]-av1.mp4", "https://youtube.com/watch?v=abc_123"))
         assertFalse(MediaRules.canReconnect("제목.mp4", "https://youtube.com/watch?v=abc_123"))
         assertFalse(MediaRules.canReconnect("제목 [0-30].mp4", "https://youtube.com/watch?v=abc_123"))
         assertFalse(MediaRules.canReconnect("제목 [123].mp4", "https://example.com/video/1234"))
         assertFalse(MediaRules.canReconnect("제목 [abc_123].mp4", "/local/abc_123"))
+    }
+    /** 원본 백업의 개별 ID·묶음 요청 URL과 폴더별 중복 이력을 검증합니다. */
+    @Test
+    fun legacyBackupSelectsStoredFilenameAndUnambiguousHistory() {
+        val name = "Video by deerdeer0303 [Dc_KWEXyzXP].mp4"
+        val direct = com.junkfood.seal.database.objects.DownloadedVideoInfo(1, "제목", "작성자",
+            "https://www.instagram.com/reel/Dc_KWEXyzXP/?stkn=test", "", "/old/$name", "Instagram")
+        val batch = direct.copy(id = 2, videoPath = "/old/Instagram/$name",
+            videoUrl = "https://www.instagram.com/reel/DdTcD9VSGVY/?stkn=test")
+        assertEquals(batch.videoPath, MediaRules.reconnectionSource(name, listOf(batch)))
+        assertEquals(direct.videoPath, MediaRules.reconnectionSource(name, listOf(batch, direct)))
+        assertEquals(direct.videoPath, MediaRules.reconnectionSource(name, listOf(direct, direct.copy(id = 3))))
+        assertNull(MediaRules.reconnectionSource(name, listOf(batch, batch.copy(videoPath = "/other/$name"))))
+        assertNull(MediaRules.reconnectionSource("제목.mp4", listOf(direct)))
+        assertNull(MediaRules.reconnectionSource(name, listOf(direct.copy(videoUrl = "/local/file"))))
     }
     /** 플랫폼·사용자 폴더와 숫자로 된 루트를 유지하고 화질 폴더 한 단계만 제거합니다. */
     @Test

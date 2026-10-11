@@ -9,15 +9,32 @@ import kotlinx.serialization.json.*
 
 /** 파일 관리와 게시물 선택에 공통으로 사용하는 순수 계산 규칙입니다. */
 object MediaRules {
+    /** 제목과 확장자 사이에 저장된 미디어 ID를 읽습니다. */
+    private fun savedSourceId(name: String): String? =
+        Regex("\\[([A-Za-z0-9_-]+)](?:[-_]av1)?\\.[^.]+$").find(name)?.groupValues?.get(1)
+
+    /** 같은 파일명 이력 중 URL의 ID로 구분하거나 유일한 원래 경로를 선택합니다. */
+    fun reconnectionSource(name: String, candidates: List<com.junkfood.seal.database.objects.DownloadedVideoInfo>): String? {
+        if (savedSourceId(name) == null) return null
+        val valid = candidates.filter { info ->
+            val uri = runCatching { URI(info.videoUrl) }.getOrNull()
+            uri?.scheme in setOf("https", "http") && !uri?.host.isNullOrBlank()
+        }
+        val paths = valid.map { it.videoPath }.distinct()
+        // 원본 Seal의 묶음 다운로드는 개별 파일 ID와 요청 URL이 달라도 정상입니다.
+        if (paths.size == 1) return paths.single()
+        // 여러 폴더에 같은 이름을 저장한 이력은 URL까지 일치하는 유일한 경로만 선택합니다.
+        return valid.filter { canReconnect(name, it.videoUrl) }.map { it.videoPath }.distinct().singleOrNull()
+    }
+
     /** 기본 파일명의 게시물 ID가 원래 URL에 포함된 경우에만 자동 연결을 허용합니다. */
     fun canReconnect(name: String, url: String): Boolean {
-        val id = Regex("\\[([A-Za-z0-9_-]+)](?:[-_]av1)?\\.[^.]+$")
-            .find(name)?.groupValues?.get(1) ?: return false
+        val id = savedSourceId(name) ?: return false
         val uri = runCatching { URI(url) }.getOrNull() ?: return false
         if (uri.scheme !in setOf("https", "http") || uri.host.isNullOrBlank()) return false
         if (uri.host.lowercase() in setOf("instagram.com", "www.instagram.com")) {
             val shortcode = Regex("^/(?:p|reel|tv)/([^/]+)/?$").find(uri.path.orEmpty())?.groupValues?.get(1)
-            if (shortcode != null && runCatching { instagramId(shortcode) == id }.getOrDefault(false)) return true
+            if (shortcode != null && (shortcode == id || runCatching { instagramId(shortcode) == id }.getOrDefault(false))) return true
         }
         // 제목의 우연한 부분 문자열이 아닌 URL의 독립된 ID만 인정합니다.
         return Regex("(?<![A-Za-z0-9_-])${Regex.escape(id)}(?![A-Za-z0-9_-])")
@@ -193,8 +210,11 @@ object MediaRules {
     /** 이미지 해상도와 영상 원본의 초당 용량을 함께 고려하고 최소 기준 미달은 기본 폴더에 둡니다. */
     fun classificationFolder(quality: com.junkfood.seal.database.objects.VideoQuality?,
         images: String = DEFAULT_IMAGE_TIERS, videos: String = DEFAULT_VIDEO_TIERS,
-        ratios: String = DEFAULT_CODEC_RATIOS): String? {
+        ratios: String = DEFAULT_CODEC_RATIOS, target: Int = 0): String? {
         quality ?: return null
+        // 다운로드 종류 선택과 독립적으로 해상도 하위 폴더 분류만 제한합니다.
+        val image = quality.codec.startsWith("image/")
+        if ((target == 1 && image) || (target == 2 && !image)) return null
         val short = minOf(quality.width, quality.height)
         val long = maxOf(quality.width, quality.height)
         if (short <= 0) return null

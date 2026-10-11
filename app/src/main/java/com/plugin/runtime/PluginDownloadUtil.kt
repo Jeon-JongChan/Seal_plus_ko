@@ -91,6 +91,7 @@ object PluginDownloadUtil {
                     codecRatios = MediaRules.DEFAULT_CODEC_RATIOS,
                     imageResolution = IMAGE_RESOLUTION.getInt(),
                     classifyMedia = CLASSIFY_MEDIA.getBoolean(),
+                    classificationTarget = com.plugin.compatibility.PluginPreferences.CLASSIFICATION_TARGET.getInt().coerceIn(0, 2),
                     qualityThresholdMbps = QUALITY_THRESHOLD.getInt(4).coerceIn(1, 100),
                     transcodeAv1 = TRANSCODE_AV1.getBoolean(),
                     keepAv1Original = KEEP_AV1_ORIGINAL.getBoolean(),

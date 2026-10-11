@@ -241,6 +241,18 @@ fun MediaDirectoryOptions(preferences: DownloadUtil.DownloadPreferences,
                 CLASSIFY_MEDIA.updateBoolean(it); onUpdate(preferences.copyPluginOptions(classifyMedia = it))
             })
         }
+        if (preferences.classifyMedia) {
+        Text(stringResource(R.string.revision6_classification_target), style = MaterialTheme.typography.titleSmall)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(R.string.revision6_classification_both, R.string.loc_media_videos, R.string.loc_media_images).forEachIndexed { index, label ->
+                FilterChip(selected = preferences.classificationTarget == index, onClick = {
+                    PluginPreferences.CLASSIFICATION_TARGET.updateInt(index)
+                    onUpdate(preferences.copyPluginOptions(classificationTarget = index))
+                }, label = { Text(stringResource(label)) })
+            }
+        }
+        Text(stringResource(R.string.revision6_classification_target_hint), style = MaterialTheme.typography.bodySmall)
+        if (preferences.classificationTarget != 1) {
         Text(stringResource(R.string.loc_image_resolution), style = MaterialTheme.typography.titleSmall)
         MediaRules.imageTiers(preferences.imageTiers).orEmpty().forEach { (short, long) ->
             val tier = "${short}x${long}"
@@ -254,6 +266,8 @@ fun MediaDirectoryOptions(preferences: DownloadUtil.DownloadPreferences,
                 })
             }
         }
+        }
+        if (preferences.classificationTarget != 2) {
         Text(stringResource(R.string.loc_video_resolution), style = MaterialTheme.typography.titleSmall)
         MediaRules.videoTiers(preferences.videoTiers).orEmpty().forEach { (height, mbps30, mbps60) ->
             val tier = "${height}p"
@@ -270,12 +284,14 @@ fun MediaDirectoryOptions(preferences: DownloadUtil.DownloadPreferences,
                 })
             }
         }
+        }
         Text(stringResource(R.string.revision5_disabled_tier), style = MaterialTheme.typography.bodySmall)
         TextButton(onClick = {
             json = MediaRules.classificationJson(preferences.imageTiers, preferences.videoTiers)
             editing = true
         }) { Text(stringResource(R.string.loc_edit_classification_json)) }
         Text(stringResource(R.string.loc_codec_reference), style = MaterialTheme.typography.bodySmall)
+        }
     }
     if (editing) {
         val rules = MediaRules.parseClassificationJson(json)

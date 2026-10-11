@@ -14,6 +14,7 @@ object PluginPreferences {
     const val CODEC_RATIOS = "codec_ratios"
     const val IMAGE_RESOLUTION = "image_resolution"
     const val CLASSIFY_MEDIA = "classify_media"
+    const val CLASSIFICATION_TARGET = "classification_target"
     const val QUALITY_THRESHOLD = "quality_threshold_mbps"
     const val TRANSCODE_AV1 = "transcode_av1"
     const val KEEP_AV1_ORIGINAL = "keep_av1_original"

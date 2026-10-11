@@ -37,9 +37,17 @@ class MediaScanTest {
             App.videoDownloadDir = root.path
             ActivityScenario.launch(PluginMainActivity::class.java).use { scenario ->
                 scenario.onActivity { activity -> activity.setContent { SealTheme { MediaFileManagerDialog {} } } }
+                // 비어 있고 읽을 수 있는 폴더에서도 권한 화면이 즉시 열려야 합니다.
+                if (android.os.Build.VERSION.SDK_INT >= 30 && !android.os.Environment.isExternalStorageManager()) {
+                    awaitPermissionSettings()
+                    instrumentation.uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
+                }
                 awaitDialog(context.getString(R.string.revision5_scan))
                 awaitDialog(context.getString(R.string.revision5_rescan))
                 awaitDialog(context.getString(R.string.close))
+                // 읽을 수 있는 캐시 폴더에서도 권한 미부여 안내가 오류 발생 전에 표시되어야 합니다.
+                if (android.os.Build.VERSION.SDK_INT >= 30 && !android.os.Environment.isExternalStorageManager())
+                    awaitDialog(context.getString(R.string.revision6_storage_permission))
                 val window = instrumentation.uiAutomation.rootInActiveWindow
                 assertFalse(containsLabel(window, "목록 보기"))
                 assertFalse(containsLabel(window, "View files"))
@@ -80,6 +88,34 @@ class MediaScanTest {
             assertTrue(saved.any { it.videoPath == plain.path && it.extractor == "External" })
             MediaLibrary.registerExternalFiles(MediaLibrary.listVideos(DownloadPreferences.EMPTY))
             assertEquals(saved.size, PluginDatabaseUtil.getDownloadHistory().size)
+        } finally { App.videoDownloadDir = previousRoot }
+    }
+    /** 묶음 요청 URL이 다른 원본 인스타그램 백업과 음원 파일의 이동 연결을 확인합니다. */
+    @Test
+    fun legacyBatchAndAudioBackupReconnectAfterMove() = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val root = File(context.cacheDir, "legacy-batch-${System.nanoTime()}").apply { mkdirs() }
+        val previousRoot = App.videoDownloadDir
+        // 반복 실행의 이전 이력과 동명이 되지 않도록 제목만 고유하게 만들고 실제 ID는 유지합니다.
+        val image = root.resolve("Video by ${root.name} [DeLP5J2zxk-].mp4").apply { writeBytes(byteArrayOf(1)) }
+        val audio = root.resolve("Audio ${root.name} [1Lmy7qwmSMc].m4a").apply { writeBytes(byteArrayOf(2)) }
+        try {
+            App.videoDownloadDir = root.path
+            for ((file, url) in listOf(image to "https://www.instagram.com/reel/DeLP1tIzeWG/",
+                audio to "https://www.youtube.com/watch?v=1Lmy7qwmSMc")) {
+                PluginDatabaseUtil.insertInfoImmediately(com.junkfood.seal.database.objects.DownloadedVideoInfo(
+                    0, "백업 제목", "백업 작성자", url, "https://example.com/thumb",
+                    root.resolve("old/${file.name}").path, if (file == image) "Instagram" else "Youtube"))
+            }
+            val files = MediaLibrary.listVideos(DownloadPreferences.EMPTY)
+            assertEquals(setOf(image.path, audio.path), files.map { it.path }.toSet())
+            MediaLibrary.registerExternalFiles(files)
+            val saved = PluginDatabaseUtil.getDownloadHistory().filter { it.videoPath in setOf(image.path, audio.path) }
+            assertEquals(2, saved.size)
+            assertTrue(saved.all { it.extractor != "External" && it.videoTitle == "백업 제목" })
+            assertEquals("https://www.instagram.com/reel/DeLP1tIzeWG/", saved.single { it.videoPath == image.path }.videoUrl)
+            assertEquals(image.path, MediaLibrary.resolveDownloadedPath(root.resolve("old/${image.name}").path,
+                DownloadPreferences.EMPTY))
         } finally { App.videoDownloadDir = previousRoot }
     }
     /** 기존 화질 폴더가 루트 밖을 가리키는 링크이면 합성 원본을 이동하지 않습니다. */
@@ -195,9 +231,17 @@ class MediaScanTest {
                 scenario.onActivity { activity ->
                     activity.setContent { SealTheme { MediaFileManagerDialog {} } }
                 }
-                awaitDialog(root.path)
-                if (android.os.Build.VERSION.SDK_INT >= 30 && !android.os.Environment.isExternalStorageManager())
+                if (android.os.Build.VERSION.SDK_INT >= 30 && !android.os.Environment.isExternalStorageManager()) {
+                    awaitPermissionSettings()
+                    InstrumentationRegistry.getInstrumentation().uiAutomation.performGlobalAction(
+                        android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
+                    awaitDialog(root.path)
                     awaitDialog(context.getString(R.string.revision6_storage_permission))
+                    // 거절 후 다시 목록을 읽어도 시스템 권한 화면을 자동으로 반복 실행하지 않습니다.
+                    SystemClock.sleep(500)
+                    assertEquals(context.packageName,
+                        InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow.packageName.toString())
+                } else awaitDialog(root.path)
                 val screenshot = InstrumentationRegistry.getInstrumentation().uiAutomation.takeScreenshot()
                 File(context.externalCacheDir, "unknown-permission-ui.png").outputStream().use {
                     assertTrue(screenshot.compress(Bitmap.CompressFormat.PNG, 100, it))
@@ -329,6 +373,11 @@ class MediaScanTest {
                     scanLabel = activity.getString(R.string.revision5_scan)
                     activity.setContent { SealTheme { MediaFileManagerDialog {} } }
                 }
+                // 파일 관리자 진입 시 자동 권한 화면을 거절하고 앱 화면으로 돌아옵니다.
+                if (android.os.Build.VERSION.SDK_INT >= 30 && !android.os.Environment.isExternalStorageManager()) {
+                    awaitPermissionSettings()
+                    instrumentation.uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
+                }
                 awaitDialog(scanLabel)
                 assertFalse(containsLabel(instrumentation.uiAutomation.rootInActiveWindow, "external.png"))
                 assertFalse(containsLabel(instrumentation.uiAutomation.rootInActiveWindow, "폴더 변경"))
@@ -357,6 +406,16 @@ class MediaScanTest {
     /** 서비스 종료를 기다려 다음 스캔이 이전 서비스와 겹치지 않도록 합니다. */
     private fun awaitScan(): MediaScanService.ScanProgress = runBlocking {
         withTimeout(20_000) { MediaScanService.state.first { !it.running } }
+    }
+
+    /** 접근 실패 직후 시스템의 모든 파일 접근 설정이 자동으로 열리는지 확인합니다. */
+    private fun awaitPermissionSettings() {
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        repeat(100) {
+            if (automation.rootInActiveWindow?.packageName?.toString() == "com.android.settings") return
+            SystemClock.sleep(100)
+        }
+        fail("저장소 권한 설정이 자동으로 열리지 않았습니다.")
     }
 
     /** Compose 전환이 끝나고 실제 파일 관리자 버튼이 표시된 뒤 화면을 기록합니다. */

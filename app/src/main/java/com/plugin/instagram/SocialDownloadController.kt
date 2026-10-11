@@ -37,7 +37,7 @@ class SocialDownloadController(
         val accountList = action.urls.any { MediaRules.instagramAccount(it) != null }
         // 쿠키 실패 시 임의로 활성화하거나 비활성화하지 않고 사용자가 선택한 설정을 유지합니다.
         val preferences = action.preferences
-        ToastUtil.makeToastSuspend(App.context.getString(if (accountList) R.string.fetching_playlist_info else R.string.loc_inspecting_media))
+        if (accountList) ToastUtil.makeToastSuspend(App.context.getString(R.string.fetching_playlist_info))
         val job = scope.launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
             runCatching {
                 action.urls.flatMap { InstagramUtil.fetch(it, preferences, key) }.distinctBy { it.id }.also { items ->
