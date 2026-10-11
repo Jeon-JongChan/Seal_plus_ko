@@ -4,7 +4,6 @@ import com.plugin.compatibility.PluginPreferences.QUICK_COOKIE_PROFILE
 import com.plugin.compatibility.PluginPreferences.DOWNLOAD_ALL_MEDIA
 import com.plugin.compatibility.PluginPreferences.IMAGE_FOLDER_NAME
 import com.plugin.compatibility.PluginPreferences.VIDEO_FOLDER_NAME
-import com.plugin.compatibility.PluginPreferences.PLATFORM_FOLDERS
 import com.plugin.compatibility.PluginPreferences.IMAGE_TIERS
 import com.plugin.compatibility.PluginPreferences.VIDEO_TIERS
 import com.plugin.compatibility.PluginPreferences.IMAGE_RESOLUTION
@@ -81,13 +80,14 @@ object PluginDownloadUtil {
                     // 이전 이미지·영상 필터를 새 다운로드에 적용하지 않고 분석 결과로 자동 분기합니다.
                     mediaSelection = 0,
                     downloadAllMedia = DOWNLOAD_ALL_MEDIA.getBoolean(),
-                    imageFolderName = MediaRules.folderName(IMAGE_FOLDER_NAME.getString("Images"), "Images"),
-                    videoFolderName = MediaRules.folderName(VIDEO_FOLDER_NAME.getString("Videos"), "Videos"),
-                    platformFolders = PLATFORM_FOLDERS.getBoolean(true),
+                    imageFolderName = MediaRules.optionalFolderName(IMAGE_FOLDER_NAME.getString("Images"), "Images"),
+                    videoFolderName = MediaRules.optionalFolderName(VIDEO_FOLDER_NAME.getString("Videos"), "Videos"),
+                    platformFolders = false,
                     imageTiers = MediaRules.withDisabledTiers(MediaRules.parseClassificationJson(CLASSIFICATION_RULES.getString())?.first
                         ?: IMAGE_TIERS.getString(MediaRules.DEFAULT_IMAGE_TIERS), MediaRules.DISABLED_IMAGE_TIERS.getString()),
                     videoTiers = MediaRules.withDisabledTiers(MediaRules.parseClassificationJson(CLASSIFICATION_RULES.getString())?.second
-                        ?: VIDEO_TIERS.getString(MediaRules.DEFAULT_VIDEO_TIERS), MediaRules.DISABLED_VIDEO_TIERS.getString()),
+                        ?.let(MediaRules::currentVideoTiers)
+                        ?: MediaRules.currentVideoTiers(VIDEO_TIERS.getString(MediaRules.DEFAULT_VIDEO_TIERS)), MediaRules.DISABLED_VIDEO_TIERS.getString()),
                     codecRatios = MediaRules.DEFAULT_CODEC_RATIOS,
                     imageResolution = IMAGE_RESOLUTION.getInt(),
                     classifyMedia = CLASSIFY_MEDIA.getBoolean(),
@@ -835,7 +835,6 @@ object PluginDownloadUtil {
             val processed =
                 runCatching { MediaLibrary.finish(actualPaths, preferences, taskId, progress,
                     mediaRoot = if (sdcard) context.getSdcardTempDir(videoInfo.id) else File(if (privateDirectory) App.privateDownloadDir else videoDownloadDir),
-                    platform = videoInfo.extractorKey,
                     onOutput = { path, quality ->
                         if (quality != null) sourceQualities[java.io.File(path).name] = quality
                     }) }

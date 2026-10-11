@@ -5,7 +5,6 @@ import com.plugin.compatibility.PluginPreferences.QUICK_COOKIE_PROFILE
 import com.plugin.compatibility.PluginPreferences.DOWNLOAD_ALL_MEDIA
 import com.plugin.compatibility.PluginPreferences.IMAGE_FOLDER_NAME
 import com.plugin.compatibility.PluginPreferences.VIDEO_FOLDER_NAME
-import com.plugin.compatibility.PluginPreferences.PLATFORM_FOLDERS
 import com.plugin.compatibility.PluginPreferences.IMAGE_TIERS
 import com.plugin.compatibility.PluginPreferences.VIDEO_TIERS
 import com.plugin.compatibility.PluginPreferences.IMAGE_RESOLUTION
@@ -53,6 +52,7 @@ fun MediaDownloadOptions(
     if (!com.plugin.PluginState.isEnabled(com.plugin.PluginId.MEDIA)) return
     var speedDialog by remember { mutableStateOf(false) }
     var speedInput by remember { mutableStateOf("") }
+    var crf by remember(preferences.av1Crf) { mutableFloatStateOf(preferences.av1Crf.toFloat()) }
     val save: (DownloadUtil.DownloadPreferences) -> Unit = { value ->
         DOWNLOAD_ALL_MEDIA.updateBoolean(value.downloadAllMedia)
         IMAGE_RESOLUTION.updateInt(value.imageResolution)
@@ -66,9 +66,9 @@ fun MediaDownloadOptions(
         MERGE_OUTPUT_MKV.updateBoolean(value.mergeToMkv)
         onUpdate(value)
     }
-                Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (!imageOnly && preferences.mediaSelection != 2) {
-                        Text(stringResource(R.string.loc_video_resolution))
+                        Text(stringResource(R.string.loc_video_resolution), style = MaterialTheme.typography.titleSmall)
                         Row(
                             Modifier.horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -85,7 +85,7 @@ fun MediaDownloadOptions(
                     }
                     if (instagram && com.plugin.PluginState.isEnabled(com.plugin.PluginId.SOCIAL)) {
                     Text(stringResource(R.string.loc_image_resolution))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf(0 to stringResource(R.string.loc_original_resolution), 1080 to "1080", 720 to "720").forEach { (height, label) ->
                             FilterChip(
                                 preferences.imageResolution == height,
@@ -94,12 +94,15 @@ fun MediaDownloadOptions(
                             )
                         }
                     }
-                    Text(stringResource(R.string.loc_image_resolution_hint))
+                    Text(stringResource(R.string.loc_image_resolution_hint), style = MaterialTheme.typography.bodySmall)
                     }
 
                     if (!imageOnly && preferences.mediaSelection != 2) {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(stringResource(R.string.loc_av1_conversion), modifier = Modifier.weight(1f))
+                    HorizontalDivider()
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Text(stringResource(R.string.loc_av1_conversion), modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleSmall)
                         Switch(
                             preferences.transcodeAv1,
                             onCheckedChange = { save(preferences.copyPluginOptions(transcodeAv1 = it)) },
@@ -107,7 +110,7 @@ fun MediaDownloadOptions(
                     }
 
                     if (preferences.transcodeAv1) {
-                    Text(stringResource(R.string.loc_video_container))
+                    Text(stringResource(R.string.loc_video_container), style = MaterialTheme.typography.titleSmall)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf("mp4", "mkv").forEach { container ->
                             FilterChip(selected = preferences.videoContainer == container,
@@ -125,17 +128,17 @@ fun MediaDownloadOptions(
                                 label = { Text(stringResource(R.string.loc_keep_original)) })
                         }
                         Text(if (preferences.keepAv1Original) stringResource(R.string.loc_keep_original_hint)
-                            else stringResource(R.string.loc_replace_original_hint))
-                        Text(stringResource(R.string.loc_av1_quality, preferences.av1Crf))
+                            else stringResource(R.string.loc_replace_original_hint), style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.loc_av1_quality, crf.toInt()), style = MaterialTheme.typography.titleSmall)
                         Slider(
-                            preferences.av1Crf.toFloat(),
-                            onValueChange = {
-                                save(preferences.copyPluginOptions(av1Crf = it.toInt().coerceIn(20, 50)))
-                            },
+                            crf,
+                            onValueChange = { crf = it },
+                            onValueChangeFinished = { save(preferences.copyPluginOptions(av1Crf = crf.toInt().coerceIn(20, 50))) },
                             valueRange = 20f..50f,
                             steps = 29,
                         )
-                        Text(stringResource(R.string.loc_av1_speed, preferences.av1Preset))
+                        HorizontalDivider()
+                        Text(stringResource(R.string.loc_av1_speed, preferences.av1Preset), style = MaterialTheme.typography.titleSmall)
                         Row(Modifier.horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -184,7 +187,8 @@ fun MediaSettingsButton(preferences: DownloadUtil.DownloadPreferences,
     onUpdate: (DownloadUtil.DownloadPreferences) -> Unit, imageOnly: Boolean = false) {
     if (!com.plugin.PluginState.isEnabled(com.plugin.PluginId.MEDIA)) return
     var opened by remember { mutableStateOf(false) }
-    TextButton(onClick = { opened = true }) { Text(stringResource(R.string.loc_media_tools)) }
+    FilterChip(selected = preferences.transcodeAv1, onClick = { opened = true },
+        label = { Text(stringResource(R.string.revision5_encoding)) })
     if (opened) AlertDialog(onDismissRequest = { opened = false },
         title = { Text(stringResource(R.string.loc_media_tools)) },
         text = {
@@ -226,16 +230,11 @@ fun MediaDirectoryOptions(preferences: DownloadUtil.DownloadPreferences,
     Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(stringResource(R.string.loc_media_directory_settings), style = MaterialTheme.typography.titleMedium)
         Text(stringResource(R.string.loc_media_directory_hint))
-        Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-            Text(stringResource(R.string.loc_platform_folders), Modifier.weight(1f))
-            Switch(preferences.platformFolders, onCheckedChange = {
-                PLATFORM_FOLDERS.updateBoolean(it); onUpdate(preferences.copyPluginOptions(platformFolders = it))
-            })
-        }
         Entry(IMAGE_FOLDER_NAME, R.string.loc_image_folder_name, preferences.imageFolderName,
-            { MediaRules.folderName(it, "").isNotEmpty() }, { preferences.copyPluginOptions(imageFolderName = it) })
+            { it.isEmpty() || MediaRules.folderName(it, "").isNotEmpty() }, { preferences.copyPluginOptions(imageFolderName = it) })
         Entry(VIDEO_FOLDER_NAME, R.string.loc_video_folder_name, preferences.videoFolderName,
-            { MediaRules.folderName(it, "").isNotEmpty() }, { preferences.copyPluginOptions(videoFolderName = it) })
+            { it.isEmpty() || MediaRules.folderName(it, "").isNotEmpty() }, { preferences.copyPluginOptions(videoFolderName = it) })
+        Text(stringResource(R.string.revision5_empty_folder), style = MaterialTheme.typography.bodySmall)
         Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Text(stringResource(R.string.loc_classify_downloads), Modifier.weight(1f))
             Switch(preferences.classifyMedia, onCheckedChange = {
@@ -271,7 +270,7 @@ fun MediaDirectoryOptions(preferences: DownloadUtil.DownloadPreferences,
                 })
             }
         }
-        Text(stringResource(R.string.loc_disabled_tier_hint), style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.revision5_disabled_tier), style = MaterialTheme.typography.bodySmall)
         TextButton(onClick = {
             json = MediaRules.classificationJson(preferences.imageTiers, preferences.videoTiers)
             editing = true

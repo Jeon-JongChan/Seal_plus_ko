@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="loc_list_downloads">목록 다운로드</string>
+    <string name="loc_list_downloads">인스타그램 프로필 다운로드 (미완성)</string>
+    <string name="loc_profile_download_hint">현재 미완성 기능입니다. 계정명이나 인스타그램 프로필 주소로 게시물 목록을 불러옵니다.</string>
     <string name="loc_playlist_tab">재생목록 URL</string>
     <string name="loc_playlist_description">YouTube 등 지원 사이트의 재생목록 URL로 목록을 불러온 뒤 전체 또는 일부 항목을 선택해 다운로드합니다.</string>
     <string name="loc_playlist_url">재생목록 URL</string>

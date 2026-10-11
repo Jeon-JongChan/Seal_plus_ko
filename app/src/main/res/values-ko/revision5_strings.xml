@@ -1,0 +1,19 @@
+<resources>
+    <string name="revision5_auto">자동</string>
+    <string name="revision5_video">영상</string>
+    <string name="revision5_image">이미지</string>
+    <string name="revision5_playlist">재생목록</string>
+    <string name="revision5_audio">오디오</string>
+    <string name="revision5_encoding">영상 인코딩 설정</string>
+    <string name="revision5_scan">스캔·분류</string>
+    <string name="revision5_rescan">전체 재스캔</string>
+    <string name="revision5_external">● 외부 파일</string>
+    <string name="revision5_scanning">백그라운드에서 미디어 분류 중</string>
+    <string name="revision5_scan_status">처리 %1$d / %2$d · 실패 %3$d</string>
+    <string name="revision5_scan_hint">스캔은 화질 폴더를 제외합니다. 전체 재스캔은 현재 폴더 설정을 모든 미디어에 적용합니다. 기존 폴더는 삭제하지 않습니다.</string>
+    <string name="revision5_empty_folder">폴더명을 비우면 기본 폴더 또는 플랫폼 폴더에 바로 저장합니다.</string>
+    <string name="revision5_disabled_tier">끄면 조건에 맞는 더 낮은 활성 구간을 사용합니다. 기존 파일은 전체 재스캔으로 반영하세요.</string>
+    <string name="revision5_delete_file_hint">현재 파일을 저장소에서 삭제하고 넘김 목록에서 제외합니다. 원래 전체 페이지 수는 유지합니다.</string>
+    <string name="revision5_encoded_keep">인코딩(보존)</string>
+    <string name="revision5_encoded_replace">인코딩(대체)</string>
+</resources>

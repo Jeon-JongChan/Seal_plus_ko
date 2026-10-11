@@ -26,8 +26,10 @@ import com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel
 fun MediaToolsPage(onBack: () -> Unit) {
     var preferences by remember { com.plugin.compatibility.pluginPreferencesState(com.plugin.compatibility.createPluginPreferences()) }
     Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.loc_media_tools)) }, navigationIcon = { BackButton(onBack) }) }) { padding ->
-        Column(Modifier.padding(padding).padding(20.dp).verticalScroll(rememberScrollState())) {
-            Text(stringResource(R.string.loc_media_tools_description))
+        Column(Modifier.padding(padding).padding(20.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text(stringResource(R.string.loc_media_tools_description), style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant)
             MediaDownloadOptions(preferences, onUpdate = { preferences = it })
         }
     }

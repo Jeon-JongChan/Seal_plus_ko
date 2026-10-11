@@ -4,7 +4,7 @@
     <string name="plugin_open">하위 설정 및 기능 열기</string>
     <string name="plugin_social">소셜 게시물·이미지 다운로드</string>
     <string name="plugin_social_desc">인스타그램·틱톡의 이미지, 영상과 여러 페이지 게시물을 분석합니다. 끄면 기존 영상 다운로드 엔진을 사용합니다.</string>
-    <string name="plugin_list_desc">계정·미디어·일반 재생목록을 별도 화면에서 조회합니다. 소셜 플러그인을 켜지 않아도 독립적으로 작동합니다.</string>
+    <string name="plugin_list_desc">인스타그램 프로필의 게시물·릴스를 조회하고 선택해 다운로드합니다. 소셜 플러그인을 켜지 않아도 독립적으로 작동합니다.</string>
     <string name="plugin_media_desc">저장 파일 재사용, AV1 변환과 컨테이너 설정입니다. 폴더 분류는 미디어 폴더·파일 관리에서 설정합니다.</string>
     <string name="plugin_library_desc">이미지·영상 폴더와 해상도별 분류, 이력 필터, 게시물 묶음·파일 관리를 제공합니다. 영상 인코딩 없이 작동합니다.</string>
     <string name="plugin_queue">대기열 확장</string>
@@ -17,7 +17,7 @@
     <string name="plugin_cookie_profile_hint">기존 네트워크 설정에서 등록한 프로필을 선택합니다. 선택만으로 쿠키 전송이 켜지지는 않습니다.</string>
     <string name="plugin_compatibility">데이터·저장소 호환</string>
     <string name="plugin_compatibility_desc">항상 활성화 (필수). 기존 작업·이력과 저장소 안전성을 유지하며 끌 수 없습니다.</string>
-    <string name="plugin_list_disabled">목록 다운로드 플러그인을 켠 뒤 다시 시도하세요.</string>
+    <string name="plugin_list_disabled">인스타그램 프로필 다운로드 플러그인을 켠 뒤 다시 시도하세요.</string>
     <string name="plugin_library">미디어 폴더·파일 관리</string>
     <string name="loc_disabled_tier_hint">꺼진 해상도 구간은 기본 이미지·영상 폴더에 저장합니다. 낮은 구간으로 대체 분류하지 않습니다.</string>
 </resources>

@@ -99,18 +99,18 @@ fun PostMediaDetails(state: Task.ViewState, overlay: Boolean = false, missingPag
         if (missingPages > 0) add(stringResource(R.string.loc_page_missing, missingPages))
         if (state.imageCount > 0 && state.videoCount > 0)
             add(stringResource(R.string.loc_instagram_media_count, state.videoCount, state.imageCount))
-        if (state.width > 0 && state.height > 0) {
+        if ((!overlay || state.imageCount <= 1) && state.width > 0 && state.height > 0) {
             val max = "${state.width}×${state.height}"
             add(if (state.minWidth > 0 && (state.minWidth != state.width || state.minHeight != state.height))
-                "${state.minWidth}×${state.minHeight} – $max" else max)
+                "${state.minWidth}×${state.minHeight} ~ $max" else max)
         }
-        state.averageMbps?.let { add("%.2f Mbps".format(java.util.Locale.ROOT, it)) }
+        state.averageMbps?.let { add("%.2f MB/s".format(java.util.Locale.ROOT, it / 8)) }
         if (state.fileSizeApprox > 0) add(state.fileSizeApprox.toFileSizeText())
-        val current = state.codec.ifBlank { state.originalCodec }.split(" / ").map { MediaRules.codecLabel(it) }.filter { it.isNotBlank() }.distinct().joinToString(" / ")
-        if (current.isNotBlank()) add(current)
-        if (state.av1Mode > 0 && state.originalCodec.isNotBlank())
-            add(stringResource(R.string.loc_original_codec, state.originalCodec.split(" / ").map { MediaRules.codecLabel(it) }.distinct().joinToString(" / ")))
-        if (state.av1Mode > 0) add(stringResource(if (state.av1Mode == 2) R.string.loc_av1_copied else R.string.loc_av1_replaced))
+        val codec = if (state.av1Mode > 0) state.originalCodec.ifBlank { state.codec } else state.codec.ifBlank { state.originalCodec }
+        val labels = codec.split(" / ").map { MediaRules.codecLabel(it) }.filter(String::isNotBlank).distinct().joinToString(" / ")
+        if (labels.isNotBlank()) add(labels)
+        if (state.av1Mode > 0) add(stringResource(if (state.av1Mode == 2)
+            R.string.revision5_encoded_keep else R.string.revision5_encoded_replace))
     }.joinToString(" · ")
     Surface(color = if (overlay) LabelContainerColor else Color.Transparent,
         contentColor = if (overlay) Color.White else MaterialTheme.colorScheme.onSurfaceVariant) {
@@ -141,6 +141,9 @@ fun VideoCardV2(
             isImage = isImage, imageCount = mediaCount, width = width, height = height,
             stateIndicator = stateIndicator,
             actionButton = actionButton,
+            resolutionRange = if (imageCount > 1 && width > 0 && height > 0)
+                if (minWidth > 0 && (minWidth != width || minHeight != height))
+                    "${minWidth}×${minHeight} ~ ${width}×${height}" else "${width}×${height}" else "",
             onButtonClick = onButtonClick,
         )
     }
@@ -276,6 +279,7 @@ fun VideoCardV2(
     isImage: Boolean = false, imageCount: Int = 1, width: Int = 0, height: Int = 0,
     stateIndicator: @Composable (BoxScope.() -> Unit)? = null,
     actionButton: @Composable (BoxScope.() -> Unit)? = null,
+    resolutionRange: String = "",
     onButtonClick: () -> Unit,
 ) {
     val containerColor =
@@ -293,7 +297,11 @@ fun VideoCardV2(
                 if (selected) Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.35f)))
                 Box(Modifier.align(Alignment.TopStart)) { stateIndicator?.invoke(this) }
                 Box(Modifier.align(Alignment.Center)) { actionButton?.invoke(this) }
-                if (!isImage) VideoInfoLabel(
+                if (resolutionRange.isNotBlank()) Surface(modifier = Modifier.align(Alignment.BottomEnd),
+                    color = LabelContainerColor, contentColor = Color.White) {
+                    Text(resolutionRange, Modifier.padding(4.dp), style = MaterialTheme.typography.labelSmall)
+                }
+                if (!isImage && resolutionRange.isBlank()) VideoInfoLabel(
                     modifier = Modifier.align(Alignment.BottomEnd),
                     duration = duration,
                     fileSizeApprox = fileSizeApprox,

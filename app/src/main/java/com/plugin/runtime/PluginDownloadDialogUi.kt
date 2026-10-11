@@ -372,7 +372,8 @@ private fun DownloadDialogContent(
     ) { state ->
         when (state) {
             is Configure -> {
-                if (com.plugin.PluginState.isEnabled(com.plugin.PluginId.INTERACTION) && config.downloadType != Command) {
+                if ((com.plugin.PluginState.isEnabled(com.plugin.PluginId.INTERACTION) ||
+                    com.plugin.PluginState.isEnabled(com.plugin.PluginId.SOCIAL)) && config.downloadType != Command) {
                     com.plugin.interaction.UnifiedInputPage(config, preferences, onPreferencesUpdate, onPresetEdit, onActionPost, state.urlList)
                 } else if (state.urlList.size == 1) {
                     ConfigurePage(url = state.urlList.first(), config = config, preferences = preferences,
@@ -405,7 +406,8 @@ private fun DownloadDialogContent(
             }
 
             InputUrl -> {
-                if (com.plugin.PluginState.isEnabled(com.plugin.PluginId.INTERACTION)) {
+                if (com.plugin.PluginState.isEnabled(com.plugin.PluginId.INTERACTION) ||
+                    com.plugin.PluginState.isEnabled(com.plugin.PluginId.SOCIAL)) {
                     com.plugin.interaction.UnifiedInputPage(config, preferences, onPreferencesUpdate, onPresetEdit, onActionPost)
                 } else InputUrlPage(config = config, onConfigUpdate = { Config.updatePreferences(it, config) }, onActionPost = { onActionPost(it) })
             }
@@ -756,9 +758,10 @@ internal fun AdditionalSettings(
     showSubtitles: Boolean = true,
 ) {
     with(preference) {
-        Row(modifier = modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
-            DownloadAllChip(preference, onPreferenceUpdate)
+        Row(modifier = modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CookieOptions(preference, onUpdate = onPreferenceUpdate)
+            DownloadAllChip(preference, onPreferenceUpdate)
             if (showSubtitles) VideoFilterChip(
                 selected = downloadSubtitle,
                 enabled = selectedType != Command,

@@ -17,12 +17,15 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** 다운로드 중복 확인, 비트레이트 폴더 분류와 AV1 후처리를 담당합니다. */
 object MediaLibrary {
     private val downloadLocks = ConcurrentHashMap<String, ReentrantLock>()
     private val processes = ConcurrentHashMap<String, Process>()
     private val canceled = ConcurrentHashMap.newKeySet<String>()
+    private val registrationLock = Mutex()
 
     /** 파일 관리자에 표시할 실제 영상과 부모 폴더 정보입니다. */
     data class MediaFile(
@@ -33,20 +36,28 @@ object MediaLibrary {
         val parentUri: String? = null,
         val quality: VideoQuality? = null,
         val sourceQuality: VideoQuality? = null,
+        val external: Boolean = false,
     )
 
     /** Seal과 지정한 다운로드 폴더의 모든 하위 폴더에서 영상을 읽습니다. */
-    fun listVideos(preferences: DownloadUtil.DownloadPreferences): List<MediaFile> {
+    fun listVideos(preferences: DownloadUtil.DownloadPreferences, includeClassified: Boolean = true): List<MediaFile> {
         val extensions = setOf("mp4", "mkv", "webm", "mov", "m4v", "jpg", "jpeg", "png", "webp", "avif", "gif")
-        val roots = listOf(FileUtil.getExternalDownloadDirectory(), File(videoDownloadDir))
+        val roots = if (preferences.sdcard) emptyList() else listOf(File(
+            if (preferences.privateDirectory) com.junkfood.seal.App.privateDownloadDir else videoDownloadDir))
         val files =
             roots
                 .flatMap { root ->
+                    if (!root.canRead()) throw SecurityException(
+                        context.getString(R.string.revision6_folder_access_error, root.path))
                     root
                         .walkTopDown()
-                        .onEnter { it.name != "tmp" }
+                        .onFail { directory, cause -> throw SecurityException(
+                            context.getString(R.string.revision6_folder_access_error, directory.path), cause) }
+                        .onEnter { !java.nio.file.Files.isSymbolicLink(it.toPath()) && it.name != "tmp" &&
+                            (includeClassified || !it.name.matches(Regex("[0-9]+(p|x[0-9]+)"))) }
                         .filter {
-                            it.isFile && !it.isHidden && it.extension.lowercase() in extensions
+                            it.isFile && !it.isHidden && !java.nio.file.Files.isSymbolicLink(it.toPath()) &&
+                                it.extension.lowercase() in extensions
                         }
                         .map {
                             MediaFile(
@@ -61,8 +72,9 @@ object MediaLibrary {
                 .distinctBy { it.path }
                 .toMutableList()
         if (preferences.sdcard)
-            DocumentFile.fromTreeUri(context, Uri.parse(preferences.sdcardUri))?.let { tree ->
-                files += listTreeVideos(tree, extensions)
+            (DocumentFile.fromTreeUri(context, Uri.parse(preferences.sdcardUri))
+                ?: throw SecurityException(context.getString(R.string.revision6_folder_access_error, preferences.sdcardUri))).let { tree ->
+                files += listTreeVideos(tree, extensions, includeClassified)
             }
         val history = runBlocking { PluginDatabaseUtil.getDownloadHistory() }.associateBy { it.videoPath }
         return files.map { file ->
@@ -72,14 +84,66 @@ object MediaLibrary {
             if (saved != null && saved.quality == null && quality != null)
                 PluginMediaMetadataStore.save(saved.videoPath, quality = quality)
             file.copy(duration = quality?.duration ?: file.duration,
-                quality = quality, sourceQuality = saved?.sourceQuality)
+                quality = quality, sourceQuality = saved?.sourceQuality, external = saved == null || saved.extractor == "External")
         }.sortedBy { it.name.lowercase() }
     }
 
+    /** ID가 확인된 이전 이력을 연결한 뒤 나머지 외부 파일만 등록합니다. */
+    suspend fun registerExternalFiles(files: List<MediaFile>) = registrationLock.withLock {
+        val history = PluginDatabaseUtil.getDownloadHistory()
+        val byName = history.filter { it.extractor != "External" }.groupBy {
+            if (it.videoPath.startsWith("content://")) Uri.parse(it.videoPath).lastPathSegment?.substringAfterLast('/')
+            else File(it.videoPath).name
+        }
+        val fileCounts = files.groupingBy { it.name }.eachCount()
+        val recorded = history.map { it.videoPath }.toMutableSet()
+        for (file in files) {
+            val candidates = byName[file.name].orEmpty()
+            val old = candidates.singleOrNull()
+            // 파일과 원본 이력 양쪽에서 유일하며 URL의 ID까지 일치해야 이동된 파일로 인정합니다.
+            if (old != null && old.videoPath != file.path && !exists(old.videoPath) &&
+                fileCounts[file.name] == 1 && MediaRules.canReconnect(file.name, old.videoUrl) &&
+                history.none { it.videoPath == file.path && it.extractor != "External" }) {
+                PluginDatabaseUtil.reconnectMediaPath(old.videoPath, file.path)
+                PluginMediaMetadataStore.save(file.path, quality = file.quality)
+                recorded.add(file.path)
+            }
+            if (!recorded.add(file.path)) continue
+            PluginMediaMetadataStore.save(file.path, quality = file.quality)
+            PluginDatabaseUtil.insertInfoImmediately(com.junkfood.seal.database.objects.DownloadedVideoInfo(
+                id = 0, videoTitle = file.name, videoAuthor = "", videoUrl = file.path,
+                thumbnailUrl = file.path, videoPath = file.path, extractor = "External"))
+        }
+    }
+
+    /** 다운로드 설정의 기본 경로를 사용하며 SAF는 이미 저장된 접근 권한을 재사용합니다. */
+    fun rootPath(preferences: DownloadUtil.DownloadPreferences): String = when {
+        preferences.sdcard -> preferences.sdcardUri
+        preferences.privateDirectory -> com.junkfood.seal.App.privateDownloadDir
+        else -> videoDownloadDir
+    }
+
+    /** 루트와 심볼릭 링크를 보존하며 실제로 비어 있는 하위 폴더만 비재귀 삭제합니다. */
+    fun cleanEmptyFolders(preferences: DownloadUtil.DownloadPreferences): Int {
+        check(!preferences.sdcard) { context.getString(R.string.revision6_saf_cleanup_hint) }
+        val root = File(rootPath(preferences)).canonicalFile
+        var count = 0
+        root.walkBottomUp().onEnter { !java.nio.file.Files.isSymbolicLink(it.toPath()) }.forEach { directory ->
+            if (directory != root && directory.isDirectory &&
+                directory.canonicalFile.toPath().startsWith(root.toPath()) &&
+                directory.listFiles()?.isEmpty() == true && directory.delete()) count++
+        }
+        return count
+    }
+
     /** SAF 폴더에서도 이동에 필요한 부모 URI를 함께 보관합니다. */
-    private fun listTreeVideos(parent: DocumentFile, extensions: Set<String>): List<MediaFile> =
-        parent.listFiles().flatMap { file ->
-            if (file.isDirectory) listTreeVideos(file, extensions)
+    private fun listTreeVideos(parent: DocumentFile, extensions: Set<String>, includeClassified: Boolean): List<MediaFile> {
+        if (!parent.canRead()) throw SecurityException(context.getString(R.string.revision6_folder_access_error, parent.uri.toString()))
+        return parent.listFiles().flatMap { file ->
+            if (file.isDirectory) {
+                if (file.name == "tmp" || (!includeClassified && file.name.orEmpty().matches(Regex("[0-9]+(p|x[0-9]+)")))) emptyList()
+                else listTreeVideos(file, extensions, includeClassified)
+            }
             else if (file.name.orEmpty().substringAfterLast('.').lowercase() in extensions)
                 listOf(
                     MediaFile(
@@ -92,34 +156,39 @@ object MediaLibrary {
                 )
             else emptyList()
         }
+    }
 
     /** 기존 파일을 덮어쓰지 않고 화질 폴더로 이동하며 이력도 갱신합니다. */
     suspend fun classify(file: MediaFile, preferences: DownloadUtil.DownloadPreferences): String {
         val classificationQuality = file.sourceQuality ?: file.quality
-        val group = MediaRules.classificationFolder(classificationQuality,
-            preferences.imageTiers, preferences.videoTiers, preferences.codecRatios)
+        val group = if (preferences.classifyMedia) MediaRules.classificationFolder(classificationQuality,
+            preferences.imageTiers, preferences.videoTiers, preferences.codecRatios) else null
         val newPath =
             if (file.parentUri == null)
                 finish(
                         listOf(file.path),
-                        preferences.copyPluginOptions(classifyMedia = true, transcodeAv1 = false),
+                        preferences.copyPluginOptions(mediaProcessing = true, transcodeAv1 = false),
                         "file-manager",
                         classificationQuality = classificationQuality,
                         preserveParent = true,
+                        mediaRoot = File(if (preferences.privateDirectory) com.junkfood.seal.App.privateDownloadDir else videoDownloadDir),
                     )
                     .single()
             else {
                 val tree =
                     DocumentFile.fromTreeUri(context, Uri.parse(preferences.sdcardUri))
                         ?: error(com.junkfood.seal.App.context.getString(R.string.loc_storage_unavailable))
-                val parent = findDirectory(tree, file.parentUri) ?: error(com.junkfood.seal.App.context.getString(R.string.loc_parent_folder_unavailable))
-                val base = if (parent.name.orEmpty().matches(Regex("[0-9]+(p|x[0-9]+)"))) parent.parentFile ?: parent else parent
+                val parent = DocumentFile.fromSingleUri(context, Uri.parse(file.parentUri))
+                    ?.takeIf { it.isDirectory } ?: error(context.getString(R.string.loc_parent_folder_unavailable))
+                val base = classificationTreeBase(tree, parent.uri)
+                    ?: error(context.getString(R.string.loc_parent_folder_unavailable))
                 // 비활성 구간의 기존 파일도 기본 폴더로 돌리며 같은 위치면 이동하지 않습니다.
                 val target = if (group == null) base else
                     base.findFile(group)?.also { check(it.isDirectory) }
                         ?: base.createDirectory(group)
                         ?: error(com.junkfood.seal.App.context.getString(R.string.loc_quality_folder_create_failed))
-                if (target.uri == parent.uri) return file.path
+                if (android.provider.DocumentsContract.getDocumentId(target.uri) ==
+                    android.provider.DocumentsContract.getDocumentId(parent.uri)) return file.path
                 check(target.findFile(file.name) == null) { com.junkfood.seal.App.context.getString(R.string.loc_target_file_exists) }
                 // 이동을 지원하지 않는 공급자는 오류를 표시하고 원본을 보존합니다.
                 val moved = runCatching { android.provider.DocumentsContract.moveDocument(
@@ -151,13 +220,18 @@ object MediaLibrary {
         return newPath
     }
 
-    /** 루트 접근 권한을 유지하며 이동할 실제 하위 폴더를 찾습니다. */
-    private fun findDirectory(parent: DocumentFile, uri: String): DocumentFile? {
-        if (parent.uri.toString() == uri) return parent
-        return parent
-            .listFiles()
-            .filter { it.isDirectory }
-            .firstNotNullOfOrNull { findDirectory(it, uri) }
+    /** 문서 ID의 경로 형식을 추측하지 않고 실제 트리에서 부모 또는 화질 폴더의 상위를 찾습니다. */
+    private fun classificationTreeBase(directory: DocumentFile, parentUri: Uri,
+        ancestor: DocumentFile? = null): DocumentFile? {
+        if (android.provider.DocumentsContract.getDocumentId(directory.uri) ==
+            android.provider.DocumentsContract.getDocumentId(parentUri)) {
+            return if (ancestor != null && MediaRules.isQualityFolder(directory.name.orEmpty())) ancestor else directory
+        }
+        // ponytail: 공급자별 불투명 ID를 지원하는 폴더 순회입니다. 대규모 SAF 스캔은 부모 인덱스로 개선합니다.
+        for (child in directory.listFiles().filter { it.isDirectory && it.name != "tmp" }) {
+            classificationTreeBase(child, parentUri, directory)?.let { return it }
+        }
+        return null
     }
 
     /** 같은 링크의 동시 다운로드를 막되 서로 다른 링크는 병렬 처리합니다. */
@@ -275,6 +349,12 @@ object MediaLibrary {
             File(audioDownloadDir), File(com.junkfood.seal.App.privateDownloadDir)).distinct()
         if (!content && roots.none { it.isDirectory && it.canRead() }) return path
         val name = if (content) Uri.parse(path).lastPathSegment?.substringAfterLast('/') ?: return path else File(path).name
+        val history = runBlocking { PluginDatabaseUtil.getDownloadHistory() }
+        val original = history.filter { it.extractor != "External" &&
+            (if (it.videoPath.startsWith("content://")) Uri.parse(it.videoPath).lastPathSegment?.substringAfterLast('/')
+            else File(it.videoPath).name) == name }
+        // 뷰어·재사용 경로에서도 백업 이력을 제목만으로 다른 파일에 연결하지 않습니다.
+        if (original.isNotEmpty() && (original.size != 1 || !MediaRules.canReconnect(name, original.single().videoUrl))) return null
         // 새 파일 탐색기를 만들지 않고 기존 중복 파일 검색의 이름·하위 폴더·SAF 처리를 재사용합니다.
         val found = findExisting(VideoInfo(id = "", title = name, webpageUrl = path, ext = name.substringAfterLast('.').lowercase()),
             preferences, setOf(name)).filter {
@@ -362,7 +442,6 @@ object MediaLibrary {
         onOutput: (String, VideoQuality?) -> Unit = { _, _ -> },
         preserveParent: Boolean = false,
         mediaRoot: File? = null,
-        platform: String = "",
     ): List<String> =
         if (!preferences.mediaProcessing) paths else paths.flatMap { original ->
             val source = File(original)
@@ -387,16 +466,25 @@ object MediaLibrary {
                 val image = actualQuality?.codec?.startsWith("image/") == true
                 val tier = if (preferences.classifyMedia) MediaRules.classificationFolder(originalQuality,
                     preferences.imageTiers, preferences.videoTiers, preferences.codecRatios) else null
-                val organizeFolders = (if (image) preferences.imageFolderName else preferences.videoFolderName).isNotBlank()
-                if ((video || image) && ((mediaRoot != null && organizeFolders) || preferences.classifyMedia)) {
+                if ((video || image) && (mediaRoot != null || preferences.classifyMedia || preserveParent)) {
                     val parent = file.parentFile!!
-                    var base = if (mediaRoot != null && organizeFolders) {
-                        val platformName = MediaRules.folderName(platform.substringBefore(':'), "Unknown")
-                        (if (preferences.platformFolders) mediaRoot.resolve(platformName) else mediaRoot)
-                            .resolve(if (image) MediaRules.folderName(preferences.imageFolderName, "Images")
-                                else MediaRules.folderName(preferences.videoFolderName, "Videos"))
-                    } else if (parent.name.matches(Regex("[0-9]+(p|x[0-9]+)"))) parent.parentFile!! else parent
+                    var base = if (preserveParent) {
+                        MediaRules.classificationBase(parent, mediaRoot ?: File(rootPath(preferences)))
+                    } else if (mediaRoot != null) {
+                        parent.takeIf { it.canonicalFile.toPath().startsWith(mediaRoot.canonicalFile.toPath()) }?.let {
+                            MediaRules.classificationBase(it, mediaRoot)
+                        } ?: mediaRoot
+                    } else if (MediaRules.isQualityFolder(parent.name)) parent.parentFile!! else parent
+                    if (!preserveParent && mediaRoot != null) {
+                        val name = if (image) MediaRules.optionalFolderName(preferences.imageFolderName, "Images")
+                            else MediaRules.optionalFolderName(preferences.videoFolderName, "Videos")
+                        if (name.isNotEmpty() && base.name != name) base = base.resolve(name)
+                    }
                     if (tier != null) base = base.resolve(tier)
+                    // 기존 화질 폴더가 심볼릭 링크여도 지정 루트 밖으로 파일을 이동하지 않습니다.
+                    if (mediaRoot != null) require(base.canonicalFile.toPath().startsWith(mediaRoot.canonicalFile.toPath())) {
+                        "다운로드 폴더 밖으로 파일을 이동할 수 없습니다."
+                    }
                     val target = base.resolve(file.name)
                     if (target.canonicalFile != file.canonicalFile) {
                         check(base.isDirectory || base.mkdirs())

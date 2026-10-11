@@ -97,13 +97,13 @@ fun PostMediaDetails(state: Task.ViewState, overlay: Boolean = false) {
             add(if (state.minWidth > 0 && (state.minWidth != state.width || state.minHeight != state.height))
                 "${state.minWidth}×${state.minHeight} – $max" else max)
         }
-        state.averageMbps?.let { add("%.2f Mbps".format(java.util.Locale.ROOT, it)) }
+        state.averageMbps?.let { add("%.2f MB/s".format(java.util.Locale.ROOT, it / 8)) }
         if (state.fileSizeApprox > 0) add(state.fileSizeApprox.toFileSizeText())
-        val current = state.codec.ifBlank { state.originalCodec }.split(" / ").map { MediaRules.codecLabel(it) }.filter { it.isNotBlank() }.distinct().joinToString(" / ")
-        if (current.isNotBlank()) add(current)
-        if (state.av1Mode > 0 && state.originalCodec.isNotBlank())
-            add(stringResource(R.string.loc_original_codec, state.originalCodec.split(" / ").map { MediaRules.codecLabel(it) }.distinct().joinToString(" / ")))
-        if (state.av1Mode > 0) add(stringResource(if (state.av1Mode == 2) R.string.loc_av1_copied else R.string.loc_av1_replaced))
+        val codec = if (state.av1Mode > 0) state.originalCodec.ifBlank { state.codec } else state.codec.ifBlank { state.originalCodec }
+        val labels = codec.split(" / ").map { MediaRules.codecLabel(it) }.filter(String::isNotBlank).distinct().joinToString(" / ")
+        if (labels.isNotBlank()) add(labels)
+        if (state.av1Mode > 0) add(stringResource(if (state.av1Mode == 2)
+            R.string.revision5_encoded_keep else R.string.revision5_encoded_replace))
     }.joinToString(" · ")
     Surface(color = if (overlay) LabelContainerColor else Color.Transparent,
         contentColor = if (overlay) Color.White else MaterialTheme.colorScheme.onSurfaceVariant) {

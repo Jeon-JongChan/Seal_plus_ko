@@ -151,11 +151,20 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
     val viewState by viewModel.stateFlow.collectAsStateWithLifecycle()
     var mediaFilter by remember { mutableIntStateOf(0) }
     var folderFilter by remember { mutableStateOf<String?>(null) }
-    val fullVideoList by viewModel.videoListFlow.collectAsStateWithLifecycle(emptyList())
+    val observedVideoList by viewModel.videoListFlow.collectAsStateWithLifecycle(emptyList())
+    var refreshedVideoList by remember { mutableStateOf<List<DownloadedVideoInfo>?>(null) }
+    val scan by MediaScanService.state.collectAsStateWithLifecycle()
+    LaunchedEffect(observedVideoList) { refreshedVideoList = null }
+    LaunchedEffect(scan.running) {
+        if (!scan.running && scan.done > 0) refreshedVideoList = PluginDatabaseUtil.getDownloadHistory()
+    }
+    val fullVideoList = refreshedVideoList ?: observedVideoList
     val searchedVideoList by
         viewModel.searchedVideoListFlow.collectAsStateWithLifecycle(emptyList())
 
-    val videoList = if (viewState.isSearching) searchedVideoList else fullVideoList
+    // 직접 경로를 갱신한 이력도 검색 결과에서는 최신 파일 경로를 사용합니다.
+    val searchedIds = remember(searchedVideoList) { searchedVideoList.map { it.id }.toSet() }
+    val videoList = if (viewState.isSearching) fullVideoList.filter { it.id in searchedIds } else fullVideoList
     val posts = videoList.filter { it.filterSort(mediaFilter, folderFilter) }.groupBy {
         if (it.extractor.lowercase() in setOf("instagram", "tiktok")) MediaRules.identity(it.videoUrl.substringBefore('#'))
         else it.videoPath
@@ -182,6 +191,15 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
         viewModel.fileSizeMapFlow.collectAsStateWithLifecycle(initialValue = emptyMap())
     val sheetState = rememberModalBottomSheetState(initialValue = ModalBottomSheetValue.Hidden)
     val hostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(scan.running, observedVideoList) {
+        if (!scan.running) runCatching {
+            withContext(kotlinx.coroutines.Dispatchers.IO) {
+                MediaLibrary.registerExternalFiles(MediaLibrary.listVideos(createPluginPreferences()))
+            }
+            refreshedVideoList = PluginDatabaseUtil.getDownloadHistory()
+        }.onFailure { hostState.showSnackbar(it.message.orEmpty()) }
+    }
 
     var currentVideoInfo by remember { mutableStateOf(DownloadedVideoInfo()) }
 
@@ -510,7 +528,13 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
                                 thumbnailUrl = thumbnailUrl,
                                 videoPath = videoPath,
                                 videoFileSize = post.sumOf { fileSizeMap.getOrElse(it.id) { 0L } },
-                                postIndicator = { PostMediaDetails(details, overlay = true) },
+                                postIndicator = {
+                                    Column {
+                                        if (extractor == "External") Text(stringResource(R.string.revision5_external),
+                                            color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                                        PostMediaDetails(details, overlay = true)
+                                    }
+                                },
                                 videoUrl = videoUrl,
                                 isSelectEnabled = { isSelectEnabled },
                                 isSelected = { post.all { selectedItemIds.contains(it.id) } },
@@ -674,7 +698,8 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
                     }
 
                     File -> {
-                        importLauncher.launch("text/plain")
+                        // 공급자가 JSON 백업을 text/plain 이외의 MIME로 표시해도 선택할 수 있습니다.
+                        importLauncher.launch("*/*")
                     }
                 }
             }

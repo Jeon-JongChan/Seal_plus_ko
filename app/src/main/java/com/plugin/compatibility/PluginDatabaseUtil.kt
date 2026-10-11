@@ -29,18 +29,36 @@ object PluginDatabaseUtil {
     /** 이력을 즉시 저장하고 메타데이터를 MMKV에 보관합니다. */
     suspend fun insertInfoImmediately(info: DownloadedVideoInfo) = withContext(Dispatchers.IO) {
         DatabaseUtil.insertInfo(info)
+        // 원본 삽입은 별도 코루틴이므로 이력이 실제 표시될 때까지 기다립니다.
+        kotlinx.coroutines.withTimeout(10_000) {
+            DatabaseUtil.getDownloadHistoryFlow().first { items -> items.any { it.videoPath == info.videoPath } }
+        }
+        Unit
     }
 
     /** 파일 이동 시 이력 경로를 변경하고 메타데이터 키를 갱신합니다. */
     suspend fun updateMediaPath(oldPath: String, newPath: String) = withContext(Dispatchers.IO) {
         if (oldPath.isBlank() || newPath.isBlank() || oldPath == newPath) return@withContext
-        runCatching {
-            getWritableDatabase().use { db ->
+        getWritableDatabase().use { db ->
                 db.execSQL(
                     "UPDATE DownloadedVideoInfo SET videoPath = ? WHERE videoPath = ?",
                     arrayOf(newPath, oldPath)
                 )
-            }
+        }
+        PluginMediaMetadataStore.updatePath(oldPath, newPath)
+    }
+
+    /** 백업 이력을 이동된 파일에 연결하며 같은 파일의 임시 외부 이력만 원자적으로 합칩니다. */
+    suspend fun reconnectMediaPath(oldPath: String, newPath: String) = withContext(Dispatchers.IO) {
+        getWritableDatabase().use { db ->
+            db.beginTransaction()
+            try {
+                db.execSQL("DELETE FROM DownloadedVideoInfo WHERE videoPath = ? AND extractor = 'External'",
+                    arrayOf(newPath))
+                db.execSQL("UPDATE DownloadedVideoInfo SET videoPath = ?, thumbnailUrl = CASE WHEN thumbnailUrl = ? THEN ? ELSE thumbnailUrl END WHERE videoPath = ?",
+                    arrayOf(newPath, oldPath, newPath, oldPath))
+                db.setTransactionSuccessful()
+            } finally { db.endTransaction() }
         }
         PluginMediaMetadataStore.updatePath(oldPath, newPath)
     }

@@ -23,10 +23,68 @@ import com.junkfood.seal.util.DownloadUtil.DownloadPreferences
 import android.view.accessibility.AccessibilityNodeInfo
 import android.os.SystemClock
 import com.junkfood.seal.R
+import androidx.activity.compose.setContent
+import com.junkfood.seal.ui.theme.SealTheme
+import com.junkfood.seal.util.PreferenceUtil.getBoolean
+import com.junkfood.seal.util.PreferenceUtil.updateBoolean
 
 /** 화면 재생성에도 동일한 런타임과 대기열을 유지하는지 실제 앱 환경에서 검사합니다. */
 @RunWith(AndroidJUnit4::class)
 class PluginRuntimeTest {
+    /** 실제 인코딩 없이 설정 화면의 AV1 옵션 표시와 스크롤 레이아웃을 확인합니다. */
+    @Test
+    fun encodingSettingsShowAv1Options() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val enabled = PluginState.isEnabled(PluginId.MEDIA)
+        val original = com.plugin.compatibility.PluginPreferences.TRANSCODE_AV1.getBoolean()
+        try {
+            instrumentation.runOnMainSync {
+                PluginState.setEnabled(PluginId.MEDIA, true)
+                com.plugin.compatibility.PluginPreferences.TRANSCODE_AV1.updateBoolean(true)
+            }
+            ActivityScenario.launch(PluginMainActivity::class.java).use { scenario ->
+                scenario.onActivity { activity ->
+                    activity.setContent { SealTheme { com.plugin.media.MediaToolsPage {} } }
+                }
+                awaitText(context.getString(R.string.loc_av1_conversion))
+                awaitText(context.getString(R.string.loc_video_container))
+                val bitmap = instrumentation.uiAutomation.takeScreenshot()
+                java.io.File(context.externalCacheDir, "revision6-encoding-ui.png").outputStream().use {
+                    assertTrue(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it))
+                }
+                bitmap.recycle()
+            }
+        } finally {
+            instrumentation.runOnMainSync {
+                PluginState.setEnabled(PluginId.MEDIA, enabled)
+                com.plugin.compatibility.PluginPreferences.TRANSCODE_AV1.updateBoolean(original)
+            }
+        }
+    }
+
+    /** 프로필 전용 화면에서 이전 자동 인식·다운로드 유형 선택 UI가 빠졌는지 확인합니다. */
+    @Test
+    fun profilePageHasNoPlaylistOrTypeSelector() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        ActivityScenario.launch(PluginMainActivity::class.java).use { scenario ->
+            scenario.onActivity { activity ->
+                activity.setContent { SealTheme { com.plugin.listdownload.ListDownloadPage({}, {}) } }
+            }
+            awaitText(context.getString(R.string.loc_profile_download_hint))
+            val root = instrumentation.uiAutomation.rootInActiveWindow
+            assertFalse(hasText(root, context.getString(R.string.loc_list_auto_detect)))
+            assertFalse(hasText(root, context.getString(R.string.download_type)))
+            assertTrue(hasText(root, context.getString(R.string.loc_list_input)))
+            val bitmap = instrumentation.uiAutomation.takeScreenshot()
+            java.io.File(context.externalCacheDir, "profile-download-ui.png").outputStream().use {
+                assertTrue(bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it))
+            }
+            bitmap.recycle()
+        }
+    }
+
     /** 모든 확장이 꺼진 입력창과 대기열 확장 없이 활성화한 입력창을 실제 화면에서 구분합니다. */
     @Test
     fun inputPluginIsVisibleInBothEntryPoints() {
@@ -44,15 +102,26 @@ class PluginRuntimeTest {
                 }
                 awaitText(label)
             }
-            instrumentation.runOnMainSync { PluginState.setEnabled(PluginId.INTERACTION, true) }
+            for (feature in listOf(PluginId.INTERACTION, PluginId.SOCIAL)) {
+            instrumentation.runOnMainSync {
+                PluginId.entries.forEach { PluginState.setEnabled(it, false) }
+                PluginState.setEnabled(feature, true)
+            }
             for (activityClass in listOf(PluginMainActivity::class.java, PluginQuickDownloadActivity::class.java)) {
                 val intent = Intent(context, activityClass).setAction(Intent.ACTION_VIEW)
                     .setData(Uri.parse("https://example.invalid/plugin-ui-check"))
                 ActivityScenario.launch<androidx.appcompat.app.AppCompatActivity>(intent).use { scenario ->
                     var label = ""
-                    scenario.onActivity { label = it.getString(R.string.loc_media_link) }
+                    var types = emptyList<String>()
+                    scenario.onActivity {
+                        label = it.getString(R.string.loc_media_link)
+                        types = listOf(R.string.revision5_auto, R.string.revision5_video, R.string.revision5_image,
+                            R.string.revision5_playlist, R.string.revision5_audio).map(it::getString)
+                    }
                     awaitText(label)
+                    types.forEach { awaitText(it, horizontalScroll = true) }
                 }
+            }
             }
         } finally {
             instrumentation.runOnMainSync { previous.forEach { (id, enabled) -> PluginState.setEnabled(id, enabled) } }
@@ -60,13 +129,24 @@ class PluginRuntimeTest {
     }
 
     /** 접근성 화면에 지정한 입력 필드가 나타날 때까지 짧게 기다립니다. */
-    private fun awaitText(text: String) {
+    private fun awaitText(text: String, horizontalScroll: Boolean = false) {
         val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
-        repeat(40) {
+        repeat(100) {
             if (hasText(automation.rootInActiveWindow, text)) return
+            if (horizontalScroll && it % 10 == 0) scrollHorizontal(automation.rootInActiveWindow)
             SystemClock.sleep(100)
         }
         fail("입력창에 표시되지 않은 문구: $text")
+    }
+
+    /** 화면 밖 유형 버튼은 가로 스크롤 접근성 동작으로 찾아 확인합니다. */
+    private fun scrollHorizontal(node: AccessibilityNodeInfo?): Boolean {
+        if (node == null) return false
+        val bounds = android.graphics.Rect()
+        node.getBoundsInScreen(bounds)
+        if (node.isScrollable && bounds.width() > bounds.height() &&
+            node.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)) return true
+        return (0 until node.childCount).any { scrollHorizontal(node.getChild(it)) }
     }
 
     /** 부모의 병합된 설명과 자식 노드까지 확인합니다. */

@@ -3,6 +3,8 @@
     android:height="108dp"
     android:viewportWidth="128"
     android:viewportHeight="128">
+    <!-- 단색 테마에서도 더하기를 물개보다 먼저 그립니다. -->
+    <path android:fillColor="#000000" android:pathData="M80,35h5v7h7v5h-7v7h-5v-7h-7v-5h7z" />
     <path
         android:fillColor="#000000"
         android:fillType="evenOdd"

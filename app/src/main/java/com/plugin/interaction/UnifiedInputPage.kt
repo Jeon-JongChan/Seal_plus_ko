@@ -4,6 +4,8 @@ import com.plugin.compatibility.copyPreservingPluginOptions
 import com.plugin.compatibility.*
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -16,7 +18,12 @@ import com.junkfood.seal.util.DownloadType
 import com.junkfood.seal.util.DownloadType.*
 import com.junkfood.seal.util.DownloadUtil
 import com.plugin.PluginId
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.plugin.PluginState
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Text
+import com.junkfood.seal.util.PreferenceUtil.getString
+import com.junkfood.seal.util.PreferenceUtil.updateString
 
 /** 앱 입력과 공유 입력에 같은 유형·쿠키·미디어 설정을 제공하며 실행 버튼은 고정합니다. */
 @Composable
@@ -25,47 +32,63 @@ fun UnifiedInputPage(
     preferences: DownloadUtil.DownloadPreferences,
     onPreferencesUpdate: (DownloadUtil.DownloadPreferences) -> Unit,
     onPresetEdit: (DownloadType?) -> Unit,
-    onActionPost: (Action) -> Unit,
+    onActionPost: (Any) -> Unit,
     initialUrls: List<String> = emptyList(),
 ) {
-                var inputType by remember { mutableStateOf(config.downloadType ?: Video) }
-                val inputFormatSelection = false
-                EnhancedInputUrlPage(
-                    initialUrls = initialUrls,
-                    config = config,
-                    onConfigUpdate = { Config.updatePreferences(newValue = it, oldValue = config) },
-                    settings = {
-                        Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
-                            DrawerSheetSubtitle(text = stringResource(R.string.download_type))
-                            DownloadTypeSelectionGroup(typeEntries = config.typeEntries, selectedType = inputType,
-                                onSelect = { inputType = it })
-                            DrawerSheetSubtitle(text = stringResource(R.string.format_selection))
-                            DownloadFormatButton(inputType, preferences, onPreferencesUpdate)
-
+    var kind by rememberSaveable { mutableStateOf(runCatching {
+        PluginDownloadKind.valueOf("plugin_download_kind".getString("Auto"))
+    }.getOrDefault(PluginDownloadKind.Auto)) }
+    val imageAvailable = PluginState.isEnabled(PluginId.SOCIAL) ||
+        (PluginState.isEnabled(PluginId.LIST) && preferences.listProcessing)
+    val activeKind = if (kind == PluginDownloadKind.Image && !imageAvailable) PluginDownloadKind.Auto else kind
+    val inputType = activeKind.formatType
+    EnhancedInputUrlPage(
+        initialUrls = initialUrls,
+        config = config,
+        onConfigUpdate = { Config.updatePreferences(it, config) },
+        settings = {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp)) {
+                Text(stringResource(R.string.download_type), Modifier.padding(top = 12.dp, bottom = 4.dp),
+                    style = androidx.compose.material3.MaterialTheme.typography.titleSmall)
+                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PluginDownloadKind.entries.forEach { item ->
+                        val label = when (item) {
+                            PluginDownloadKind.Auto -> R.string.revision5_auto
+                            PluginDownloadKind.Video -> R.string.revision5_video
+                            PluginDownloadKind.Image -> R.string.revision5_image
+                            PluginDownloadKind.Playlist -> R.string.revision5_playlist
+                            PluginDownloadKind.Audio -> R.string.revision5_audio
                         }
-                        AdditionalSettings(Modifier.padding(horizontal = 16.dp), inputType,
-                            preferences, onPreferencesUpdate, instagram = PluginState.isEnabled(PluginId.SOCIAL))
-                    },
-                    onActionPost = { action ->
-                        if (action is Action.ProceedWithURLs) {
-                            // 기본 다운로드는 입력 화면에서 시작하고 명시적인 형식·명령 선택만 기존 설정을 엽니다.
-                            Config.updatePreferences(config.copy(downloadType = inputType, useFormatSelection = inputFormatSelection), config)
-                            val social = PluginState.isEnabled(PluginId.SOCIAL) && action.urlList.all { com.plugin.compatibility.MediaRules.usesSocialMediaApi(it, inputType == Audio) }
-                            when {
-                                PluginState.isEnabled(PluginId.SOCIAL) && action.urlList.any { com.plugin.compatibility.MediaRules.instagramAccount(it) != null } ->
-                                    onActionPost(Action.FetchPlaylist(action.urlList.first(), preferences.copyPreservingPluginOptions { copy(extractAudio = inputType == Audio) }
-                                        .copyPluginOptions(mediaSelection = when (inputType) { Video, Audio -> 1; else -> 0 })))
-                                inputType == Command -> onActionPost(action)
-                                (inputType == Playlist || com.plugin.compatibility.MediaRules.isPlaylistUrl(action.urlList.first())) && action.urlList.size == 1 ->
-                                    onActionPost(Action.FetchPlaylist(action.urlList.first(), preferences))
-                                inputFormatSelection && !social && action.urlList.size == 1 ->
-                                    onActionPost(Action.FetchFormats(action.urlList.first(), inputType == Audio, preferences))
-                                else -> onActionPost(Action.DownloadWithPreset(action.urlList,
-                                    preferences.copyPreservingPluginOptions { copy(extractAudio = inputType == Audio) }
-                                        .copyPluginOptions(mediaSelection = when (inputType) { Video, Audio -> 1; else -> 0 })))
-                            }
-                        } else onActionPost(action)
-                    },
-                )
-
+                        FilterChip(selected = activeKind == item, onClick = {
+                            kind = item
+                            "plugin_download_kind".updateString(item.name)
+                        }, enabled = item != PluginDownloadKind.Image || imageAvailable,
+                            label = { Text(stringResource(label)) })
+                    }
+                }
+                Text(stringResource(R.string.format_selection), Modifier.padding(top = 12.dp, bottom = 4.dp),
+                    style = androidx.compose.material3.MaterialTheme.typography.titleSmall)
+                DownloadFormatButton(inputType, activeKind.preferences(preferences), onPreferencesUpdate)
+                Text(stringResource(R.string.additional_settings), Modifier.padding(top = 12.dp, bottom = 4.dp),
+                    style = androidx.compose.material3.MaterialTheme.typography.titleSmall)
+            }
+            AdditionalSettings(Modifier.padding(horizontal = 16.dp), inputType,
+                activeKind.preferences(preferences), onPreferencesUpdate,
+                instagram = PluginState.isEnabled(PluginId.SOCIAL))
+        },
+        onActionPost = { action ->
+            if (action is Action.ProceedWithURLs && action.urlList.isNotEmpty()) {
+                val requested = activeKind.preferences(preferences, MediaRules.isPlaylistUrl(action.urlList.first()))
+                Config.updatePreferences(config.copy(downloadType = inputType, useFormatSelection = false), config)
+                if (activeKind == PluginDownloadKind.Image) {
+                    onActionPost(InspectInstagramAction(action.urlList.first(), requested, action.urlList))
+                } else if ((activeKind == PluginDownloadKind.Playlist && action.urlList.size == 1) ||
+                    (activeKind == PluginDownloadKind.Auto && MediaRules.isPlaylistUrl(action.urlList.first())) ||
+                    (PluginState.isEnabled(PluginId.SOCIAL) && action.urlList.any { MediaRules.instagramAccount(it) != null })) {
+                    onActionPost(Action.FetchPlaylist(action.urlList.first(), requested))
+                } else onActionPost(Action.DownloadWithPreset(action.urlList, requested))
+            } else onActionPost(action)
+        },
+    )
 }

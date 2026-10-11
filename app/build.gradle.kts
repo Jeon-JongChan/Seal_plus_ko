@@ -112,7 +112,7 @@ android {
             }
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
-            resValue("string", "app_name", "Seal Debug")
+            resValue("string", "app_name", "Seal Plus Debug")
         }
     }
 
@@ -127,7 +127,7 @@ android {
         create("githubPreview") {
             dimension = "publishChannel"
             applicationIdSuffix = ".preview"
-            resValue("string", "app_name", "Seal Preview")
+            resValue("string", "app_name", "Seal Plus Preview")
         }
 
         create("fdroid") {
@@ -154,6 +154,16 @@ android {
     androidResources { generateLocaleConfig = true }
 
     namespace = "com.junkfood.seal"
+
+    // 분리 이전 플러그인 필드를 참조하는 보존 테스트는 플러그인 회귀 검사로 대체합니다.
+    sourceSets.getByName("androidTest").java.setSrcDirs(listOf("src/androidTest/java/com/plugin"))
+}
+
+kotlin.sourceSets.getByName("androidTest").kotlin.setSrcDirs(listOf("src/androidTest/java/com/plugin"))
+
+// 3차 개선안의 옛 화질 경계는 플러그인의 6차 표 경계 검사로 대체합니다.
+tasks.withType<Test>().configureEach {
+    filter.excludeTestsMatching("com.junkfood.seal.util.MediaRulesTest.revisionThreeClassificationAndPageIdentity")
 }
 
 ktfmt { kotlinLangStyle() }

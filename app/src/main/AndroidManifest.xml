@@ -82,6 +82,12 @@
             android:exported="false"
             android:foregroundServiceType="specialUse" />
 
+        <service android:name="com.plugin.library.MediaScanService" android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User initiated local media folder scan and classification" />
+        </service>
+
         <activity
             android:name="com.plugin.ui.PluginMainActivity"
             android:configChanges="orientation"

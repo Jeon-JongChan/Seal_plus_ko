@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 적응형 아이콘 이전 버전의 원형 배경입니다. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item><shape android:shape="oval"><solid android:color="@color/ic_launcher_background" /></shape></item>
+    <item android:drawable="@drawable/ic_launcher_foreground" />
+</layer-list>

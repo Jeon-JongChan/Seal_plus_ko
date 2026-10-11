@@ -1,0 +1,11 @@
+<resources>
+    <string name="revision6_scan_folder">스캔 대상 폴더</string>
+    <string name="revision6_file_count">미디어 %1$d개</string>
+    <string name="revision6_directory_settings_only">경로 변경은 설정 &gt; 다운로드 디렉토리에서 가능합니다.</string>
+    <string name="revision6_storage_permission">저장소 접근 허용</string>
+    <string name="revision6_folder_access_error">폴더를 읽을 수 없습니다. 저장소 접근 권한을 확인하세요.\n%1$s</string>
+    <string name="revision6_cleanup">스캔 후 빈 폴더 정리</string>
+    <string name="revision6_cleaned">정리한 빈 폴더 %1$d개</string>
+    <string name="revision6_scan_hint">기본 경로는 다운로드 디렉토리 설정을 사용합니다. 스캔은 기존 화질 폴더를 제외하고, 전체 재스캔은 현재 설정으로 다시 분류합니다. 외부 파일도 다운로드 메뉴에 표시합니다.</string>
+    <string name="revision6_saf_cleanup_hint">접근 허용으로 선택한 폴더는 공급자의 재귀 삭제를 방지하기 위해 빈 폴더 자동 정리를 지원하지 않습니다.</string>
+</resources>

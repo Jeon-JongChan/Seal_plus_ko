@@ -1,0 +1,11 @@
+<resources>
+    <string name="revision6_scan_folder">Scan folder</string>
+    <string name="revision6_file_count">%1$d media files</string>
+    <string name="revision6_directory_settings_only">Change the path in Settings &gt; Download directory.</string>
+    <string name="revision6_storage_permission">Allow storage access</string>
+    <string name="revision6_folder_access_error">Cannot read this folder. Check storage access permission.\n%1$s</string>
+    <string name="revision6_cleanup">Clean empty folders after scanning</string>
+    <string name="revision6_cleaned">%1$d empty folders cleaned</string>
+    <string name="revision6_scan_hint">The default path uses your download directory settings. Scan skips existing quality folders; rescan all applies your current settings. External files also appear in Downloads.</string>
+    <string name="revision6_saf_cleanup_hint">Automatic empty-folder cleanup is unavailable for document providers to avoid recursive deletion.</string>
+</resources>

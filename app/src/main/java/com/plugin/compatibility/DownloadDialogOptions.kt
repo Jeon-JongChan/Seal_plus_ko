@@ -254,9 +254,10 @@ internal fun AdditionalSettings(
     showSubtitles: Boolean = true,
 ) {
     with(preference) {
-        Row(modifier = modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
-            DownloadAllChip(preference, onPreferenceUpdate)
+        Row(modifier = modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             CookieOptions(preference, onUpdate = onPreferenceUpdate)
+            DownloadAllChip(preference, onPreferenceUpdate)
             if (showSubtitles) VideoFilterChip(
                 selected = downloadSubtitle,
                 enabled = selectedType != Command,

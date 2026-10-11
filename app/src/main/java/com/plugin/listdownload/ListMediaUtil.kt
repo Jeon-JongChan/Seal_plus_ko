@@ -545,9 +545,10 @@ object ListMediaUtil {
                     val root = if (preferences.sdcard) context.getSdcardTempDir(current.id)
                         else File(if (preferences.privateDirectory) App.privateDownloadDir else App.videoDownloadDir)
                     val platformName = if (current.platform == "tiktok") "TikTok" else "Instagram"
-                    val directory = if (preferences.imageFolderName.isBlank()) root
-                        else (if (preferences.platformFolders) root.resolve(platformName) else root)
-                            .resolve(MediaRules.folderName(preferences.imageFolderName, "Images"))
+                    // 플랫폼 하위 폴더는 호스트 다운로드 디렉토리 설정만 따릅니다.
+                    val base = if (preferences.subdirectoryExtractor) root.resolve(platformName) else root
+                    val directory = if (preferences.imageFolderName.isBlank()) base
+                        else base.resolve(MediaRules.folderName(preferences.imageFolderName, "Images"))
                     check(directory.isDirectory || directory.mkdirs()) { com.junkfood.seal.App.context.getString(R.string.loc_image_folder_create_failed) }
                     val call =
                         clientFor(preferences)
@@ -617,7 +618,7 @@ object ListMediaUtil {
                                 if (temporary.exists()) temporary.delete()
                             }
                             val processed = MediaLibrary.finish(listOf(target.absolutePath), preferences.copyPluginOptions(transcodeAv1 = false),
-                                taskId, mediaRoot = root, platform = platformName)
+                                taskId, mediaRoot = root)
                             val paths =
                                 if (preferences.sdcard)
                                     com.plugin.compatibility.CompatibilityFiles.moveFilesToSdcard(

@@ -9,6 +9,20 @@ import kotlinx.serialization.json.*
 
 /** 파일 관리와 게시물 선택에 공통으로 사용하는 순수 계산 규칙입니다. */
 object MediaRules {
+    /** 기본 파일명의 게시물 ID가 원래 URL에 포함된 경우에만 자동 연결을 허용합니다. */
+    fun canReconnect(name: String, url: String): Boolean {
+        val id = Regex("\\[([A-Za-z0-9_-]+)](?:[-_]av1)?\\.[^.]+$")
+            .find(name)?.groupValues?.get(1) ?: return false
+        val uri = runCatching { URI(url) }.getOrNull() ?: return false
+        if (uri.scheme !in setOf("https", "http") || uri.host.isNullOrBlank()) return false
+        if (uri.host.lowercase() in setOf("instagram.com", "www.instagram.com")) {
+            val shortcode = Regex("^/(?:p|reel|tv)/([^/]+)/?$").find(uri.path.orEmpty())?.groupValues?.get(1)
+            if (shortcode != null && runCatching { instagramId(shortcode) == id }.getOrDefault(false)) return true
+        }
+        // 제목의 우연한 부분 문자열이 아닌 URL의 독립된 ID만 인정합니다.
+        return Regex("(?<![A-Za-z0-9_-])${Regex.escape(id)}(?![A-Za-z0-9_-])")
+            .containsMatchIn(listOf(uri.path, uri.query, uri.fragment).joinToString("/"))
+    }
     /** 공식 게시물·공유 링크만 자동 분석 대상으로 허용합니다. */
     private fun acceptsTikTok(url: String): Boolean = runCatching {
         val uri = URI(url)
@@ -80,8 +94,49 @@ object MediaRules {
     const val DISABLED_VIDEO_TIERS = "disabled_video_tiers"
 
     const val DEFAULT_IMAGE_TIERS = "720x1280,1080x1920,1440x2560,2160x3840"
-    const val DEFAULT_VIDEO_TIERS = "360:0.125:0.188,480:0.313:0.500,720:0.625:0.938,1080:1.000:1.500,1440:2.000:3.000,2160:5.000:7.563"
+    const val LEGACY_VIDEO_TIERS = "360:0.125:0.188,480:0.313:0.500,720:0.625:0.938,1080:1.000:1.500,1440:2.000:3.000,2160:5.000:7.563"
+    const val DEFAULT_VIDEO_TIERS = "360:0.040:0.060,480:0.070:0.105,720:0.140:0.210,1080:0.250:0.375,1440:0.600:0.900,2160:1.300:1.950"
     const val DEFAULT_CODEC_RATIOS = "0.66,0.77,0.55"
+
+    /** 구버전 기본값만 새 표로 교체하고 사용자 기준과 비활성 구간은 보존합니다. */
+    fun currentVideoTiers(value: String): String = if (value.substringBefore(';') == LEGACY_VIDEO_TIERS)
+        DEFAULT_VIDEO_TIERS + value.substringAfter(';', "").takeIf(String::isNotBlank)?.let { ";$it" }.orEmpty()
+    else value
+
+    /** 재분류는 화질 폴더 한 칸만 벗어나며 다운로드 루트와 사용자 부모 폴더를 보존합니다. */
+    fun classificationBase(parent: File, root: File): File {
+        val directory = parent.canonicalFile
+        val boundary = root.canonicalFile
+        require(directory.toPath().startsWith(boundary.toPath())) { "다운로드 폴더 밖의 파일은 분류할 수 없습니다." }
+        // 정규 경로는 경계 검증에만 사용해 Android의 /data/user/0 별칭과 이력 경로를 유지합니다.
+        return if (directory != boundary && isQualityFolder(parent.name)) parent.parentFile!! else parent
+    }
+
+    /** 기존 앱에서 생성한 영상·이미지 화질 폴더 이름을 인식합니다. */
+    // ponytail: 구버전 생성 기록이 없어 이름으로 판별합니다. 동명 수동 폴더까지 구분하려면 생성 경로 메타데이터가 필요합니다.
+    fun isQualityFolder(name: String): Boolean = name.matches(Regex("[0-9]+(p|x[0-9]+)"))
+
+    /** 표의 코덱별 경계를 그대로 사용하며 JSON에서 조정한 H.264 경계도 비례 반영합니다. */
+    fun videoThreshold(height: Int, h264: Double, highFps: Boolean, codec: String,
+        ratios: String = DEFAULT_CODEC_RATIOS): Double? {
+        val column = when (codecLabel(codec)) {
+            "H.264" -> 0
+            "H.265" -> 1
+            "VP9" -> 2
+            "AV1" -> 3
+            else -> return null
+        }
+        val values = when (height) {
+            360 -> if (highFps) listOf(.060, .045, .045, .030) else listOf(.040, .030, .030, .020)
+            480 -> if (highFps) listOf(.105, .075, .083, .053) else listOf(.070, .050, .055, .035)
+            720 -> if (highFps) listOf(.210, .143, .165, .120) else listOf(.140, .095, .110, .080)
+            1080 -> if (highFps) listOf(.375, .255, .285, .210) else listOf(.250, .170, .190, .140)
+            1440 -> if (highFps) listOf(.900, .600, .675, .495) else listOf(.600, .400, .450, .330)
+            2160 -> if (highFps) listOf(1.950, 1.275, 1.500, 1.080) else listOf(1.300, .850, 1.000, .720)
+            else -> return if (column == 0) h264 else codecRatios(ratios)?.let { h264 * it[column - 1] }
+        }
+        return h264 * (values[column] / values[0])
+    }
 
     /** 기존 직렬화 필드에 비활성 구간을 함께 넣어 작업 등록 시 설정 사본을 보존합니다. */
     fun withDisabledTiers(tiers: String, disabled: String): String =
@@ -99,6 +154,10 @@ object MediaRules {
         it.isNotBlank() && it.length <= 64 && it == it.trim() && it !in setOf(".", "..") &&
             !it.endsWith('.') && !it.contains(Regex("[\\\\/:*?\"<>|\\p{Cntrl}]"))
     } ?: fallback
+
+    /** 빈 이름은 하위 폴더 생략으로 보존하고 잘못된 이름만 기본값으로 복구합니다. */
+    fun optionalFolderName(value: String, fallback: String): String =
+        if (value.isEmpty()) "" else folderName(value, fallback)
 
     /** 이미지 기준의 짧은 변과 긴 변을 검증하고 오름차순으로 정리합니다. */
     fun imageTiers(value: String): List<Pair<Int, Int>>? = runCatching {
@@ -140,15 +199,17 @@ object MediaRules {
         val long = maxOf(quality.width, quality.height)
         if (short <= 0) return null
         if (quality.codec.startsWith("image/")) return imageTiers(images)?.lastOrNull {
-            short >= it.first && long >= it.second
-        }?.let { "${it.first}x${it.second}" }?.takeUnless { it in disabledTiers(images) }
+            short >= it.first && long >= it.second && "${it.first}x${it.second}" !in disabledTiers(images)
+        }?.let { "${it.first}x${it.second}" }
         val mbps = bitrateMbps(quality.bytes, quality.duration)?.div(8) ?: return null
         if (quality.frameRate <= 0 || !quality.frameRate.isFinite()) return null
         if (quality.codec.isBlank() || quality.codec == "unknown") return null
         // 해상도와 기준 용량을 모두 충족한 마지막 구간을 사용해 상위 기준 없는 파일도 같은 구간에 둡니다.
         return videoTiers(videos)?.lastOrNull {
-            short >= it.first && mbps >= (if (quality.frameRate >= 48) it.third else it.second)
-        }?.let { "${it.first}p" }?.takeUnless { it in disabledTiers(videos) }
+            short >= it.first && videoThreshold(it.first, if (quality.frameRate >= 48) it.third else it.second,
+                quality.frameRate >= 48, quality.codec, ratios)?.let { threshold -> mbps + 1e-9 >= threshold } == true &&
+                "${it.first}p" !in disabledTiers(videos)
+        }?.let { "${it.first}p" }
     }
     /** 자동 유형에서 명시적인 재생목록 링크를 기존 목록 조회로 보냅니다. */
     fun isPlaylistUrl(url: String): Boolean = runCatching {

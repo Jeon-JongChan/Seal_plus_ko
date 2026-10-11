@@ -115,7 +115,7 @@ fun PostMediaViewer(paths: List<String>, initialPath: String?, onDismiss: () -> 
                                     if (quality.frameRate > 0) add("%.1f fps".format(java.util.Locale.ROOT, quality.frameRate))
                                     if (quality.duration > 0) add("%.2f s".format(java.util.Locale.ROOT, quality.duration))
                                     add(quality.bytes.toDouble().toFileSizeText())
-                                    quality.averageMbps?.let { add("%.2f Mbps".format(java.util.Locale.ROOT, it)) }
+                                    quality.averageMbps?.let { add("%.2f MB/s".format(java.util.Locale.ROOT, it / 8)) }
                                     if (quality.codec.isNotBlank()) add(com.plugin.compatibility.MediaRules.codecLabel(quality.codec))
                                 } else add(MediaLibrary.fileBytes(path).toDouble().toFileSizeText())
                                 saved.sourceQuality?.let { source -> add(context.getString(R.string.loc_original_codec,
@@ -146,7 +146,7 @@ fun PostMediaViewer(paths: List<String>, initialPath: String?, onDismiss: () -> 
     }
     if (deleting != null) AlertDialog(onDismissRequest = { if (!busy) deleting = null },
         title = { Text(stringResource(R.string.loc_delete_page)) },
-        text = { Text(error.ifBlank { context.getString(R.string.loc_delete_page_hint) }) },
+        text = { Text(error.ifBlank { context.getString(R.string.revision5_delete_file_hint) }) },
         confirmButton = {
             TextButton(enabled = !busy, onClick = {
                 val selected = deleting ?: return@TextButton

@@ -154,11 +154,10 @@ private fun InputUrlPageImpl(
 
     Column(modifier = modifier.heightIn(max = 560.dp)) {
         Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
-        Header(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 32.dp),
-            title = stringResource(R.string.new_task),
-            icon = Icons.Outlined.Add,
-        )
+        Text(stringResource(R.string.new_task),
+            Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.titleLarge,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         OutlinedTextField(
             value = url,
             onValueChange = { url = it },

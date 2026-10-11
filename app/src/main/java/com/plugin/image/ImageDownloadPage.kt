@@ -41,23 +41,7 @@ fun ImageMediaSelection(preferences: DownloadUtil.DownloadPreferences, onUpdate:
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImageDownloadPage(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) {
-    var url by rememberSaveable { mutableStateOf("") }
-    var preferences by remember { com.plugin.compatibility.pluginPreferencesState(com.plugin.compatibility.createPluginPreferences().copy(extractAudio = false).copyPluginOptions(mediaSelection = 0)) }
-    val valid = com.plugin.compatibility.MediaRules.playlistUrl(url) != null
-    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.loc_unified_download)) }, navigationIcon = { BackButton(onBack) }) }) { padding ->
-        Column(Modifier.padding(padding).padding(20.dp).verticalScroll(rememberScrollState())) {
-            Text(stringResource(R.string.loc_auto_media_hint))
-            OutlinedTextField(url, onValueChange = { url = it }, modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.loc_media_url)) }, singleLine = true,
-                isError = url.isNotBlank() && !valid,
-                supportingText = { if (url.isNotBlank() && !valid) Text(stringResource(R.string.loc_instagram_invalid_url)) })
-            CookieOptions(preferences, onUpdate = { preferences = it })
-            if (com.plugin.PluginState.isEnabled(com.plugin.PluginId.MEDIA)) MediaDownloadOptions(preferences, onUpdate = { preferences = it }, instagram = InstagramUtil.accepts(url.trim()))
-            Button(enabled = valid, onClick = {
-                onAction(DownloadDialogViewModel.Action.DownloadWithPreset(listOf(url.trim()), preferences))
-            }) { Text(stringResource(R.string.download)) }
-        }
-    }
+    LaunchedEffect(Unit) { onAction(DownloadDialogViewModel.Action.ShowSheet()) }
 }
 
 /** 통합 미디어 다운로드 진입점을 기존 플러그인 메뉴와 탐색 그래프에 등록합니다. */

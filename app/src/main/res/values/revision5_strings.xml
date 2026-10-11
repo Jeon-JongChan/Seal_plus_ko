@@ -1,0 +1,19 @@
+<resources>
+    <string name="revision5_auto">Auto</string>
+    <string name="revision5_video">Video</string>
+    <string name="revision5_image">Image</string>
+    <string name="revision5_playlist">Playlist</string>
+    <string name="revision5_audio">Audio</string>
+    <string name="revision5_encoding">Video encoding</string>
+    <string name="revision5_scan">Scan</string>
+    <string name="revision5_rescan">Rescan all</string>
+    <string name="revision5_external">● External file</string>
+    <string name="revision5_scanning">Classifying media in the background</string>
+    <string name="revision5_scan_status">Processed %1$d / %2$d · Failed %3$d</string>
+    <string name="revision5_scan_hint">Scan skips quality folders. Rescan all applies current folder settings to every media file. Existing folders are preserved.</string>
+    <string name="revision5_empty_folder">Leave the folder name empty to save directly in the base or platform folder.</string>
+    <string name="revision5_disabled_tier">Disabled quality tiers fall back to a lower enabled tier. Rescan all to update existing files.</string>
+    <string name="revision5_delete_file_hint">Deletes the current file from storage and removes it from the viewer. The original page count is preserved.</string>
+    <string name="revision5_encoded_keep">Encoded (kept original)</string>
+    <string name="revision5_encoded_replace">Encoded (replaced)</string>
+</resources>
