@@ -8,8 +8,9 @@ import androidx.compose.runtime.referentialEqualityPolicy
 
 /**
  * 플러그인 전용 다운로드 설정 메타데이터입니다.
- * 원본 DownloadPreferences 모델을 오염시키지 않고 플러그인 확장 옵션 22개를 제공합니다.
+ * 원본 DownloadPreferences 모델을 오염시키지 않고 플러그인 확장 옵션을 제공합니다.
  */
+@kotlinx.serialization.Serializable
 data class PluginPreferencesRecord(
     val videoContainer: String = "mp4",
     val mediaSelection: Int = 0,
@@ -17,12 +18,16 @@ data class PluginPreferencesRecord(
     val imageResolution: Int = 0,
     val classifyMedia: Boolean = false,
     val classificationTarget: Int = 0,
+    val classificationUpperFirst: Boolean = false,
+    val selectedFolder: DownloadFolder? = null,
+    val websiteFolderTarget: Int = 0,
     val qualityThresholdMbps: Int = 4,
     val transcodeAv1: Boolean = false,
     val keepAv1Original: Boolean = false,
     val av1Crf: Int = 32,
     val av1Preset: Int = 8,
     val cookieProfileId: Int = -1,
+    val cookieProfileExplicit: Boolean = false,
     val imageFolderName: String = "Images",
     val videoFolderName: String = "Videos",
     val platformFolders: Boolean = false,
@@ -49,6 +54,9 @@ fun DownloadPreferences.attachPluginOptions(record: PluginPreferencesRecord): Do
 private fun DownloadPreferences.getRecord(): PluginPreferencesRecord =
     preferenceOptionsMap[prefKey()] ?: PluginPreferencesRecord()
 
+/** 대기열 백업에 연결할 요청 당시 확장 설정이며 연결되지 않은 구형 요청은 null입니다. */
+fun DownloadPreferences.storedPluginOptions(): PluginPreferencesRecord? = preferenceOptionsMap[prefKey()]
+
 /** 기본 모델 필드를 바꿀 때 요청에 연결한 확장 옵션도 새 사본에 보존합니다. */
 fun DownloadPreferences.copyPreservingPluginOptions(
     update: DownloadPreferences.() -> DownloadPreferences,
@@ -73,12 +81,21 @@ val DownloadPreferences.downloadAllMedia: Boolean get() = getRecord().downloadAl
 val DownloadPreferences.imageResolution: Int get() = getRecord().imageResolution
 val DownloadPreferences.classifyMedia: Boolean get() = getRecord().classifyMedia
 /** 하위 폴더 분류 대상입니다: 0은 둘 다, 1은 비디오, 2는 이미지입니다. */
+val DownloadPreferences.classificationUpperFirst: Boolean get() = getRecord().classificationUpperFirst
+val DownloadPreferences.selectedFolder: DownloadFolder? get() = getRecord().selectedFolder
 val DownloadPreferences.classificationTarget: Int get() = getRecord().classificationTarget
+/** 웹사이트별 폴더 대상입니다: 0은 둘 다, 1은 동영상, 2는 이미지입니다. */
+val DownloadPreferences.websiteFolderTarget: Int get() = getRecord().websiteFolderTarget
+
+/** 원본 웹사이트 설정과 별도 적용 대상을 함께 검사합니다. */
+fun DownloadPreferences.useWebsiteFolder(image: Boolean): Boolean =
+    selectedFolder == null && subdirectoryExtractor && (websiteFolderTarget == 0 || websiteFolderTarget == if (image) 2 else 1)
 val DownloadPreferences.qualityThresholdMbps: Int get() = getRecord().qualityThresholdMbps
 val DownloadPreferences.transcodeAv1: Boolean get() = getRecord().transcodeAv1
 val DownloadPreferences.keepAv1Original: Boolean get() = getRecord().keepAv1Original
 val DownloadPreferences.av1Crf: Int get() = getRecord().av1Crf
 val DownloadPreferences.av1Preset: Int get() = getRecord().av1Preset
+val DownloadPreferences.cookieProfileExplicit: Boolean get() = getRecord().cookieProfileExplicit
 val DownloadPreferences.cookieProfileId: Int get() = getRecord().cookieProfileId
 val DownloadPreferences.imageFolderName: String get() = getRecord().imageFolderName
 val DownloadPreferences.videoFolderName: String get() = getRecord().videoFolderName
@@ -100,12 +117,16 @@ fun DownloadPreferences.copyPluginOptions(
     imageResolution: Int = this.imageResolution,
     classifyMedia: Boolean = this.classifyMedia,
     classificationTarget: Int = this.classificationTarget,
+    classificationUpperFirst: Boolean = this.classificationUpperFirst,
+    selectedFolder: DownloadFolder? = this.selectedFolder,
+    websiteFolderTarget: Int = this.websiteFolderTarget,
     qualityThresholdMbps: Int = this.qualityThresholdMbps,
     transcodeAv1: Boolean = this.transcodeAv1,
     keepAv1Original: Boolean = this.keepAv1Original,
     av1Crf: Int = this.av1Crf,
     av1Preset: Int = this.av1Preset,
     cookieProfileId: Int = this.cookieProfileId,
+    cookieProfileExplicit: Boolean = this.cookieProfileExplicit,
     imageFolderName: String = this.imageFolderName,
     videoFolderName: String = this.videoFolderName,
     platformFolders: Boolean = this.platformFolders,
@@ -125,12 +146,16 @@ fun DownloadPreferences.copyPluginOptions(
         imageResolution = imageResolution,
         classifyMedia = classifyMedia,
         classificationTarget = classificationTarget,
+        classificationUpperFirst = classificationUpperFirst,
+        selectedFolder = selectedFolder,
+        websiteFolderTarget = websiteFolderTarget,
         qualityThresholdMbps = qualityThresholdMbps,
         transcodeAv1 = transcodeAv1,
         keepAv1Original = keepAv1Original,
         av1Crf = av1Crf,
         av1Preset = av1Preset,
         cookieProfileId = cookieProfileId,
+        cookieProfileExplicit = cookieProfileExplicit,
         imageFolderName = imageFolderName,
         videoFolderName = videoFolderName,
         platformFolders = platformFolders,

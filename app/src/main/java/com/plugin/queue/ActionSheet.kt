@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.VideoFile
+import androidx.compose.material.icons.outlined.Wallpaper
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -314,15 +315,7 @@ fun LazyListScope.ActionButtons(
                     onActionPost(task, UiAction.ShareFile(downloadState.filePath))
                 }
             }
-            if (viewState.isImage && downloadState.filePaths.size > 1) {
-                downloadState.filePaths.forEachIndexed { index, path ->
-                    item(key = "Image_$index") {
-                        androidx.compose.material3.TextButton(onClick = { onActionPost(task, UiAction.OpenFile(path)) }) {
-                            Text(stringResource(R.string.loc_open_image, index + 1))
-                        }
-                    }
-                }
-            }
+
             }
         }
         is Error -> {
@@ -374,6 +367,35 @@ fun LazyListScope.ActionButtons(
                 onActionPost(task, UiAction.OpenThumbnailURL(viewState.thumbnailUrl))
             }
         }
+    }
+    item(key = "WallpaperButton") {
+        ActionSheetPrimaryButton(
+            modifier = Modifier.animateItem(),
+            containerColor = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            outlineColor = MaterialTheme.colorScheme.outlineVariant,
+            imageVector = Icons.Outlined.Wallpaper,
+            text = stringResource(R.string.loc_wallpaper_setting),
+            onClick = {
+                val filePath = (downloadState as? Completed)?.filePath
+                onActionPost(task, UiAction.OpenWallpaper(url = viewState.thumbnailUrl.orEmpty(), filePath = filePath))
+                onDismissRequest()
+            }
+        )
+    }
+    item(key = "OpenInstagramButton") {
+        ActionSheetPrimaryButton(
+            modifier = Modifier.animateItem(),
+            containerColor = Color.Transparent,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            outlineColor = MaterialTheme.colorScheme.outlineVariant,
+            imageVector = Icons.AutoMirrored.Outlined.OpenInNew,
+            text = stringResource(R.string.loc_open_instagram),
+            onClick = {
+                onActionPost(task, UiAction.OpenInstagram(viewState.url))
+                onDismissRequest()
+            }
+        )
     }
 }
 

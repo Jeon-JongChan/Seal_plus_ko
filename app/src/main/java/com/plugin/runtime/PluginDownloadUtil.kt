@@ -91,18 +91,23 @@ object PluginDownloadUtil {
                     codecRatios = MediaRules.DEFAULT_CODEC_RATIOS,
                     imageResolution = IMAGE_RESOLUTION.getInt(),
                     classifyMedia = CLASSIFY_MEDIA.getBoolean(),
+                    classificationUpperFirst = com.plugin.compatibility.PluginPreferences.CLASSIFICATION_UPPER_FIRST.getBoolean(),
                     classificationTarget = com.plugin.compatibility.PluginPreferences.CLASSIFICATION_TARGET.getInt().coerceIn(0, 2),
+                    websiteFolderTarget = com.plugin.compatibility.PluginPreferences.WEBSITE_FOLDER_TARGET.getInt().coerceIn(0, 2),
                     qualityThresholdMbps = QUALITY_THRESHOLD.getInt(4).coerceIn(1, 100),
                     transcodeAv1 = TRANSCODE_AV1.getBoolean(),
                     keepAv1Original = KEEP_AV1_ORIGINAL.getBoolean(),
                     av1Crf = AV1_CRF.getInt(32).coerceIn(20, 50),
                     av1Preset = MediaRules.av1Preset(AV1_PRESET.getInt(8)),
-                    cookieProfileId = QUICK_COOKIE_PROFILE.getInt(-1),
+                    cookieProfileId = PluginPreferences.EXPLICIT_COOKIE_PROFILE.getInt(Int.MIN_VALUE).let {
+                        if (it != Int.MIN_VALUE) it else QUICK_COOKIE_PROFILE.getInt(-1)
+                    },
+                    cookieProfileExplicit = PluginPreferences.EXPLICIT_COOKIE_PROFILE.getInt(Int.MIN_VALUE) != Int.MIN_VALUE,
     ))
 
     /** 쿠키 프로필·미디어 설정은 등록한 작업의 사본을 기준으로 적용합니다. */
     fun handles(preferences: DownloadPreferences): Boolean =
-        preferences.listProcessing || preferences.socialProcessing || preferences.mediaProcessing || preferences.reuseExisting || preferences.cookieProfileId >= 0
+        preferences.cookies || preferences.selectedFolder != null || preferences.listProcessing || preferences.socialProcessing || preferences.mediaProcessing || preferences.reuseExisting || preferences.cookieProfileId >= 0
 
     /** CookieScheme의 독립 플러그인 처리를 제공합니다. */
     object CookieScheme {
@@ -149,6 +154,7 @@ object PluginDownloadUtil {
         downloadPreferences: DownloadPreferences = com.plugin.compatibility.createPluginPreferences(),
     ): Result<YoutubeDLInfo> =
         YoutubeDL.runCatching {
+            withCookieSnapshot(downloadPreferences) { cookieFile ->
             ToastUtil.makeToastSuspend(context.getString(R.string.fetching_playlist_info))
             val request = YoutubeDLRequest(playlistURL)
             with(request) {
@@ -170,7 +176,7 @@ object PluginDownloadUtil {
                         addOption("-4")
                     }
                     if (cookies) {
-                        enableCookies(userAgentString, cookieProfileId)
+                        enableCookies(userAgentString, checkNotNull(cookieFile))
                     }
                     if (restrictFilenames) {
                         addOption("--restrict-filenames")
@@ -182,6 +188,7 @@ object PluginDownloadUtil {
                 if (playlistInfo.type != "playlist") {
                     jsonFormat.decodeFromString<VideoInfo>(this)
                 } else playlistInfo
+            }
             }
         }
 
@@ -205,6 +212,7 @@ object PluginDownloadUtil {
         taskKey: String? = null,
         preferences: DownloadPreferences = com.plugin.compatibility.createPluginPreferences(),
     ): Result<VideoInfo> {
+        return withCookieSnapshotResult<VideoInfo>(preferences) { cookieFile ->
         with(preferences) {
             val request =
                 YoutubeDLRequest(url).apply {
@@ -217,7 +225,7 @@ object PluginDownloadUtil {
                     }
                     applyFormatSorter(this@with, toFormatSorter())
                     if (cookies) {
-                        enableCookies(userAgentString, cookieProfileId)
+                        enableCookies(userAgentString, checkNotNull(cookieFile))
                     }
                     if (proxy) {
                         enableProxy(proxyUrl)
@@ -246,35 +254,52 @@ object PluginDownloadUtil {
                 }
             return getVideoInfo(request, taskKey)
         }
+        }
     }
 
-    /** 기존 쿠키 추출·파일 함수를 재사용해 선택한 사이트 프로필의 쿠키를 준비합니다. */
-    fun prepareCookies(profileId: Int = -1): java.io.File {
-        val file = CompatibilityFiles.cookiesFile(context, profileId)
-        if (profileId >= 0) {
+    /** 전체 쿠키는 매번 WebView에서, 명시적 프로필은 매번 해당 DB 레코드에서 최신 값을 읽습니다. */
+    fun cookieContent(profileId: Int = -1): String {
+        val content = if (profileId < 0) getCookiesContentFromDatabase().getOrThrow() else {
             val profile = kotlinx.coroutines.runBlocking { DatabaseUtil.getCookieById(profileId) }
                 ?: error(context.getString(R.string.loc_cookie_login_hint))
             val host = java.net.URI(profile.url).host ?: error(context.getString(R.string.loc_cookie_login_hint))
-            val content = profile.content.ifBlank {
+            profile.content.ifBlank {
                 getCookieListFromDatabase().getOrThrow().filter {
                     val domain = it.domain.removePrefix(".")
-                    host == domain || host.endsWith(".$domain")
+                    host.equals(domain, ignoreCase = true) || host.lowercase().endsWith(".${domain.lowercase()}")
                 }.toCookiesFileContent()
             }
-            check(content.lineSequence().any { !it.startsWith('#') && it.split('\t').size >= 7 }) {
-                context.getString(R.string.loc_cookie_login_hint)
-            }
-            file.writeText(content)
         }
+        return CookieRules.normalized(content)
+    }
+
+    /** UI 준비 파일도 검증 후 원자적으로 교체하고 실패하면 이전 파일을 보존합니다. */
+    @Synchronized
+    fun prepareCookies(profileId: Int = -1): java.io.File {
+        val content = cookieContent(profileId)
+        val file = CompatibilityFiles.cookiesFile(context, profileId)
+        val atomic = android.util.AtomicFile(file)
+        val stream = atomic.startWrite()
+        try { stream.write(content.toByteArray(Charsets.UTF_8)); atomic.finishWrite(stream) }
+        catch (failure: Throwable) { atomic.failWrite(stream); throw failure }
         return file
     }
 
-    /** 기존 yt-dlp 요청에 전체 또는 빠른 선택 프로필의 쿠키 파일을 전달합니다. */
-    private fun YoutubeDLRequest.enableCookies(userAgentString: String, profileId: Int = -1): YoutubeDLRequest =
-        this.addOption("--cookies", prepareCookies(profileId).absolutePath).apply {
-            if (userAgentString.isNotEmpty()) {
-                addOption("--add-header", "User-Agent:$userAgentString")
-            }
+    /** 병렬 요청의 쿠키 파일을 분리하고 완료·실패·조기 반환에서도 이번 요청 사본만 정리합니다. */
+    private inline fun <T> withCookieSnapshot(preferences: DownloadPreferences, block: (File?) -> T): T {
+        val file = if (preferences.cookies) File.createTempFile("request-cookies-", ".txt", context.cacheDir) else null
+        try { file?.writeText(cookieContent(preferences.cookieProfileId)); return block(file) }
+        finally { file?.delete() }
+    }
+
+    /** 준비 실패도 다운로드 상태의 정상적인 오류 결과로 전달합니다. */
+    private inline fun <T> withCookieSnapshotResult(preferences: DownloadPreferences, block: (File?) -> Result<T>): Result<T> =
+        runCatching { withCookieSnapshot(preferences) { block(it).getOrThrow() } }
+
+    /** yt-dlp가 갱신하는 쿠키도 다른 요청이나 사용자의 원본 프로필 파일에 쓰지 않습니다. */
+    private fun YoutubeDLRequest.enableCookies(userAgentString: String, file: File): YoutubeDLRequest =
+        this.addOption("--cookies", file.absolutePath).apply {
+            if (userAgentString.isNotEmpty()) addOption("--add-header", "User-Agent:$userAgentString")
         }
 
     /** YoutubeDLRequest.enableProxy의 독립 플러그인 처리를 제공합니다. */
@@ -312,12 +337,17 @@ object PluginDownloadUtil {
                     while (moveToNext()) {
                         val expiry = getLong(getColumnIndexOrThrow(CookieScheme.EXPIRY))
                         val name = getString(getColumnIndexOrThrow(CookieScheme.NAME))
-                        val value = getString(getColumnIndexOrThrow(CookieScheme.VALUE))
+                        val storedValue = getString(getColumnIndexOrThrow(CookieScheme.VALUE))
                         val path = getString(getColumnIndexOrThrow(CookieScheme.PATH))
                         val secure = getLong(getColumnIndexOrThrow(CookieScheme.SECURE)) == 1L
                         val hostKey = getString(getColumnIndexOrThrow(CookieScheme.HOST))
 
-                        val host = if (hostKey[0] != '.') ".$hostKey" else hostKey
+                        if (hostKey.isBlank()) continue
+                        val host = hostKey.removePrefix(".")
+                        val value = storedValue.ifEmpty {
+                            CookieManager.getInstance().getCookie("https://$host$path").orEmpty().split(';')
+                                .map(String::trim).firstOrNull { it.substringBefore('=') == name }?.substringAfter('=', "").orEmpty()
+                        }
                         cookieList.add(
                             Cookie(
                                 domain = host,
@@ -325,7 +355,8 @@ object PluginDownloadUtil {
                                 value = value,
                                 path = path,
                                 secure = secure,
-                                expiry = expiry,
+                                expiry = CookieRules.webViewExpiry(expiry),
+                                includeSubdomains = hostKey.startsWith("."),
                             )
                         )
                     }
@@ -630,6 +661,7 @@ object PluginDownloadUtil {
         downloadPreferences: DownloadPreferences,
         progressCallback: ((Float, Long, String) -> Unit)?,
     ): Result<List<String>> {
+        return withCookieSnapshotResult<List<String>>(downloadPreferences) { cookieFile ->
         if (videoInfo == null)
             return Result.failure(Throwable(context.getString(R.string.fetch_info_error_msg)))
 
@@ -675,7 +707,7 @@ object PluginDownloadUtil {
                     }
                     //                addOption("-v")
                     if (cookies) {
-                        enableCookies(userAgentString, cookieProfileId)
+                        enableCookies(userAgentString, checkNotNull(cookieFile))
                     }
                     if (restrictFilenames) {
                         addOption("--restrict-filenames")
@@ -737,6 +769,9 @@ object PluginDownloadUtil {
                         else pathBuilder.append(videoDownloadDir)
                         addOptionsForVideoDownloads(downloadPreferences)
                     }
+                    val selectedRoot = DownloadFolders.outputRoot(downloadPreferences,
+                        if (sdcard) context.getSdcardTempDir(videoInfo.id) else File(pathBuilder.toString()))
+                    if (!sdcard) { pathBuilder.clear(); pathBuilder.append(selectedRoot.path) }
                     if (sponsorBlock) {
                         addOption("--sponsorblock-remove", sponsorBlockCategory)
                     }
@@ -745,12 +780,12 @@ object PluginDownloadUtil {
                         addOption("--write-thumbnail")
                         addOption("--convert-thumbnails", "png")
                     }
-                    if (subdirectoryExtractor) {
+                    if (downloadPreferences.useWebsiteFolder(image = false)) {
                         pathBuilder.append("/${videoInfo.extractorKey}")
                     }
 
                     if (sdcard) {
-                        addOption("-P", context.getSdcardTempDir(videoInfo.id).absolutePath)
+                        addOption("-P", selectedRoot.absolutePath)
                     } else {
                         addOption("-P", pathBuilder.toString())
                     }
@@ -818,6 +853,7 @@ object PluginDownloadUtil {
                 progress = progressCallback,
             )
         }
+        }
     }
 
     /** 완료된 실제 출력 경로에 후처리를 적용하고 저장 위치와 이력을 확정합니다. */
@@ -835,7 +871,8 @@ object PluginDownloadUtil {
             val sourceQualities = mutableMapOf<String, VideoQuality>()
             val processed =
                 runCatching { MediaLibrary.finish(actualPaths, preferences, taskId, progress,
-                    mediaRoot = if (sdcard) context.getSdcardTempDir(videoInfo.id) else File(if (privateDirectory) App.privateDownloadDir else videoDownloadDir),
+                    mediaRoot = DownloadFolders.outputRoot(preferences, if (sdcard) context.getSdcardTempDir(videoInfo.id) else File(
+                        if (privateDirectory) App.privateDownloadDir else if (extractAudio || videoInfo.vcodec == "none") audioDownloadDir else videoDownloadDir)),
                     onOutput = { path, quality ->
                         if (quality != null) sourceQualities[java.io.File(path).name] = quality
                     }) }
@@ -893,6 +930,7 @@ object PluginDownloadUtil {
         preferences: DownloadPreferences,
         progressCallback: ((Float, Long, String) -> Unit),
     ): Result<YoutubeDLResponse> {
+        return withCookieSnapshotResult<YoutubeDLResponse>(preferences) { cookieFile ->
         val urlList = urlString.split(Regex("[\n ]")).filter { it.isNotBlank() }
 
         val request =
@@ -915,7 +953,7 @@ object PluginDownloadUtil {
                             .absolutePath,
                     )
                     if (cookies) {
-                        enableCookies(userAgentString, cookieProfileId)
+                        enableCookies(userAgentString, checkNotNull(cookieFile))
                     }
                 }
             }
@@ -923,6 +961,7 @@ object PluginDownloadUtil {
         return runCatching {
             YoutubeDL.getInstance()
                 .execute(request = request, processId = taskId, callback = progressCallback)
+        }
         }
     }
 
@@ -932,6 +971,7 @@ object PluginDownloadUtil {
         template: CommandTemplate = PreferenceUtil.getTemplate(),
         downloadPreferences: DownloadPreferences = com.plugin.compatibility.createPluginPreferences(),
     ) {
+        withCookieSnapshot(downloadPreferences) { cookieFile ->
         downloadPreferences.run {
             val taskId = Downloader.makeKey(url = url, templateName = template.name)
             val notificationId = taskId.toNotificationId()
@@ -957,7 +997,7 @@ object PluginDownloadUtil {
                             .absolutePath,
                     )
                     if (cookies) {
-                        enableCookies(userAgentString, cookieProfileId)
+                        enableCookies(userAgentString, checkNotNull(cookieFile))
                     }
                 }
 
@@ -995,6 +1035,7 @@ object PluginDownloadUtil {
                     }
                 }
             onProcessEnded()
+        }
         }
     }
 

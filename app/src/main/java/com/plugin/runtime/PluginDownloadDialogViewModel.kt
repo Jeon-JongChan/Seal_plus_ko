@@ -75,10 +75,10 @@ class PluginDownloadDialogViewModel(private val downloader: DownloaderV2) : View
 
         val job =
             viewModelScope.launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
-                DownloadUtil.getPlaylistOrVideoInfo(
+                (if (preferences.cookies) PluginDownloadUtil.getPlaylistOrVideoInfo(playlistURL = url, downloadPreferences = preferences) else DownloadUtil.getPlaylistOrVideoInfo(
                         playlistURL = url,
                         downloadPreferences = preferences,
-                    )
+                    ))
                     .onSuccess { info ->
                         withContext(Dispatchers.Main) {
                             when (info) {
@@ -113,7 +113,7 @@ class PluginDownloadDialogViewModel(private val downloader: DownloaderV2) : View
 
         val job =
             viewModelScope.launch(Dispatchers.IO, start = CoroutineStart.LAZY) {
-                DownloadUtil.fetchVideoInfoFromUrl(
+                PluginDownloadUtil.fetchVideoInfoFromUrl(
                         url = url,
                         preferences = preferences.copyPreservingPluginOptions { copy(extractAudio = audioOnly) },
                         taskKey = "FetchFormat_$url",

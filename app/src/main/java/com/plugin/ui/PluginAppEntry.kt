@@ -157,7 +157,7 @@ fun PluginAppEntry(dialogViewModel: com.plugin.runtime.PluginDownloadDialogViewM
                 startDestination = Route.HOME,
             ) {
                 animatedComposable(Route.HOME) {
-                    if (PluginState.isEnabled(PluginId.QUEUE)) {
+                    if (PluginState.isEnabled(PluginId.QUEUE) || PluginState.isEnabled(PluginId.IMAGE_AI) || PluginState.isEnabled(PluginId.POST_INFO)) {
                         EnhancedDownloadPageV2(
                             onMenuOpen = {
                                 view.slightHapticFeedback()
@@ -192,7 +192,7 @@ fun PluginAppEntry(dialogViewModel: com.plugin.runtime.PluginDownloadDialogViewM
                     }
                 }
                 animatedComposable(Route.DOWNLOADS) {
-                    if (PluginState.isEnabled(PluginId.LIBRARY)) {
+                    if (PluginState.isEnabled(PluginId.LIBRARY) || PluginState.isEnabled(PluginId.IMAGE_AI) || PluginState.isEnabled(PluginId.POST_INFO)) {
                         EnhancedVideoListPage { onNavigateBack() }
                     } else {
                         VideoListPage { onNavigateBack() }

@@ -17,6 +17,7 @@
         android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.SET_WALLPAPER" />
 
     <queries>
         <intent>
@@ -28,8 +29,12 @@
         </intent>
     </queries>
 
+    <uses-feature android:name="android.software.live_wallpaper" android:required="false" />
+
     <application
         android:name="com.junkfood.seal.App"
+        android:appComponentFactory="com.plugin.runtime.PluginComponentFactory"
+        tools:replace="android:appComponentFactory"
         android:allowBackup="true"
         android:enableOnBackInvokedCallback="true"
         android:extractNativeLibs="true"
@@ -39,6 +44,13 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         tools:targetApi="tiramisu">
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL-car.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL-pixel.so" android:required="false" />
+        <uses-native-library android:name="libGLESv2.so" android:required="false" />
+        <uses-native-library android:name="libGLESv3.so" android:required="false" />
+        <service android:name="com.plugin.enhancement.EnhancementService"
+            android:exported="false" android:process=":image_ai" />
         <activity
             android:name=".CrashReportActivity"
             android:exported="false"
@@ -81,6 +93,13 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="specialUse" />
+
+        <service android:name="com.plugin.compatibility.VideoWallpaperService"
+            android:exported="true" android:permission="android.permission.BIND_WALLPAPER"
+            android:label="@string/loc_video_wallpaper">
+            <intent-filter><action android:name="android.service.wallpaper.WallpaperService" /></intent-filter>
+            <meta-data android:name="android.service.wallpaper" android:resource="@xml/video_wallpaper" />
+        </service>
 
         <service android:name="com.plugin.library.MediaScanService" android:exported="false"
             android:foregroundServiceType="specialUse">

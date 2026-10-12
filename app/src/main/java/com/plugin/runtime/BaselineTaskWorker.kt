@@ -1,5 +1,7 @@
 package com.plugin.runtime
 
+import com.plugin.compatibility.copyPreservingPluginOptions
+import com.plugin.compatibility.useWebsiteFolder
 import android.app.PendingIntent
 import android.content.Context
 import android.util.Log
@@ -38,6 +40,11 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import org.koin.core.component.KoinComponent
 import com.plugin.queue.PluginTask as Task
+import com.plugin.compatibility.requireTaskState
+import com.plugin.compatibility.updateTaskState
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 
 private const val TAG = "DownloaderV2"
 
@@ -64,31 +71,25 @@ internal class BaselineTaskWorker(
         state.downloadState is Running || state.downloadState is FetchingInfo
     }
 
-    private var Task.state: Task.State
-        get() = taskStateMap[this]!!
-        set(value) {
-            taskStateMap[this] = value
-        }
+    private val Task.state: Task.State
+        get() = taskStateMap.requireTaskState(this)
 
     private var Task.downloadState: DownloadState
         get() = state.downloadState
         set(value) {
-            val prevState = state
-            taskStateMap[this] = prevState.copy(downloadState = value)
+            taskStateMap.updateTaskState(this) { it.copy(downloadState = value) }
         }
 
     private var Task.info: VideoInfo?
         get() = state.videoInfo
         set(value) {
-            val prevState = state
-            taskStateMap[this] = prevState.copy(videoInfo = value)
+            taskStateMap.updateTaskState(this) { it.copy(videoInfo = value) }
         }
 
     private var Task.viewState: Task.ViewState
         get() = state.viewState
         set(value) {
-            val prevState = state
-            taskStateMap[this] = prevState.copy(viewState = value)
+            taskStateMap.updateTaskState(this) { it.copy(viewState = value) }
         }
 
     private val Task.notificationId: Int
@@ -122,7 +123,7 @@ internal class BaselineTaskWorker(
         val taskInfo = task.type
         val playlistIndex = if (taskInfo is TypeInfo.Playlist) taskInfo.index else null
         scope
-            .launch(Dispatchers.Default) {
+            .launch(Dispatchers.Default, start = CoroutineStart.LAZY) {
                 DownloadUtil.fetchVideoInfoFromUrl(
                         url = url,
                         playlistIndex = playlistIndex,
@@ -130,12 +131,14 @@ internal class BaselineTaskWorker(
                         taskKey = id,
                     )
                     .onSuccess {
+                        currentCoroutineContext().ensureActive()
+                        com.plugin.compatibility.SocialPostMetadataStore.collectVideoInfo(it, url)
                         info = it
                         downloadState = ReadyWithInfo
                         viewState = Task.ViewState.fromVideoInfo(it)
                     }
                     .onFailure { throwable ->
-                        if (throwable is YoutubeDL.CanceledException) {
+                        if (throwable is YoutubeDL.CanceledException || throwable is kotlinx.coroutines.CancellationException) {
                             return@onFailure
                         }
                         task.downloadState = Error(throwable = throwable, action = FetchInfo)
@@ -147,7 +150,7 @@ internal class BaselineTaskWorker(
                         )
                     }
             }
-            .also { job -> downloadState = FetchingInfo(job = job, taskId = id) }
+            .also { job -> downloadState = FetchingInfo(job = job, taskId = id); job.start() }
     }
 
     /** download의 전용 대기열 처리 또는 화면 동작을 제공합니다. */
@@ -158,12 +161,16 @@ internal class BaselineTaskWorker(
             return
         }
         scope
-            .launch(Dispatchers.Default) {
+            .launch(Dispatchers.Default, start = CoroutineStart.LAZY) {
+                val taskContext = currentCoroutineContext()
                 DownloadUtil.downloadVideo(
                         videoInfo = info,
                         taskId = id,
-                        downloadPreferences = preferences,
+                        downloadPreferences = preferences.copyPreservingPluginOptions {
+                            copy(subdirectoryExtractor = preferences.useWebsiteFolder(image = false))
+                        },
                         progressCallback = { progressPercentage, _, text ->
+                            taskContext.ensureActive()
                             val progress = progressPercentage / 100f
                             when (val preState = downloadState) {
                                 is Running -> {
@@ -182,6 +189,7 @@ internal class BaselineTaskWorker(
                         },
                     )
                     .onSuccess { pathList ->
+                        currentCoroutineContext().ensureActive()
                         downloadState = Completed(pathList.firstOrNull())
 
                         val text =
@@ -207,7 +215,7 @@ internal class BaselineTaskWorker(
                         }
                     }
                     .onFailure { throwable ->
-                        if (throwable is YoutubeDL.CanceledException) {
+                        if (throwable is YoutubeDL.CanceledException || throwable is kotlinx.coroutines.CancellationException) {
                             return@onFailure
                         }
                         downloadState = Error(throwable = throwable, action = Download)
@@ -219,22 +227,20 @@ internal class BaselineTaskWorker(
                         )
                     }
             }
-            .also { job -> downloadState = Running(job = job, taskId = id) }
+            .also { job -> downloadState = Running(job = job, taskId = id); job.start() }
     }
 
     /** cancelImpl의 전용 대기열 처리 또는 화면 동작을 제공합니다. */
     private fun Task.cancelImpl(): Boolean {
-        when (val preState = downloadState) {
+        when (val preState = taskStateMap[this]?.downloadState ?: return false) {
             is DownloadState.Cancelable -> {
-                val res = YoutubeDL.destroyProcessById(preState.taskId)
-                if (res) {
-                    preState.job.cancel()
-                    val progress = if (preState is Running) preState.progress else null
-                    NotificationUtil.cancelNotification(notificationId)
-                    downloadState =
-                        DownloadState.Canceled(action = preState.action, progress = progress)
-                }
-                return res
+                // 외부 프로세스 시작 전이어도 조회·다운로드 코루틴은 반드시 취소합니다.
+                preState.job.cancel()
+                YoutubeDL.destroyProcessById(preState.taskId)
+                val progress = if (preState is Running) preState.progress else null
+                NotificationUtil.cancelNotification(notificationId)
+                downloadState = DownloadState.Canceled(action = preState.action, progress = progress)
+                return true
             }
             Idle -> {
                 downloadState = DownloadState.Canceled(action = FetchInfo)
@@ -252,7 +258,7 @@ internal class BaselineTaskWorker(
 
     /** restartImpl의 전용 대기열 처리 또는 화면 동작을 제공합니다. */
     private fun Task.restartImpl() {
-        when (val preState = downloadState) {
+        when (val preState = taskStateMap[this]?.downloadState ?: return) {
             is DownloadState.Restartable -> {
                 downloadState =
                     when (preState.action) {
@@ -272,11 +278,13 @@ internal class BaselineTaskWorker(
         check(type is TypeInfo.CustomCommand)
         val template = type.template
         scope
-            .launch {
+            .launch(start = CoroutineStart.LAZY) {
+                val taskContext = currentCoroutineContext()
                 DownloadUtil.executeCustomCommandTask(url, id, template, preferences) {
                         progressPercentage,
                         _,
                         text ->
+                        taskContext.ensureActive()
                         val progress = progressPercentage / 100f
                         when (val preState = downloadState) {
                             is Running -> {
@@ -295,7 +303,7 @@ internal class BaselineTaskWorker(
                         }
                     }
                     .onFailure { throwable ->
-                        if (throwable is YoutubeDL.CanceledException) {
+                        if (throwable is YoutubeDL.CanceledException || throwable is kotlinx.coroutines.CancellationException) {
                             return@onFailure
                         }
                         downloadState = Error(throwable = throwable, action = Download)
@@ -307,6 +315,7 @@ internal class BaselineTaskWorker(
                         )
                     }
                     .onSuccess {
+                        currentCoroutineContext().ensureActive()
                         downloadState = Completed(null)
 
                         val text = appContext.getString(R.string.status_completed)
@@ -319,6 +328,6 @@ internal class BaselineTaskWorker(
                         )
                     }
             }
-            .also { downloadState = Running(job = it, taskId = id) }
+            .also { downloadState = Running(job = it, taskId = id); it.start() }
     }
 }

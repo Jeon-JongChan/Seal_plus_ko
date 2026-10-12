@@ -21,17 +21,22 @@ import androidx.compose.material.ExperimentalMaterialApi
 import androidx.compose.material.ModalBottomSheetState
 import androidx.compose.material.ModalBottomSheetValue
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Share
+import androidx.compose.material.icons.outlined.Wallpaper
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -86,6 +91,11 @@ fun VideoDetailDrawer(
         }
 
     val shareTitle = stringResource(id = R.string.share)
+    var showWallpaperDialog by remember { mutableStateOf(false) }
+    if (showWallpaperDialog) {
+        val targetList = listOf(com.plugin.ui.WallpaperPageItem(info.videoPath, 0))
+        com.plugin.ui.WallpaperPreviewDialog(targetList) { showWallpaperDialog = false }
+    }
     with(info) {
         VideoDetailDrawerImpl(
             sheetState = sheetState,
@@ -112,6 +122,12 @@ fun VideoDetailDrawer(
                 FileUtil.createIntentForSharingFile(videoPath)?.runCatching {
                     context.startActivity(Intent.createChooser(this, shareTitle))
                 }
+            },
+            onSetWallpaper = {
+                showWallpaperDialog = true
+            },
+            onOpenInstagram = {
+                WallpaperHelper.openInstagramUrl(context, videoUrl)
             },
         )
     }
@@ -150,6 +166,8 @@ fun VideoDetailDrawerImpl(
     onDelete: () -> Unit = {},
     onOpenLink: () -> Unit = {},
     onShareFile: () -> Unit = {},
+    onSetWallpaper: (() -> Unit)? = null,
+    onOpenInstagram: (() -> Unit)? = null,
 ) {
     val clipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
@@ -217,6 +235,22 @@ fun VideoDetailDrawerImpl(
                     icon = Icons.Outlined.Delete,
                     text = stringResource(R.string.remove),
                 )
+                if (onSetWallpaper != null && isFileAvailable) {
+                    FilledTonalButtonWithIcon(
+                        modifier = Modifier.padding(end = 8.dp),
+                        onClick = onSetWallpaper,
+                        icon = Icons.Outlined.Wallpaper,
+                        text = stringResource(R.string.loc_wallpaper_setting),
+                    )
+                }
+                if (onOpenInstagram != null) {
+                    FilledTonalButtonWithIcon(
+                        modifier = Modifier.padding(end = 8.dp),
+                        onClick = onOpenInstagram,
+                        icon = Icons.AutoMirrored.Outlined.OpenInNew,
+                        text = stringResource(R.string.loc_open_instagram),
+                    )
+                }
                 if (isFileAvailable) {
                     FilledTonalButtonWithIcon(
                         onClick = onShareFile,

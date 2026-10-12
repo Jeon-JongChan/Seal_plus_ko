@@ -160,10 +160,10 @@ object MediaLibrary {
     }
 
     /** 기존 파일을 덮어쓰지 않고 화질 폴더로 이동하며 이력도 갱신합니다. */
-    suspend fun classify(file: MediaFile, preferences: DownloadUtil.DownloadPreferences): String {
+    suspend fun classify(file: MediaFile, preferences: DownloadUtil.DownloadPreferences, replaceDuplicates: Boolean = false): String {
         val classificationQuality = file.sourceQuality ?: file.quality
         val group = if (preferences.classifyMedia) MediaRules.classificationFolder(classificationQuality,
-            preferences.imageTiers, preferences.videoTiers, preferences.codecRatios, preferences.classificationTarget) else null
+            preferences.imageTiers, preferences.videoTiers, preferences.codecRatios, preferences.classificationTarget, preferences.classificationUpperFirst) else null
         val newPath =
             if (file.parentUri == null)
                 finish(
@@ -172,6 +172,7 @@ object MediaLibrary {
                         "file-manager",
                         classificationQuality = classificationQuality,
                         preserveParent = true,
+                        collisionReplace = replaceDuplicates,
                         mediaRoot = File(if (preferences.privateDirectory) com.junkfood.seal.App.privateDownloadDir else videoDownloadDir),
                     )
                     .single()
@@ -190,7 +191,11 @@ object MediaLibrary {
                         ?: error(com.junkfood.seal.App.context.getString(R.string.loc_quality_folder_create_failed))
                 if (android.provider.DocumentsContract.getDocumentId(target.uri) ==
                     android.provider.DocumentsContract.getDocumentId(parent.uri)) return file.path
-                check(target.findFile(file.name) == null) { com.junkfood.seal.App.context.getString(R.string.loc_target_file_exists) }
+                if (target.findFile(file.name) != null) {
+                    val newPath = moveDocumentCollision(file, target, replaceDuplicates)
+                    PluginDatabaseUtil.updateMediaPath(file.path, newPath)
+                    return newPath
+                }
                 // 이동을 지원하지 않는 공급자는 오류를 표시하고 원본을 보존합니다.
                 val moved = runCatching { android.provider.DocumentsContract.moveDocument(
                         context.contentResolver,
@@ -221,6 +226,66 @@ object MediaLibrary {
         return newPath
     }
 
+    /** 로컬 중복 처리 뒤에만 파일과 이력을 교체하며 일반 다운로드의 충돌 거부 규칙은 유지합니다. */
+    private fun moveClassifiedFile(source: File, destination: File, replace: Boolean?): File {
+        var target = destination
+        val collision = target.exists()
+        if (collision) {
+            check(replace != null) { context.getString(R.string.loc_target_name_conflict, target.name) }
+            if (replace == false) target = target.resolveSibling(MediaRules.availableFileName(target.name) {
+                target.resolveSibling(it).exists()
+            })
+            else check(target.isFile && !java.nio.file.Files.isSymbolicLink(target.toPath())) { "폴더나 연결된 파일은 대체할 수 없습니다." }
+        }
+        if (collision && replace == true) {
+            try { java.nio.file.Files.move(source.toPath(), target.toPath(),
+                java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING) }
+            catch (_: java.nio.file.AtomicMoveNotSupportedException) {
+                java.nio.file.Files.move(source.toPath(), target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+            }
+            runBlocking { PluginDatabaseUtil.deleteInfoByPath(target.absolutePath) }
+        } else java.nio.file.Files.move(source.toPath(), target.toPath())
+        return target
+    }
+
+    /** SAF 중복은 먼저 복사 크기를 검증하고 교체 대상은 임시 이름으로 보존해 실패 시 복원합니다. */
+    private suspend fun moveDocumentCollision(file: MediaFile, target: DocumentFile, replace: Boolean): String {
+        val source = DocumentFile.fromSingleUri(context, Uri.parse(file.path)) ?: error("원본 파일이 없습니다.")
+        val existing = target.findFile(file.name)
+        check(!replace || existing == null || existing.isFile) { "같은 이름의 폴더는 대체할 수 없습니다." }
+        val name = if (replace) file.name else MediaRules.availableFileName(file.name) { target.findFile(it) != null }
+        val tempName = if (replace) file.name + "." + java.util.UUID.randomUUID() + ".stage" else name
+        val copy = target.createFile(source.type ?: "application/octet-stream", tempName) ?: error("대상 파일을 만들 수 없습니다.")
+        val overwrittenPath = existing?.uri?.toString()
+        var backedUp = false
+        var committed = false
+        try {
+            val bytes = context.contentResolver.openInputStream(source.uri)?.use { input ->
+                context.contentResolver.openOutputStream(copy.uri)?.use { output -> input.copyTo(output) }
+            } ?: error("파일을 복사할 수 없습니다.")
+            check(bytes > 0 && bytes == source.length() && copy.length() == bytes) { "복사 파일 검증에 실패했습니다." }
+            if (replace) {
+                if (existing != null) {
+                    check(existing.renameTo(file.name + "." + java.util.UUID.randomUUID() + ".backup")) { "기존 파일을 안전하게 보관할 수 없습니다." }
+                    backedUp = true
+                }
+                check(copy.renameTo(name) && copy.name == name) { "대체 파일 이름을 적용할 수 없습니다." }
+                committed = true
+                if (existing != null) check(existing.delete()) { "기존 파일 정리에 실패했습니다." }
+            } else committed = true
+            check(source.delete()) { context.getString(R.string.loc_file_delete_failed) }
+            if (replace && overwrittenPath != null) PluginDatabaseUtil.deleteInfoByPath(overwrittenPath)
+            return copy.uri.toString()
+        } catch (failure: Exception) {
+            // 새 파일 이름 적용 전 실패하면 기존 대상을 되돌리고 원본을 유지합니다.
+            if (!committed) {
+                copy.delete()
+                if (backedUp) check(existing?.renameTo(file.name) == true) { "기존 파일 복원에 실패했습니다: ${existing?.uri}" }
+            }
+            throw failure
+        }
+    }
+
     /** 문서 ID의 경로 형식을 추측하지 않고 실제 트리에서 부모 또는 화질 폴더의 상위를 찾습니다. */
     private fun classificationTreeBase(directory: DocumentFile, parentUri: Uri,
         ancestor: DocumentFile? = null): DocumentFile? {
@@ -244,6 +309,7 @@ object MediaLibrary {
     /** 링크 이력과 Seal의 모든 하위 폴더에서 이미 받은 실제 파일을 찾습니다. */
     fun findExisting(info: VideoInfo, preferences: DownloadUtil.DownloadPreferences,
         fallbackNames: Set<String> = emptySet()): List<String> {
+        val selected = preferences.selectedFolder?.also { DownloadFolders.validate(it, preferences) }
         val identity = MediaRules.identity(info.webpageUrl ?: info.originalUrl.orEmpty())
         val history = runBlocking { PluginDatabaseUtil.getDownloadHistory() }
         val recorded = history.filter { MediaRules.identity(it.videoUrl) == identity }
@@ -260,7 +326,7 @@ object MediaLibrary {
             recorded
                 .map { it.videoPath }
                 .filter { path ->
-                    exists(path) &&
+                    exists(path) && (selected == null || DownloadFolders.contains(selected, path, preferences)) &&
                         (if (path.startsWith("content://"))
                                 DocumentFile.fromSingleUri(context, Uri.parse(path))?.name.orEmpty()
                             else File(path).name)
@@ -270,12 +336,12 @@ object MediaLibrary {
         if (existing.isNotEmpty()) return existing
         val names = recorded.map { File(it.videoPath).name }.toSet() + fallbackNames
         val id = info.id.takeIf { it.isNotBlank() }
-        val roots =
+        val roots = if (selected != null) { if (preferences.sdcard) emptyList() else listOf(DownloadFolders.local(selected)) } else
             listOf(
-                FileUtil.getExternalDownloadDirectory(),
+                File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS), "Seal"),
                 File(videoDownloadDir),
                 File(audioDownloadDir),
-                File(com.junkfood.seal.App.privateDownloadDir),
+                File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS), ".Seal"),
             )
         val found =
             roots
@@ -283,7 +349,7 @@ object MediaLibrary {
                 .flatMap { root ->
                     root
                         .walkTopDown()
-                        .onEnter { it.name != "tmp" }
+                        .onEnter { it.name != "tmp" && !java.nio.file.Files.isSymbolicLink(it.toPath()) }
                         .filter { file ->
                             file.isFile &&
                                 !file.isHidden &&
@@ -297,9 +363,9 @@ object MediaLibrary {
                         .map { it.absolutePath }
                         .toList()
                 }
-        if (found.isNotEmpty() || !preferences.sdcard) return found.distinct()
+        if (found.isNotEmpty() || !preferences.sdcard) return found.filter { selected == null || DownloadFolders.contains(selected, it, preferences) }.distinct()
         val tree =
-            DocumentFile.fromTreeUri(context, Uri.parse(preferences.sdcardUri))
+            selected?.let { DownloadFolders.document(it) } ?: DocumentFile.fromTreeUri(context, Uri.parse(preferences.sdcardUri))
                 ?: return emptyList()
         return findInTree(tree, names, id, extensions)
     }
@@ -346,8 +412,8 @@ object MediaLibrary {
         if (exists(path)) return path
         val content = path.startsWith("content://")
         if (content && DocumentFile.fromTreeUri(context, Uri.parse(preferences.sdcardUri))?.canRead() != true) return path
-        val roots = listOf(FileUtil.getExternalDownloadDirectory(), File(videoDownloadDir),
-            File(audioDownloadDir), File(com.junkfood.seal.App.privateDownloadDir)).distinct()
+        val roots = listOf(File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS), "Seal"), File(videoDownloadDir),
+            File(audioDownloadDir), File(android.os.Environment.getExternalStoragePublicDirectory(android.os.Environment.DIRECTORY_DOWNLOADS), ".Seal")).distinct()
         if (!content && roots.none { it.isDirectory && it.canRead() }) return path
         val name = if (content) Uri.parse(path).lastPathSegment?.substringAfterLast('/') ?: return path else File(path).name
         val history = runBlocking { PluginDatabaseUtil.getDownloadHistory() }
@@ -447,6 +513,7 @@ object MediaLibrary {
         onOutput: (String, VideoQuality?) -> Unit = { _, _ -> },
         preserveParent: Boolean = false,
         mediaRoot: File? = null,
+        collisionReplace: Boolean? = null,
     ): List<String> =
         if (!preferences.mediaProcessing) paths else paths.flatMap { original ->
             val source = File(original)
@@ -470,17 +537,17 @@ object MediaLibrary {
                 file = output
                 val image = actualQuality?.codec?.startsWith("image/") == true
                 val tier = if (preferences.classifyMedia) MediaRules.classificationFolder(originalQuality,
-                    preferences.imageTiers, preferences.videoTiers, preferences.codecRatios, preferences.classificationTarget) else null
+                    preferences.imageTiers, preferences.videoTiers, preferences.codecRatios, preferences.classificationTarget, preferences.classificationUpperFirst) else null
                 if ((video || image) && (mediaRoot != null || preferences.classifyMedia || preserveParent)) {
-                    val parent = file.parentFile!!
+                    val parent = file.absoluteFile.parentFile ?: error("파일의 상위 폴더가 없습니다.")
                     var base = if (preserveParent) {
                         MediaRules.classificationBase(parent, mediaRoot ?: File(rootPath(preferences)))
                     } else if (mediaRoot != null) {
                         parent.takeIf { it.canonicalFile.toPath().startsWith(mediaRoot.canonicalFile.toPath()) }?.let {
                             MediaRules.classificationBase(it, mediaRoot)
                         } ?: mediaRoot
-                    } else if (MediaRules.isQualityFolder(parent.name)) parent.parentFile!! else parent
-                    if (!preserveParent && mediaRoot != null) {
+                    } else if (MediaRules.isQualityFolder(parent.name)) (parent.parentFile ?: parent) else parent
+                    if (!preserveParent && mediaRoot != null && preferences.selectedFolder == null) {
                         val name = if (image) MediaRules.optionalFolderName(preferences.imageFolderName, "Images")
                             else MediaRules.optionalFolderName(preferences.videoFolderName, "Videos")
                         if (name.isNotEmpty() && base.name != name) base = base.resolve(name)
@@ -493,9 +560,7 @@ object MediaLibrary {
                     val target = base.resolve(file.name)
                     if (target.canonicalFile != file.canonicalFile) {
                         check(base.isDirectory || base.mkdirs())
-                        check(!target.exists()) { context.getString(R.string.loc_target_name_conflict, target.name) }
-                        check(file.renameTo(target)) { context.getString(R.string.loc_quality_move_failed) }
-                        file = target
+                        file = moveClassifiedFile(file, target, collisionReplace)
                     }
                 }
                 if (file.absolutePath != original) {

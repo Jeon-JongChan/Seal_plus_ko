@@ -1,5 +1,7 @@
 package com.plugin.instagram
 
+import com.plugin.compatibility.selectedFolder
+import com.plugin.compatibility.useWebsiteFolder
 import com.plugin.compatibility.copyPreservingPluginOptions
 import com.plugin.compatibility.*
 import com.plugin.tiktok.TikTokUtil
@@ -121,20 +123,10 @@ object InstagramUtil {
         (this[key] as? JsonPrimitive)?.contentOrNull.orEmpty()
 
     /** 쿠키 파일에서 만료되지 않은 인스타그램 쿠키만 읽습니다. */
-    internal fun cookies(preferences: DownloadUtil.DownloadPreferences, host: String = "www.instagram.com"): Map<String, String> {
+    internal fun cookies(preferences: DownloadUtil.DownloadPreferences, host: String = "www.instagram.com", path: String = "/"): Map<String, String> {
         if (!preferences.cookies) return emptyMap()
-        val file = com.plugin.runtime.PluginDownloadUtil.prepareCookies(preferences.cookieProfileId)
-        if (!file.isFile) return emptyMap()
-        val now = System.currentTimeMillis() / 1000
-        return file
-            .readLines()
-            .map { it.removePrefix("#HttpOnly_").split('\t') }
-            .filter { fields ->
-                fields.size >= 7 &&
-                    fields[0].removePrefix(".").let { host == it || host.endsWith(".$it") } &&
-                    (fields[4].toLongOrNull()?.let { it == 0L || it > now } == true)
-            }
-            .associate { it[5] to it[6] }
+        return com.plugin.compatibility.CookieRules.header(com.plugin.runtime.PluginDownloadUtil.cookieContent(preferences.cookieProfileId),
+            ("https://$host$path").toHttpUrl())
     }
 
     /** 리다이렉트·권한·속도 제한 오류를 숨기지 않고 고정된 인스타그램 호스트만 조회합니다. */
@@ -158,7 +150,7 @@ object InstagramUtil {
                     if (!post) parameters.forEach { (key, value) -> addQueryParameter(key, value) }
                 }
                 .build()
-        val cookie = cookies(preferences)
+        val cookie = cookies(preferences, url.host, url.encodedPath)
         if (preferences.cookies) check(!cookie["sessionid"].isNullOrBlank()) {
             com.junkfood.seal.App.context.getString(R.string.loc_instagram_cookie_missing)
         }
@@ -248,7 +240,7 @@ object InstagramUtil {
                 anonymousCookies.filter { it.expiresAt > System.currentTimeMillis() && it.matches(url) }
         }).build()
         val html = publicPage(pageUrl, preferences, taskId, anonymousClient).first
-        val embedded = parsePublicPage(html, code, preferences.imageResolution, MediaRules.videoHeight(preferences.videoResolution))
+        val embedded = parsePublicPage(html, code, preferences.imageResolution, MediaRules.videoHeight(preferences.videoResolution), collectMetadata = true)
         if (embedded.isNotEmpty()) return embedded
         val lsd = Regex("""\["LSD",\[\],\{"token":"([^"]+)"""").find(html)?.groupValues?.get(1).orEmpty()
         val response = request("", mapOf("lsd" to lsd, "fb_api_caller_class" to "RelayModern",
@@ -259,7 +251,7 @@ object InstagramUtil {
             csrfToken = anonymousCookies.firstOrNull { it.name == "csrftoken" && it.matches(pageUrl.toHttpUrl()) }?.value)
         val post = publicPost(response) ?: error(context.getString(R.string.loc_instagram_access_denied))
         return parsePosts(JsonArray(listOf(normalizePublicPost(post, code))), preferences.imageResolution,
-            MediaRules.videoHeight(preferences.videoResolution)).also {
+            MediaRules.videoHeight(preferences.videoResolution), collectMetadata = true).also {
             check(it.isNotEmpty()) { context.getString(R.string.loc_instagram_no_media) }
         }
     }
@@ -281,7 +273,7 @@ object InstagramUtil {
             .header("Upgrade-Insecure-Requests", "1")
             .apply {
                 if (preferences.cookies && url.toHttpUrl().host in setOf("instagram.com", "www.instagram.com")) {
-                    val session = cookies(preferences)
+                    val session = cookies(preferences, url.toHttpUrl().host, url.toHttpUrl().encodedPath)
                     if (session.isNotEmpty()) header("Cookie", session.entries.joinToString("; ") { "${it.key}=${it.value}" })
                 }
             }
@@ -297,10 +289,10 @@ object InstagramUtil {
     }
 
     /** 공개 페이지의 JSON 스크립트만 읽으며 로그인 HTML을 미디어로 오인하지 않습니다. */
-    internal fun parsePublicPage(html: String, code: String, imageResolution: Int, videoResolution: Int): List<InstagramMedia> {
+    internal fun parsePublicPage(html: String, code: String, imageResolution: Int, videoResolution: Int, collectMetadata: Boolean = false): List<InstagramMedia> {
         return publicDocuments(html)
             .mapNotNull { publicPost(it) }.firstOrNull()?.let {
-                parsePosts(JsonArray(listOf(normalizePublicPost(it, code))), imageResolution, videoResolution)
+                parsePosts(JsonArray(listOf(normalizePublicPost(it, code))), imageResolution, videoResolution, collectMetadata)
             }.orEmpty()
     }
 
@@ -377,6 +369,7 @@ object InstagramUtil {
         }
         return JsonObject(media(post) + buildJsonObject {
             put("code", code); put("user", post.obj("owner"))
+            put("edge_media_to_caption", post.obj("edge_media_to_caption"))
             val children = post.obj("edge_sidecar_to_children").array("edges").mapNotNull { (it as? JsonObject)?.get("node") as? JsonObject }
             if (children.isNotEmpty()) put("carousel_media", JsonArray(children.map { media(it) }))
         })
@@ -406,6 +399,7 @@ object InstagramUtil {
                         response.array("items"),
                         preferences.imageResolution,
                         MediaRules.videoHeight(preferences.videoResolution),
+                        collectMetadata = true,
                     )
                 } else {
                     val username = segments.first().removePrefix("@")
@@ -420,6 +414,7 @@ object InstagramUtil {
         posts: JsonArray,
         imageResolution: Int,
         videoResolution: Int,
+        collectMetadata: Boolean = false,
     ): List<InstagramMedia> =
         posts.flatMap { element ->
             val post = element as? JsonObject ?: return@flatMap emptyList()
@@ -429,6 +424,8 @@ object InstagramUtil {
                 post.obj("user").text("username").takeIf {
                     it.matches(Regex("[A-Za-z0-9._]{1,30}")) && it !in setOf(".", "..")
                 } ?: "Instagram"
+            // 순수 파서는 저장소를 초기화하지 않고 실제 조회에서만 플러그인 정보를 저장합니다.
+            if (collectMetadata) SocialPostMetadataStore.collectInstagramPost(post)
             val children =
                 post.array("carousel_media").takeIf { it.isNotEmpty() } ?: JsonArray(listOf(post))
             children.mapNotNull { child ->
@@ -538,16 +535,18 @@ object InstagramUtil {
                                         newTitle = info.title,
                                         downloadPlaylist = false,
                                         subdirectoryPlaylistTitle = false,
+                                        subdirectoryExtractor = preferences.useWebsiteFolder(image = false),
                                     ) },
                                 progressCallback = progress,
                             )
                             .getOrThrow()
-                    val root = if (preferences.sdcard) context.getSdcardTempDir(current.id)
+                    val defaultRoot = if (preferences.sdcard) context.getSdcardTempDir(current.id)
                         else File(if (preferences.privateDirectory) App.privateDownloadDir else App.videoDownloadDir)
+                    val root = com.plugin.compatibility.DownloadFolders.outputRoot(preferences, defaultRoot)
                     val platformName = if (current.platform == "tiktok") "TikTok" else "Instagram"
-                    // 플랫폼 하위 폴더는 호스트 다운로드 디렉토리 설정만 따릅니다.
-                    val base = if (preferences.subdirectoryExtractor) root.resolve(platformName) else root
-                    val directory = if (preferences.imageFolderName.isBlank()) base
+                    // 원본 웹사이트 설정이 켜지고 이미지가 적용 대상일 때만 플랫폼 폴더를 만듭니다.
+                    val base = if (preferences.useWebsiteFolder(image = true)) root.resolve(platformName) else root
+                    val directory = if (preferences.selectedFolder != null || preferences.imageFolderName.isBlank()) base
                         else base.resolve(MediaRules.folderName(preferences.imageFolderName, "Images"))
                     check(directory.isDirectory || directory.mkdirs()) { com.junkfood.seal.App.context.getString(R.string.loc_image_folder_create_failed) }
                     val call =
@@ -622,7 +621,7 @@ object InstagramUtil {
                             val paths =
                                 if (preferences.sdcard)
                                     com.plugin.compatibility.CompatibilityFiles.moveFilesToSdcard(
-                                            tempPath = root,
+                                            tempPath = defaultRoot,
                                             sdcardUri = preferences.sdcardUri,
                                         )
                                         .getOrThrow()

@@ -28,6 +28,7 @@ fun MediaFileManagerDialog(onDismiss: () -> Unit) {
     var count by remember { mutableIntStateOf(0) }
     var error by remember { mutableStateOf("") }
     var refresh by remember { mutableIntStateOf(0) }
+    var replaceDuplicates by remember { mutableStateOf(PluginPreferences.mediaReplaceDuplicates) }
     var cleanup by remember { mutableStateOf("plugin_cleanup_empty_folders".getBoolean(false)) }
     var permissionRequested by remember { mutableStateOf(false) }
     var pendingScan by remember { mutableStateOf<Boolean?>(null) }
@@ -107,6 +108,17 @@ fun MediaFileManagerDialog(onDismiss: () -> Unit) {
                             else R.string.revision6_storage_settings))
                     }
                 }
+                Text("같은 이름의 파일", style = MaterialTheme.typography.titleSmall)
+                androidx.compose.foundation.layout.FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = !replaceDuplicates, enabled = !scan.running, onClick = {
+                        replaceDuplicates = false; PluginPreferences.mediaReplaceDuplicates = false
+                    }, label = { Text("이름에 (1), (2) 추가") })
+                    FilterChip(selected = replaceDuplicates, enabled = !scan.running, onClick = {
+                        replaceDuplicates = true; PluginPreferences.mediaReplaceDuplicates = true
+                    }, label = { Text("기존 파일 대체") })
+                }
+                Text(if (replaceDuplicates) "재스캔 시 기존 파일의 내용과 연결 이력을 새 파일로 바꿉니다."
+                    else "중복 이름에 번호를 붙여 두 파일을 모두 보존합니다.", style = MaterialTheme.typography.bodySmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(modifier = Modifier.weight(1f), enabled = !loading && !scan.running && (needsStoragePermission || error.isBlank()),
                         onClick = {

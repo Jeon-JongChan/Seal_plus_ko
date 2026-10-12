@@ -1,6 +1,7 @@
 package com.plugin.queue
 
 import com.tencent.mmkv.MMKV
+import com.plugin.compatibility.storedPluginOptions
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.*
 
@@ -23,7 +24,7 @@ object PluginTaskBackup {
     }
 
     /** 저장소 없이도 검증할 수 있도록 전용 대기열을 직렬화합니다. */
-    internal fun encode(tasks: Map<PluginTask, PluginTask.State>): String = json.encodeToString(tasks)
+    internal fun encode(tasks: Map<PluginTask, PluginTask.State>): String = json.encodeToString(tasks.mapKeys { (task, _) -> task.copy(pluginOptions = task.preferences.storedPluginOptions()) })
 
     /** 손상된 백업은 빈 대기열로 덮어쓰지 않고 오류를 반환합니다. */
     internal fun decode(value: String): Map<PluginTask, PluginTask.State> = json.decodeFromString(value)

@@ -20,4 +20,34 @@
     <string name="plugin_list_disabled">인스타그램 프로필 다운로드 플러그인을 켠 뒤 다시 시도하세요.</string>
     <string name="plugin_library">미디어 폴더·파일 관리</string>
     <string name="loc_disabled_tier_hint">꺼진 해상도 구간은 기본 이미지·영상 폴더에 저장합니다. 낮은 구간으로 대체 분류하지 않습니다.</string>
+    <string name="loc_frequent_accounts">자주 방문하는 계정</string>
+    <string name="loc_frequent_accounts_desc">자주 방문하거나 다운로드한 인스타그램 계정 목록을 확인하고 게시물·프로필을 조회합니다.</string>
+    <string name="loc_post_info_plugin">게시글 상세 정보 표시</string>
+    <string name="loc_post_info_plugin_desc">계정주 프로필, 계정명, 본문 텍스트 및 해시태그를 대기열과 목록에 표시합니다.</string>
+    <string name="loc_wallpaper_setting">배경화면</string>
+    <string name="loc_wallpaper_preview">배경화면 미리보기 및 설정</string>
+    <string name="loc_wallpaper_home">홈 화면</string>
+    <string name="loc_wallpaper_lock">잠금 화면</string>
+    <string name="loc_wallpaper_both">둘 다</string>
+    <string name="loc_wallpaper_apply">배경화면 적용</string>
+    <string name="loc_wallpaper_applied">배경화면이 적용되었습니다.</string>
+    <string name="loc_wallpaper_failed">배경화면 설정에 실패했습니다.</string>
+    <string name="loc_open_instagram">Instagram 열기</string>
+    <string name="loc_post_info_show_profile">계정주 프로필 사진 표시</string>
+    <string name="loc_post_info_show_author">계정명 표시</string>
+    <string name="loc_post_info_show_text">게시글 본문 텍스트 표시</string>
+    <string name="loc_post_info_show_hashtags">해시태그 표시</string>
+    <string name="loc_visit_count">방문 %d회</string>
+    <string name="loc_account_add">계정 추가</string>
+    <string name="loc_profile_picture">프로필 사진</string>
+    <string name="loc_no_accounts">등록되거나 방문한 계정이 없습니다.</string>
+    <string name="loc_post_more">더보기</string>
+    <string name="loc_post_less">접기</string>
+    <string name="loc_post_identifier">게시글 %1$s</string>
+    <string name="loc_collected_posts">게시글 %1$d개</string>
+    <string name="loc_account_open">계정 열기</string>
+    <string name="loc_video_wallpaper">영상 배경화면</string>
+    <string name="loc_video_wallpaper_description">선택한 영상을 소리 없이 반복 재생합니다.</string>
+    <string name="loc_video_wallpaper_next">다음 화면에서 영상을 적용할 화면을 선택하세요.</string>
 </resources>
+

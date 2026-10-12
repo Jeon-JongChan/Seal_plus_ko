@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="plugin_download_folders">Save folders</string>
+    <string name="plugin_download_folders_desc">Register existing folders inside the configured download directories. Quality folders are hidden. Choose a folder in the download dialog, or keep the default rules.</string>
+    <string name="download_folder_default">Default settings</string>
+    <string name="download_folder_add">Add save folder</string>
+    <string name="download_folder_empty">Add folders in Plugins → Save folders.</string>
+    <string name="download_folder_roots">Configured download directories</string>
+    <string name="download_folder_parent">Parent folder</string>
+    <string name="download_folder_select_current">Select this folder</string>
+    <string name="download_folder_remove">Remove from list</string>
+    <string name="download_folder_root_changed">The default directory changed. Register this folder again.</string>
+    <string name="classification_priority">Quality folder priority</string>
+    <string name="classification_lower_first">Lower first</string>
+    <string name="classification_upper_first">Upper first</string>
+    <string name="classification_priority_hint">Lower first uses enabled upper bounds; upper first uses enabled lower bounds. Values outside the chosen direction remain in the base folder. Video codec, FPS and bitrate criteria still apply.</string>
+    <string name="cookies_all_sources">All login cookies</string>
+    <string name="download_folder_quick">Quick</string>
+    <string name="download_folder_quick_label">Quick · %1$s</string>
+    <string name="download_folder_quick_hint">Mark one folder as Quick. Tap it in the download window to apply it immediately; tap again to use the default rules.</string>
+</resources>

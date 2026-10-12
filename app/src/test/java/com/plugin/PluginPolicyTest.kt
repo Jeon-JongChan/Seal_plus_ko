@@ -14,7 +14,10 @@ class PluginPolicyTest {
         val state = com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel.SheetState.InputUrl
         assertFalse(com.plugin.runtime.usePluginDialog(state, emptySet()))
         assertFalse(com.plugin.runtime.usePluginDialog(state, setOf(PluginId.QUEUE)))
-        (PluginId.entries - PluginId.QUEUE).forEach {
+        assertFalse(com.plugin.runtime.usePluginDialog(state, setOf(PluginId.IMAGE_AI)))
+        assertFalse(com.plugin.runtime.usePluginDialog(state, setOf(PluginId.ACCOUNTS)))
+        assertFalse(com.plugin.runtime.usePluginDialog(state, setOf(PluginId.POST_INFO)))
+        (PluginId.entries - setOf(PluginId.QUEUE, PluginId.IMAGE_AI, PluginId.ACCOUNTS, PluginId.POST_INFO)).forEach {
             assertTrue(com.plugin.runtime.usePluginDialog(state, setOf(it)))
         }
     }

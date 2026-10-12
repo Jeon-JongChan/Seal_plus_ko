@@ -3,7 +3,7 @@
 세 언어의 번역 누락·중복·새 문구의 보간 형식과 기존 언어 유지를 검사합니다.
 #>
 $ErrorActionPreference = 'Stop'
-$resourceRoot = Join-Path (Split-Path -Parent $PSScriptRoot) 'app/src/main/res'
+$resourceRoot = Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) 'app/src/main/res'
 $translations = @{}
 foreach ($folder in @('values', 'values-ko', 'values-es')) {
     $entries = @{}

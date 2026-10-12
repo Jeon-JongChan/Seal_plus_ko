@@ -17,8 +17,15 @@ interface FeaturePlugin {
     /** 공통 탐색·다운로드 동작은 호스트 앱의 콜백으로 전달합니다. */
     @Composable
     fun Content(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit)
+
+    /** 저장된 이미지를 처리하는 플러그인만 뷰어의 공통 동작에 참여합니다. */
+    @Composable
+    fun ImageAction(path: String, onSaved: (String, Boolean) -> Unit) {}
 }
 
 // 플러그인을 이 목록에 등록하면 메뉴와 화면 경로에 함께 연결됩니다.
 val featurePlugins: List<FeaturePlugin> = listOf(ImageDownloadPlugin, ListDownloadPlugin, MediaSettingsPlugin,
-    com.plugin.library.LibraryPlugin, com.plugin.interaction.InteractionPlugin)
+    com.plugin.library.LibraryPlugin, com.plugin.interaction.InteractionPlugin,
+    com.plugin.enhancement.ImageEnhancementPlugin,
+    com.plugin.instagram.FrequentAccountsPlugin,
+    com.plugin.instagram.PostInfoPlugin, com.plugin.folders.DownloadFoldersPlugin)

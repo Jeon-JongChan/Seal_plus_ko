@@ -15,6 +15,7 @@ import com.plugin.runtime.PluginDownloaderV2
 import com.plugin.runtime.PluginTaskEngine
 import com.plugin.runtime.pluginQueue
 import com.plugin.queue.PluginTaskDownloader
+import com.plugin.compatibility.updateTaskState
 import com.plugin.compatibility.QueueMedia
 
 /** 묶음 등록을 실제 엔진 또는 검사 구현에 전달합니다. */
@@ -52,7 +53,7 @@ internal fun PluginTaskDownloader.putBatch(tasks: Map<Task, Task.State>) {
             if (updated != state && getTaskStateMap()[task] == state) {
                 // 일반 단일 파일은 기존 제거 동작을 유지하고 게시물만 삭제된 페이지를 보관합니다.
                 if ((updated.downloadState as Completed).missing && QueueMedia.postKey(task) == task.id) remove(task)
-                else getTaskStateMap()[task] = updated
+                else getTaskStateMap().updateTaskState(task) { if (it == state) updated else it }
             }
         }
     }
@@ -104,7 +105,9 @@ fun Task.State.withoutCompletedFile(path: String): Task.State {
             }
             if (getTaskStateMap()[task]?.downloadState == completed &&
                 (updated != completed || viewState != state.viewState || videoInfo != state.videoInfo))
-                getTaskStateMap()[task] = state.copy(downloadState = updated, viewState = viewState, videoInfo = videoInfo)
+                getTaskStateMap().updateTaskState(task) {
+                    if (it.downloadState == completed) it.copy(downloadState = updated, viewState = viewState, videoInfo = videoInfo) else it
+                }
         }
     }
 

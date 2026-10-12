@@ -1,6 +1,7 @@
 package com.plugin.queue
 
 import com.junkfood.seal.download.Task
+import com.plugin.compatibility.selectedFolder
 
 /** 원본 `Task` API와 플러그인 전용 큐 모델 사이에서 변환합니다. */
 object PluginTaskAdapter {
@@ -13,7 +14,9 @@ object PluginTaskAdapter {
             Task.TypeInfo.URL -> PluginTask.TypeInfo.URL
         },
         preferences = task.preferences,
-        id = task.id,
+        id = task.preferences.selectedFolder?.let { folder -> "_folder:${folder.key}".let { suffix ->
+            if (task.id.endsWith(suffix)) task.id else task.id + suffix
+        } } ?: task.id,
         timeCreated = task.timeCreated,
     )
 

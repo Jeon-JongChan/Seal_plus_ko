@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
 
 <img width="" src="fastlane/metadata/android/en-US/images/icon.png"  width=160 height=160  align="center">
 
@@ -113,7 +113,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File Start-App.ps1
 
 APK는 `app/build/outputs/apk/generic/debug/`에 생성합니다. 에뮬레이터는 x86_64 APK를 사용하고 실제 기기는 해당 ABI 또는 Universal APK를 사용합니다. 설치 진입점과 `.build/`의 실행 스크립트·README는 Git에 포함하며, 도구·캐시·AVD·로그는 제외합니다. 다른 PC에서는 설치 스크립트를 다시 실행하거나 기존 `.build/` 전체를 복사할 수 있습니다. 에뮬레이터는 대상 PC의 CPU 가상화와 Windows Hypervisor Platform이 필요합니다. GPU 기본값은 `auto`이며 `-Gpu host`로 강제하거나 드라이버 문제 시 `-Gpu software`로 실행할 수 있습니다. 실행 중인 AVD는 종료 후 재실행해야 변경 옵션이 적용됩니다.
 
-설치 스크립트는 루트 `Start-App.ps1`도 생성합니다. 이 명령은 에뮬레이터 창을 열고 부팅을 기다린 뒤, 빌드된 x86_64 Debug APK가 있으면 업데이트 설치하고 앱을 실행합니다. 루트 Gradle의 `build/` 출력은 `.build/gradle-output/`으로 통합했으며, APK 출력 경로는 유지됩니다.
+설치 스크립트는 루트 `Start-App.ps1`도 생성합니다. 이 명령은 에뮬레이터 창을 열고 부팅을 기다린 뒤, 빌드된 x86_64 Debug APK가 있으면 업데이트 설치하고 앱을 실행합니다. 루트 Gradle의 `build/` 출력은 `.build/Seal/gradle-output/`으로 통합했으며, APK 출력 경로는 유지됩니다.
 
 ### 검증과 상세 문서
 
@@ -243,4 +243,4 @@ Some of the UI designs and codes are borrowed from [Read You](https://github.com
 
 기존 지원 언어를 유지하면서 영어·한국어·스페인어의 미디어 설정, 인스타그램 목록, 즐겨찾기와 오류 안내를 번역했습니다. 기능별 문구는 각 `values*`의 `media_strings.xml`, `instagram_strings.xml`, `navigation_strings.xml`에서 관리합니다.
 
-추가 기능은 `app/src/main/java/com/plugin/`의 내장 플러그인으로 분리하며 **플러그인 관리**에서 6개 기능을 각각 켜고 끕니다. 기존 설치와 신규 설치 모두 처음에는 꺼져 있고, 꺼도 기존 파일·작업·세부 설정은 유지됩니다. 원본의 번역·버그 수정·DB 호환성은 유지합니다. [기능 코드·번역 추가 안내](app/src/main/java/com/plugin/README.md)를 참고하세요. 번역 검사: `powershell -NoProfile -ExecutionPolicy Bypass -File .build/Test-Localization.ps1`.
+추가 기능은 `app/src/main/java/com/plugin/`의 내장 플러그인으로 분리하며 **플러그인 관리**에서 6개 기능을 각각 켜고 끕니다. 기존 설치와 신규 설치 모두 처음에는 꺼져 있고, 꺼도 기존 파일·작업·세부 설정은 유지됩니다. 원본의 번역·버그 수정·DB 호환성은 유지합니다. [기능 코드·번역 추가 안내](app/src/main/java/com/plugin/README.md)를 참고하세요. 번역 검사: `powershell -NoProfile -ExecutionPolicy Bypass -File .build/Seal/Test-Localization.ps1`.

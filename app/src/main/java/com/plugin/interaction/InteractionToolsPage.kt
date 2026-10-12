@@ -74,6 +74,7 @@ fun InteractionToolsPage(onBack: () -> Unit) {
                     Checkbox(quick == profile.id, onCheckedChange = { checked ->
                         quick = if (checked) profile.id else -1
                         QUICK_COOKIE_PROFILE.updateInt(quick)
+                        PluginPreferences.EXPLICIT_COOKIE_PROFILE.updateInt(Int.MIN_VALUE)
                     })
                     Text(profile.url)
                 }

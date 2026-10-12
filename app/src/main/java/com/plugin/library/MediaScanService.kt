@@ -40,13 +40,23 @@ class MediaScanService : Service() {
             try {
                 val files = MediaLibrary.listVideos(preferences, includeClassified = intent?.getBooleanExtra("all", false) == true)
                 progress.value = ScanProgress(running = true, total = files.size)
+                val processedPaths = mutableSetOf<String>()
                 for (file in files) {
                     ensureActive()
+                    // 앞선 이동·대체로 내용이 바뀌거나 사라진 스냅샷 항목을 옛 화질로 다시 분류하지 않습니다.
+                    if (file.path in processedPaths || file.bytes > 0 && MediaLibrary.fileBytes(file.path) == 0L) {
+                        progress.value = progress.value.copy(done = progress.value.done + 1)
+                        continue
+                    }
                     val result = runCatching {
                         check(file.quality != null) { "미디어 정보 확인 실패: ${file.name}" }
-                        MediaLibrary.classify(file, preferences)
+                        MediaLibrary.classify(file, preferences, intent?.getBooleanExtra("replaceDuplicates", false) == true)
                     }
-                    result.exceptionOrNull()?.let { if (it is CancellationException) throw it }
+                    result.getOrNull()?.let { processedPaths.add(it) }
+                    result.exceptionOrNull()?.let {
+                        if (it is CancellationException) throw it
+                        android.util.Log.e("MediaScanService", "파일 분류 실패: ${file.path}", it)
+                    }
                     progress.value = progress.value.copy(done = progress.value.done + 1,
                         failures = progress.value.failures + if (result.isFailure) 1 else 0,
                         error = result.exceptionOrNull()?.message ?: progress.value.error)
@@ -92,7 +102,8 @@ class MediaScanService : Service() {
             progress.value = ScanProgress(running = true)
             try {
                 ContextCompat.startForegroundService(context, Intent(context, MediaScanService::class.java)
-                    .putExtra("all", all).putExtra("cleanup", cleanupEmpty && !preferences.sdcard))
+                    .putExtra("all", all).putExtra("cleanup", cleanupEmpty && !preferences.sdcard)
+                    .putExtra("replaceDuplicates", com.plugin.compatibility.PluginPreferences.mediaReplaceDuplicates))
             } catch (error: Exception) {
                 pending = null
                 progress.value = ScanProgress(failures = 1, error = error.message.orEmpty())

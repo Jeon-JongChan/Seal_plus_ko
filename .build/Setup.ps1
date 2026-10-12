@@ -47,10 +47,10 @@ $ErrorActionPreference = 'Continue'
 1..100 | ForEach-Object { 'y' } | & $sdkManager "--sdk_root=$env:ANDROID_HOME" --licenses 2>&1 | Select-Object -Last 15
 $ErrorActionPreference = 'Stop'
 if ($LASTEXITCODE -ne 0) { throw 'SDK 라이선스 처리에 실패했습니다.' }
-$packages = @('platform-tools', 'platforms;android-35', 'build-tools;34.0.0')
-if ($Emulator) { $packages += @('emulator', 'system-images;android-35;google_apis;x86_64') }
+$packages = @('platform-tools', "platforms;android-$($PortableProject.ApiLevel)", "build-tools;$($PortableProject.BuildToolsVersion)")
+if ($Emulator) { $packages += @('emulator', "system-images;android-$($PortableProject.ApiLevel);google_apis;x86_64") }
 $ErrorActionPreference = 'Continue'
-& $sdkManager "--sdk_root=$env:ANDROID_HOME" --install @packages 2>&1 | Tee-Object -FilePath "$BuildRoot/logs/setup.log" | Select-Object -Last 30
+& $sdkManager "--sdk_root=$env:ANDROID_HOME" --install @packages 2>&1 | Tee-Object -FilePath "$LogRoot/setup.log" | Select-Object -Last 30
 $ErrorActionPreference = 'Stop'
 if ($LASTEXITCODE -ne 0) { throw 'Android SDK 설치에 실패했습니다.' }
 Write-Output '포터블 빌드 환경 준비 완료.'

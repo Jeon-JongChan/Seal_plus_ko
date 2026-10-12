@@ -1,0 +1,8 @@
+/android-user/
+/avd/
+/logs/
+/tmp/
+/validation/
+/plugin-isolation-before/
+/relocation-check/
+/gradle-output/

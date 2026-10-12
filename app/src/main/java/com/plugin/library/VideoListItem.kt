@@ -19,7 +19,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Wallpaper
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -78,6 +80,8 @@ fun MediaListItem(
     onClick: () -> Unit = {},
     onLongClick: () -> Unit = {},
     onShowContextMenu: () -> Unit = {},
+    onWallpaperClick: (() -> Unit)? = null,
+    onInstagramClick: (() -> Unit)? = null,
 ) {
     val isAudio = videoPath.contains(Regex(AUDIO_REGEX))
     val haptic = LocalHapticFeedback.current
@@ -103,33 +107,29 @@ fun MediaListItem(
                 }
                 .fillMaxWidth()
     ) {
-        Row(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
-            AnimatedVisibility(
-                modifier = Modifier.align(Alignment.CenterVertically),
-                visible = isSelectEnabled(),
-            ) {
-                Checkbox(
-                    modifier = Modifier.padding(start = 4.dp, end = 16.dp),
-                    checked = isSelected(),
-                    onCheckedChange = null,
-                )
-            }
-            Box(Modifier.height(90.dp).aspectRatio(if (isAudio) 1f else 16f / 9f)) {
-                MediaImage(modifier = Modifier, imageModel = thumbnailUrl, isAudio = isAudio)
-                postIndicator?.invoke()
+        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+            Box(Modifier.fillMaxWidth().aspectRatio(if (isAudio) 4f else 16f / 9f)) {
+                MediaImage(modifier = Modifier.fillMaxWidth(), imageModel = thumbnailUrl, isAudio = isAudio)
+                Box(Modifier.align(Alignment.BottomStart)) { postIndicator?.invoke() }
+                if (isSelectEnabled()) Checkbox(isSelected(), onCheckedChange = { onSelect() },
+                    modifier = Modifier.align(Alignment.TopStart))
+                else com.plugin.ui.MediaQuickActions(Modifier.align(Alignment.TopEnd),
+                    onWallpaper = if (isAudio) null else onWallpaperClick,
+                    onInstagram = if (isAudio || !com.plugin.compatibility.WallpaperHelper.isInstagramUrl(videoUrl)) null else onInstagramClick,
+                    onMore = onShowContextMenu)
             }
             Column(
-                modifier = Modifier.padding(horizontal = 12.dp).fillMaxWidth(),
+                modifier = Modifier.padding(top = 8.dp).fillMaxWidth(),
                 verticalArrangement = Arrangement.Top,
             ) {
                 Text(
-                    text = title,
+                    text = com.plugin.ui.postCardTitle(title, author),
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (author != "null")
+                if (author.isNotBlank() && author != "null" && !com.plugin.PluginState.isEnabled(com.plugin.PluginId.POST_INFO) && !title.startsWith("$author ["))
                     Text(
                         modifier = Modifier.padding(top = 3.dp),
                         text = author,
@@ -149,22 +149,16 @@ fun MediaListItem(
                         },
                     maxLines = 1,
                 )
+                if (videoUrl.isNotBlank()) {
+                    com.plugin.ui.PostInfoBadge(
+                        postUrl = videoUrl,
+                        modifier = Modifier.padding(top = 2.dp),
+                        fallbackAuthor = author
+                    )
+                }
             }
         }
-        AnimatedVisibility(
-            modifier = Modifier.align(Alignment.BottomEnd),
-            visible = !isSelectEnabled(),
-            enter = fadeIn(tween(100)),
-            exit = fadeOut(tween(100)),
-        ) {
-            IconButton(modifier = Modifier.clearAndSetSemantics {}, onClick = onShowContextMenu) {
-                Icon(
-                    modifier = Modifier.size(18.dp),
-                    imageVector = Icons.Outlined.MoreVert,
-                    contentDescription = stringResource(id = R.string.show_more_actions),
-                )
-            }
-        }
+
     }
 }
 
@@ -179,8 +173,8 @@ fun MediaImage(
     AsyncImageImpl(
         modifier =
             modifier
-                .height(90.dp)
-                .aspectRatio(if (!isAudio) 16f / 9f else 1f, matchHeightConstraintsFirst = true)
+                .fillMaxWidth()
+                .aspectRatio(if (isAudio) 4f else 16f / 9f)
                 .clip(MaterialTheme.shapes.extraSmall),
         model = imageModel,
         contentDescription = contentDescription,

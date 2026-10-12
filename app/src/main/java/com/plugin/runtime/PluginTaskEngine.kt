@@ -3,6 +3,9 @@ package com.plugin.runtime
 import com.plugin.queue.PluginTask as Task
 import com.plugin.queue.PluginTaskDownloader
 import com.plugin.queue.PluginTaskBackup
+import com.plugin.compatibility.requireTaskState
+import com.plugin.compatibility.updateTaskState
+import com.plugin.compatibility.removeTaskState
 import com.plugin.compatibility.putBatch
 import com.plugin.compatibility.refreshCompletedFiles
 import com.plugin.compatibility.quality
@@ -185,14 +188,9 @@ class PluginTaskEngine(private val appContext: Context) : PluginTaskDownloader, 
         putBatch(effective)
     }
 
-    /**
-     * Noted the caller is responsible for stopping the [task] before removing it
-     *
-     * @return true if the task was removed
-     */
+    /** 호출자가 취소한 작업을 제거하고 늦은 상태 갱신과의 충돌을 막습니다. */
     override fun remove(task: Task): Boolean {
-        if (taskStateMap.contains(task)) {
-            taskStateMap.remove(task)
+        if (taskStateMap.removeTaskState(task) != null) {
             if (taskStateMap.keys.none { QueueMedia.postKey(it) == QueueMedia.postKey(task) })
                 completedNotifications.remove(QueueMedia.postKey(task))
             return true
@@ -211,31 +209,25 @@ class PluginTaskEngine(private val appContext: Context) : PluginTaskDownloader, 
         if (owns(task)) task.restartImpl() else original.restart(task)
     }
 
-    private var Task.state: Task.State
-        get() = taskStateMap[this]!!
-        set(value) {
-            taskStateMap[this] = value
-        }
+    private val Task.state: Task.State
+        get() = taskStateMap.requireTaskState(this)
 
     private var Task.downloadState: DownloadState
         get() = state.downloadState
         set(value) {
-            val prevState = state
-            taskStateMap[this] = prevState.copy(downloadState = value)
+            taskStateMap.updateTaskState(this) { it.copy(downloadState = value) }
         }
 
     private var Task.info: VideoInfo?
         get() = state.videoInfo
         set(value) {
-            val prevState = state
-            taskStateMap[this] = prevState.copy(videoInfo = value)
+            taskStateMap.updateTaskState(this) { it.copy(videoInfo = value) }
         }
 
     private var Task.viewState: Task.ViewState
         get() = state.viewState
         set(value) {
-            val prevState = state
-            taskStateMap[this] = prevState.copy(viewState = value)
+            taskStateMap.updateTaskState(this) { it.copy(viewState = value) }
         }
 
     private val Task.notificationId: Int
@@ -255,19 +247,22 @@ class PluginTaskEngine(private val appContext: Context) : PluginTaskDownloader, 
 
     /** 대기 중인 작업을 기존 동시 실행 한도에서 처리합니다. */
     private fun doYourWork() {
-        if (taskStateMap.countRunning() >= MAX_CONCURRENCY) return
-        val next = taskStateMap.toMap().entries.sortedBy { it.value.downloadState }
-            .firstOrNull { it.value.downloadState == ReadyWithInfo || it.value.downloadState == Idle }
-            ?: return
-        // 전역 스위치 대신 작업에 저장한 설정으로 선택해 중간에 꺼도 실행 경로를 유지합니다.
-        if (!owns(next.key)) {
-            original.doYourWork(next.key)
-            return
-        }
-        when (taskStateMap[next.key]?.downloadState) {
-            Idle -> next.key.prepare()
-            ReadyWithInfo -> next.key.download()
-            else -> Unit
+        // 선택과 시작 사이에 전체 삭제가 끼어들어 상태가 사라지지 않게 합니다.
+        synchronized(taskStateMap) {
+            if (taskStateMap.countRunning() >= MAX_CONCURRENCY) return
+            val next = taskStateMap.toMap().entries.sortedBy { it.value.downloadState }
+                .firstOrNull { it.value.downloadState == ReadyWithInfo || it.value.downloadState == Idle }
+                ?: return
+            // 전역 스위치 대신 작업에 저장한 설정으로 선택해 중간에 꺼도 실행 경로를 유지합니다.
+            if (!owns(next.key)) {
+                original.doYourWork(next.key)
+                return
+            }
+            when (taskStateMap[next.key]?.downloadState) {
+                Idle -> next.key.prepare()
+                ReadyWithInfo -> next.key.download()
+                else -> Unit
+            }
         }
     }
 
@@ -306,6 +301,7 @@ class PluginTaskEngine(private val appContext: Context) : PluginTaskDownloader, 
                         ))
                     .onSuccess {
                         currentCoroutineContext().ensureActive()
+                        com.plugin.compatibility.SocialPostMetadataStore.collectVideoInfo(it, url)
                         info = it
                         downloadState = ReadyWithInfo
                         viewState = Task.ViewState.fromVideoInfo(it)
@@ -346,9 +342,10 @@ class PluginTaskEngine(private val appContext: Context) : PluginTaskDownloader, 
                 val taskContext = currentCoroutineContext()
                 val callback: (Float, Long, String) -> Unit = { progressPercentage, _, text ->
                     taskContext.ensureActive()
-                    if (downloadState is Running) {
+                    val previous = downloadState
+                    if (previous is Running) {
                         downloadState =
-                            (downloadState as Running).copy(
+                            previous.copy(
                                 progress = progressPercentage / 100f,
                                 progressText = text,
                             )
@@ -440,21 +437,18 @@ class PluginTaskEngine(private val appContext: Context) : PluginTaskDownloader, 
 
     /** 조회 대기·HTTP·엔진·FFmpeg를 모두 중단하고 취소 상태를 보존합니다. */
     private fun Task.cancelImpl(): Boolean {
-        when (val preState = downloadState) {
+        when (val preState = taskStateMap[this]?.downloadState ?: return false) {
             is DownloadState.Cancelable -> {
+                // 외부 작업 종료보다 먼저 코루틴을 취소해 늦은 콜백을 차단합니다.
+                preState.job.cancel()
                 InstagramUtil.cancel(preState.taskId)
                 com.plugin.listdownload.ListMediaUtil.cancel(preState.taskId)
                 MediaLibrary.cancel(preState.taskId)
                 YoutubeDL.destroyProcessById(preState.taskId)
-                val res = true
-                if (res) {
-                    preState.job.cancel()
-                    val progress = if (preState is Running) preState.progress else null
-                    NotificationUtil.cancelNotification(notificationId)
-                    downloadState =
-                        DownloadState.Canceled(action = preState.action, progress = progress)
-                }
-                return res
+                val progress = if (preState is Running) preState.progress else null
+                NotificationUtil.cancelNotification(notificationId)
+                downloadState = DownloadState.Canceled(action = preState.action, progress = progress)
+                return true
             }
             Idle -> {
                 downloadState = DownloadState.Canceled(action = FetchInfo)
@@ -473,7 +467,7 @@ class PluginTaskEngine(private val appContext: Context) : PluginTaskDownloader, 
     /** Task.restartImpl의 원본 처리 흐름을 제공합니다. */
     private fun Task.restartImpl() {
         completedNotifications.remove(QueueMedia.postKey(this))
-        when (val preState = downloadState) {
+        when (val preState = taskStateMap[this]?.downloadState ?: return) {
             is DownloadState.Restartable -> {
                 downloadState =
                     when (preState.action) {

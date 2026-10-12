@@ -1,5 +1,7 @@
 package com.plugin.queue
 
+import com.plugin.compatibility.PluginPreferences
+import com.plugin.compatibility.sortMedia
 import com.plugin.compatibility.refreshCompletedFiles
 
 import com.junkfood.seal.ui.page.downloadv2.*
@@ -67,6 +69,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
@@ -189,6 +194,10 @@ fun EnhancedDownloadPageV2(
     val uriHandler = LocalUriHandler.current
     var openedPost by remember { mutableStateOf<Pair<List<String>, String?>?>(null) }
     openedPost?.let { (paths, initial) -> PostMediaViewer(paths, initial) { openedPost = null } }
+    var wallpaperPages by remember { mutableStateOf<List<com.plugin.ui.WallpaperPageItem>?>(null) }
+    wallpaperPages?.let { pages ->
+        com.plugin.ui.WallpaperPreviewDialog(pages) { wallpaperPages = null }
+    }
     LaunchedEffect(Unit) {
         while (true) {
             kotlinx.coroutines.withContext(Dispatchers.IO) { queue.refreshCompletedFiles() }
@@ -262,6 +271,25 @@ fun EnhancedDownloadPageV2(
                     context.startActivity(Intent.createChooser(it, shareTitle))
                 }
             }
+            is UiAction.OpenWallpaper -> {
+                val completed = QueueMedia.completedPages(task, queue.getTaskStateMap().toMap())
+                val vState = queue.getTaskStateMap()[task]?.viewState
+                val targetList = if (completed.isNotEmpty()) {
+                    completed.mapIndexed { idx, p -> com.plugin.ui.WallpaperPageItem(p, idx) }
+                } else if (!action.filePath.isNullOrBlank()) {
+                    listOf(com.plugin.ui.WallpaperPageItem(action.filePath, 0))
+                } else if (!vState?.thumbnailUrl.isNullOrBlank()) {
+                    listOf(com.plugin.ui.WallpaperPageItem(vState!!.thumbnailUrl, 0))
+                } else emptyList()
+                if (targetList.isNotEmpty()) {
+                    wallpaperPages = targetList
+                } else {
+                    context.makeToast(R.string.loc_wallpaper_failed)
+                }
+            }
+            is UiAction.OpenInstagram -> {
+                com.plugin.compatibility.WallpaperHelper.openInstagramUrl(context, action.url)
+            }
         }
     }
 
@@ -292,15 +320,44 @@ fun DownloadPageImplV2(
     onMenuOpen: (() -> Unit) = {},
     onActionPost: (Task, UiAction) -> Unit,
 ) {
+    var sortByName by rememberSaveable { mutableStateOf(PluginPreferences.queueSortByName) }
     var activeFilter by remember { mutableStateOf(Filter.All) }
     val selectedIds = remember { mutableStateListOf<String>() }
     var selecting by remember { mutableStateOf(false) }
     var deletionTargets by remember { mutableStateOf<List<Task>>(emptyList()) }
     var deleteFiles by remember { mutableStateOf(false) }
-    val filteredMap by
-        remember(activeFilter) {
-            derivedStateOf { QueueMedia.grouped(taskDownloadStateMap.toMap()).filter { activeFilter.predict(it.toPair()) } }
+    var incrementalLoading by rememberSaveable { mutableStateOf(PluginPreferences.queueIncrementalLoading) }
+    var visibleCount by remember(activeFilter, sortByName, incrementalLoading) { mutableIntStateOf(5) }
+    var groupedSnapshot by remember(taskDownloadStateMap) {
+        mutableStateOf(emptyMap<Task, Task.State>() to emptyMap<String, Map<Task, Task.State>>())
+    }
+    // 진행률 변경 시 전체 묶음 계산은 UI 스레드 밖에서 하고 이전 계산은 취소합니다.
+    LaunchedEffect(taskDownloadStateMap) {
+        snapshotFlow { taskDownloadStateMap.toMap() }.collectLatest { snapshot ->
+            groupedSnapshot = kotlinx.coroutines.withContext(Dispatchers.Default) {
+                QueueMedia.grouped(snapshot) to snapshot.entries.groupBy { QueueMedia.key(it.key) }
+                    .mapValues { (_, entries) -> entries.associate { it.key to it.value } }
+            }
         }
+    }
+    val filteredMap = remember(groupedSnapshot.first, activeFilter) {
+        groupedSnapshot.first.filter { activeFilter.predict(it.toPair()) }
+    }
+    val sortedTasks = remember(filteredMap, sortByName) {
+        filteredMap.toList().sortMedia(sortByName, { it.first.timeCreated }, { it.second.viewState.title.ifBlank { it.first.url } })
+    }
+    val visibleTasks = remember(sortedTasks, incrementalLoading, visibleCount) {
+        if (incrementalLoading) sortedTasks.take(visibleCount) else sortedTasks
+    }
+    val collectMetadata = com.plugin.PluginState.isEnabled(com.plugin.PluginId.POST_INFO) ||
+        com.plugin.PluginState.isEnabled(com.plugin.PluginId.ACCOUNTS)
+    LaunchedEffect(visibleTasks.map { it.first.id to it.second.videoInfo }, collectMetadata) {
+        if (collectMetadata) kotlinx.coroutines.withContext(Dispatchers.IO) {
+            visibleTasks.forEach { (task, state) -> state.videoInfo?.let {
+                com.plugin.compatibility.SocialPostMetadataStore.collectVideoInfo(it, task.url)
+            } }
+        }
+    }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -342,6 +399,16 @@ fun DownloadPageImplV2(
         floatingActionButton = { FABs(modifier = Modifier, downloadCallback = downloadCallback) },
     ) { windowInsetsPadding ->
         val lazyListState = rememberLazyGridState()
+        LaunchedEffect(lazyListState, incrementalLoading, visibleTasks.size, sortedTasks.size) {
+            if (incrementalLoading && visibleTasks.size < sortedTasks.size) {
+                snapshotFlow {
+                    lazyListState.isScrollInProgress &&
+                        (lazyListState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1) >= visibleTasks.size
+                }.collectLatest { reachedEnd ->
+                    if (reachedEnd) visibleCount = (visibleCount + 5).coerceAtMost(sortedTasks.size)
+                }
+            }
+        }
         val windowWidthSizeClass = LocalWindowWidthState.current
         val spacerHeight =
             with(LocalDensity.current) {
@@ -407,6 +474,21 @@ fun DownloadPageImplV2(
                             }
                         }
                     }
+                    // 데이터가 바뀌는 다음 배치에서 이전 항목 키의 스크롤 앵커를 해제합니다.
+                    Row(Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        androidx.compose.material3.FilterChip(selected = !sortByName, onClick = { sortByName = false; PluginPreferences.queueSortByName = false; lazyListState.requestScrollToItem(0) }, label = { Text("시간순") })
+                        androidx.compose.material3.FilterChip(selected = sortByName, onClick = { sortByName = true; PluginPreferences.queueSortByName = true; lazyListState.requestScrollToItem(0) }, label = { Text("이름순") })
+                    }
+                    Row(Modifier.padding(horizontal = 20.dp)) {
+                        androidx.compose.material3.FilterChip(selected = incrementalLoading, onClick = {
+                            incrementalLoading = !incrementalLoading
+                            PluginPreferences.queueIncrementalLoading = incrementalLoading
+                            lazyListState.requestScrollToItem(0)
+                        }, label = { Text("5개씩 불러오기") })
+                        Text("표시 ${visibleTasks.size} / ${sortedTasks.size}",
+                            modifier = Modifier.align(Alignment.CenterVertically).padding(start = 8.dp),
+                            style = MaterialTheme.typography.labelMedium)
+                    }
                     Spacer(Modifier.height(8.dp))
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         TextButton(onClick = { selecting = !selecting; selectedIds.clear() }) {
@@ -420,7 +502,7 @@ fun DownloadPageImplV2(
                                 deletionTargets = filteredMap.keys.filter { it.id in selectedIds }
                             }) { Text(stringResource(R.string.loc_queue_delete_selected)) }
                         } else TextButton(enabled = taskDownloadStateMap.isNotEmpty(), onClick = {
-                            deletionTargets = QueueMedia.grouped(taskDownloadStateMap.toMap()).keys.toList()
+                            deletionTargets = groupedSnapshot.first.keys.toList()
                         }) { Text(stringResource(R.string.loc_queue_delete_all)) }
                     }
                     if (activeFilter == Filter.Deleted && filteredMap.isNotEmpty()) {
@@ -461,9 +543,10 @@ fun DownloadPageImplV2(
                     if (isGridView) {
                         items(
                             items =
-                                filteredMap.toList().sortedBy { (_, state) -> state.downloadState },
+                                visibleTasks,
                             key = { (task, _) -> task.id },
                         ) { (task, state) ->
+                            val members = groupedSnapshot.second[QueueMedia.key(task)].orEmpty()
                             with(state.viewState) {
                                 VideoCardV2(
                                     selected = selecting && task.id in selectedIds,
@@ -484,12 +567,17 @@ fun DownloadPageImplV2(
                                     stateIndicator = {
                                         Column {
                                             PostMediaDetails(state.viewState, overlay = true,
-                                                missingPages = QueueMedia.missingPages(task, taskDownloadStateMap.toMap()))
+                                                missingPages = QueueMedia.missingPages(task, members))
                                             CardStateIndicator(modifier = Modifier, downloadState = state.downloadState)
-                                            if (QueueMedia.members(task, taskDownloadStateMap.toMap()).any { taskDownloadStateMap[it]?.downloadState is Task.DownloadState.Restartable })
+                                            if (members.values.any { it.downloadState is Task.DownloadState.Restartable })
                                                 TextButton(onClick = { onActionPost(task, UiAction.Resume) }) { Text(stringResource(R.string.loc_retry_failed_pages)) }
                                         }
                                     },
+                                    postUrl = task.url,
+                                    onWallpaperClick = {
+                                        onActionPost(task, UiAction.OpenWallpaper(url = task.url))
+                                    },
+                                    onInstagramClick = if (com.plugin.compatibility.WallpaperHelper.isInstagramUrl(task.url)) ({ onActionPost(task, UiAction.OpenInstagram(task.url)) }) else null,
                                     onButtonClick = { if (selecting) openItem(task) else showActionSheet(task) },
                                 )
                             }
@@ -497,26 +585,39 @@ fun DownloadPageImplV2(
                     } else {
                         items(
                             items =
-                                filteredMap.toList().sortedBy { (_, state) -> state.downloadState },
+                                visibleTasks,
                             key = { (task, _) -> task.id },
                             span = { GridItemSpan(maxLineSpan) },
                         ) { (task, state) ->
+                            val members = groupedSnapshot.second[QueueMedia.key(task)].orEmpty()
                             VideoListItem(
                                 selected = selecting && task.id in selectedIds,
                                 modifier = Modifier.padding(bottom = 16.dp).combinedClickable(onClick = { openItem(task) }, onLongClick = { selecting = true; if (task.id !in selectedIds) selectedIds.add(task.id) }),
                                 viewState = state.viewState,
+                                postUrl = task.url,
+                                onWallpaperClick = { onActionPost(task, UiAction.OpenWallpaper(url = task.url)) },
+                                onInstagramClick = if (com.plugin.compatibility.WallpaperHelper.isInstagramUrl(task.url)) ({ onActionPost(task, UiAction.OpenInstagram(task.url)) }) else null,
                                 stateIndicator = {
                                     Column {
                                         if (selecting) Checkbox(task.id in selectedIds, onCheckedChange = { openItem(task) })
                                         PostMediaDetails(state.viewState,
-                                            missingPages = QueueMedia.missingPages(task, taskDownloadStateMap.toMap()))
+                                            missingPages = QueueMedia.missingPages(task, members))
                                         ListItemStateText(modifier = Modifier.padding(top = 3.dp), downloadState = state.downloadState)
-                                        if (QueueMedia.members(task, taskDownloadStateMap.toMap()).any { taskDownloadStateMap[it]?.downloadState is Task.DownloadState.Restartable })
+                                        if (members.values.any { it.downloadState is Task.DownloadState.Restartable })
                                             TextButton(onClick = { onActionPost(task, UiAction.Resume) }) { Text(stringResource(R.string.loc_retry_failed_pages)) }
                                     }
                                 },
                                 onButtonClick = { if (selecting) openItem(task) else showActionSheet(task) },
                             )
+                        }
+                    }
+                    if (incrementalLoading && visibleTasks.size < sortedTasks.size) {
+                        item(key = "queue_load_more", span = { GridItemSpan(maxLineSpan) }) {
+                            // 첫 다섯 항목이 화면에 모두 들어가는 넓은 화면에서도 다음 묶음을 열 수 있습니다.
+                            TextButton(onClick = { visibleCount = (visibleCount + 5).coerceAtMost(sortedTasks.size) },
+                                modifier = Modifier.fillMaxWidth()) {
+                                Text("5개 더 불러오기 (${visibleTasks.size}/${sortedTasks.size})")
+                            }
                         }
                     }
                 }
@@ -547,8 +648,8 @@ fun DownloadPageImplV2(
         }) { Text(stringResource(R.string.loc_queue_delete_selected)) } },
         dismissButton = { TextButton(onClick = { deletionTargets = emptyList() }) { Text(stringResource(R.string.cancel)) } },
     )
-    if (selectedTask != null) {
-        val task = selectedTask!!
+    val task = selectedTask
+    if (task != null) {
         val (downloadState, _, viewState) = filteredMap[task] ?: return
         SealModalBottomSheet(
             sheetState = sheetState,
@@ -745,13 +846,13 @@ fun SubHeader(
 
         FilledIconButton(
             onClick = onToggleView,
-            modifier = Modifier.clearAndSetSemantics {}.size(32.dp),
+            modifier = Modifier.size(40.dp),
             colors = IconButtonDefaults.filledIconButtonColors(containerColor = containerColor),
         ) {
             Icon(
                 imageVector =
                     if (isGridView) Icons.AutoMirrored.Outlined.List else Icons.Outlined.GridView,
-                contentDescription = null,
+                contentDescription = if (isGridView) "목록으로 보기" else "격자로 보기",
                 modifier = Modifier.size(16.dp),
             )
         }
@@ -760,12 +861,12 @@ fun SubHeader(
 
         FilledIconButton(
             onClick = onShowMenu,
-            modifier = Modifier.clearAndSetSemantics {}.size(32.dp),
+            modifier = Modifier.size(40.dp),
             colors = IconButtonDefaults.filledIconButtonColors(containerColor = containerColor),
         ) {
             Icon(
                 imageVector = Icons.Outlined.MoreVert,
-                contentDescription = null,
+                contentDescription = "선택 모드",
                 modifier = Modifier.size(16.dp),
             )
         }

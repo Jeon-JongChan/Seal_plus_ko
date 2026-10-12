@@ -31,6 +31,9 @@ data class InstagramMedia(
             id = id,
             title = "$author [$id]",
             uploader = author,
+            uploaderId = author,
+            description = SocialPostMetadataStore.get(postUrl)?.text?.takeIf { it.isNotBlank() }
+                ?: title.takeUnless { it == "$author · ${postUrl.substringBefore('?').trimEnd('/').substringAfterLast('/')}" },
             duration = duration,
             originalUrl = url,
             webpageUrl = if (carousel) "$postUrl#seal-media=$id" else postUrl,

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="plugin_download_folders">저장폴더 목록</string>
+    <string name="plugin_download_folders_desc">기본 다운로드 디렉터리와 그 하위의 기존 폴더를 등록합니다. 화질 폴더는 숨깁니다. 다운로드창에서 고르거나 기본 저장 규칙을 그대로 사용할 수 있습니다.</string>
+    <string name="download_folder_default">기본 설정</string>
+    <string name="download_folder_add">저장폴더 추가</string>
+    <string name="download_folder_empty">플러그인 → 저장폴더 목록에서 폴더를 추가하세요.</string>
+    <string name="download_folder_roots">기본 다운로드 디렉터리</string>
+    <string name="download_folder_parent">상위 폴더</string>
+    <string name="download_folder_select_current">현재 폴더 선택</string>
+    <string name="download_folder_remove">목록에서 제외</string>
+    <string name="download_folder_root_changed">기본 디렉터리가 변경되었습니다. 폴더를 다시 등록하세요.</string>
+    <string name="classification_priority">화질 폴더 우선순위</string>
+    <string name="classification_lower_first">하위 우선</string>
+    <string name="classification_upper_first">상위 우선</string>
+    <string name="classification_priority_hint">하위 우선: 켜진 구간의 상한으로 분류합니다. 480p·720p를 켜면 480p 이하→480p, 480p 초과~720p→720p이며 720p 초과는 분류하지 않습니다. 상위 우선은 반대로 하한을 사용합니다. 하위 우선은 실제 해상도 상한이며 상위 우선은 기존 해상도·코덱·FPS·용량 품질 하한을 적용합니다.</string>
+    <string name="cookies_all_sources">전체 로그인 쿠키</string>
+    <string name="download_folder_quick">퀵</string>
+    <string name="download_folder_quick_label">퀵 · %1$s</string>
+    <string name="download_folder_quick_hint">폴더 하나를 퀵으로 표시하세요. 다운로드창에서 누르면 바로 적용하고, 다시 눌러 해제하면 기본 저장 규칙을 사용합니다.</string>
+</resources>

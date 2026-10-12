@@ -24,10 +24,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.Wallpaper
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Error
 import androidx.compose.material.icons.rounded.Pause
@@ -94,7 +96,7 @@ private val LabelContainerColor: Color = Color.Black.copy(alpha = 0.68f)
 /** 게시물 성공 수·혼합 개수·해상도 범위와 읽을 수 있는 평균 비트레이트를 표시합니다. */
 @Composable
 fun PostMediaDetails(state: Task.ViewState, overlay: Boolean = false, missingPages: Int = 0) {
-    val text = buildList {
+    val text = if (overlay) "${state.mediaCount.coerceAtLeast(1)}P" else buildList {
         add(stringResource(R.string.loc_page_success, state.completedCount, state.mediaCount))
         if (missingPages > 0) add(stringResource(R.string.loc_page_missing, missingPages))
         if (state.imageCount > 0 && state.videoCount > 0)
@@ -115,7 +117,7 @@ fun PostMediaDetails(state: Task.ViewState, overlay: Boolean = false, missingPag
     Surface(color = if (overlay) LabelContainerColor else Color.Transparent,
         contentColor = if (overlay) Color.White else MaterialTheme.colorScheme.onSurfaceVariant) {
         Text(text, Modifier.padding(4.dp), style = MaterialTheme.typography.labelSmall,
-            maxLines = if (overlay) 3 else Int.MAX_VALUE, overflow = TextOverflow.Ellipsis)
+            maxLines = if (overlay) 1 else Int.MAX_VALUE, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -127,6 +129,9 @@ fun VideoCardV2(
     selected: Boolean = false,
     stateIndicator: @Composable (BoxScope.() -> Unit)? = null,
     actionButton: @Composable (BoxScope.() -> Unit)? = null,
+    postUrl: String = viewState.url,
+    onWallpaperClick: (() -> Unit)? = null,
+    onInstagramClick: (() -> Unit)? = null,
     onButtonClick: () -> Unit,
 ) {
     with(viewState) {
@@ -144,6 +149,9 @@ fun VideoCardV2(
             resolutionRange = if (imageCount > 1 && width > 0 && height > 0)
                 if (minWidth > 0 && (minWidth != width || minHeight != height))
                     "${minWidth}×${minHeight} ~ ${width}×${height}" else "${width}×${height}" else "",
+            postUrl = postUrl.ifBlank { url },
+            onWallpaperClick = onWallpaperClick,
+            onInstagramClick = onInstagramClick,
             onButtonClick = onButtonClick,
         )
     }
@@ -155,6 +163,9 @@ fun VideoListItem(
     modifier: Modifier = Modifier,
     viewState: Task.ViewState,
     selected: Boolean = false,
+    postUrl: String = "",
+    onWallpaperClick: (() -> Unit)? = null,
+    onInstagramClick: (() -> Unit)? = null,
     stateIndicator: @Composable (() -> Unit)? = null,
     onButtonClick: () -> Unit,
 ) {
@@ -163,6 +174,8 @@ fun VideoListItem(
             modifier = modifier,
             thumbnailModel = thumbnailUrl,
             selected = selected,
+            postUrl = postUrl.ifBlank { url },
+            onWallpaperClick = onWallpaperClick, onInstagramClick = onInstagramClick,
             title = title,
             uploader = uploader,
             duration = duration,
@@ -180,6 +193,9 @@ fun VideoListItem(
     modifier: Modifier = Modifier,
     thumbnailModel: Any? = null,
     selected: Boolean = false,
+    postUrl: String = "",
+    onWallpaperClick: (() -> Unit)? = null,
+    onInstagramClick: (() -> Unit)? = null,
     title: String = "",
     uploader: String = "",
     duration: Int = 0,
@@ -188,37 +204,16 @@ fun VideoListItem(
     stateIndicator: @Composable (() -> Unit)? = null,
     onButtonClick: () -> Unit,
 ) {
-    Row(modifier = modifier.background(if (selected) Color.Black.copy(alpha = 0.18f) else Color.Transparent).height(IntrinsicSize.Min), verticalAlignment = Alignment.Top) {
-        Box(modifier = Modifier) {
-            ListItemImage(modifier = Modifier, thumbnailModel = thumbnailModel)
-            if (!isImage) VideoInfoLabel(
-                modifier = Modifier.align(Alignment.BottomEnd),
-                duration = duration,
-                fileSizeApprox = fileSizeApprox,
-                isImage = isImage, imageCount = imageCount, width = width, height = height,
-            )
-        }
+    Row(modifier = modifier.background(if (selected) Color.Black.copy(alpha = 0.18f) else Color.Transparent), verticalAlignment = Alignment.Top) {
         Box {
-            Column(modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp)) {
-                TitleText(
-                    modifier = Modifier,
-                    title = title,
-                    uploader = uploader,
-                    contentPadding = PaddingValues(),
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                stateIndicator?.invoke()
-            }
-            IconButton(
-                onButtonClick,
-                modifier = Modifier.align(Alignment.BottomEnd).offset(x = 8.dp, y = 8.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.MoreVert,
-                    contentDescription = stringResource(R.string.show_more_actions),
-                    modifier = Modifier.size(20.dp),
-                )
-            }
+            ListItemImage(thumbnailModel = thumbnailModel)
+            if (!isImage) VideoInfoLabel(Modifier.align(Alignment.BottomStart), duration, fileSizeApprox)
+            com.plugin.ui.MediaQuickActions(Modifier.align(Alignment.TopEnd), onWallpaperClick, onInstagramClick, onButtonClick)
+        }
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            TitleText(title = title, uploader = uploader, contentPadding = PaddingValues())
+            stateIndicator?.invoke()
+            if (postUrl.isNotBlank()) com.plugin.ui.PostInfoBadge(postUrl, fallbackAuthor = uploader)
         }
     }
 }
@@ -280,6 +275,9 @@ fun VideoCardV2(
     stateIndicator: @Composable (BoxScope.() -> Unit)? = null,
     actionButton: @Composable (BoxScope.() -> Unit)? = null,
     resolutionRange: String = "",
+    postUrl: String = "",
+    onWallpaperClick: (() -> Unit)? = null,
+    onInstagramClick: (() -> Unit)? = null,
     onButtonClick: () -> Unit,
 ) {
     val containerColor =
@@ -297,6 +295,7 @@ fun VideoCardV2(
                 if (selected) Box(Modifier.matchParentSize().background(Color.Black.copy(alpha = 0.35f)))
                 Box(Modifier.align(Alignment.TopStart)) { stateIndicator?.invoke(this) }
                 Box(Modifier.align(Alignment.Center)) { actionButton?.invoke(this) }
+                com.plugin.ui.MediaQuickActions(Modifier.align(Alignment.TopEnd).padding(4.dp), onWallpaperClick, onInstagramClick, onButtonClick)
                 if (resolutionRange.isNotBlank()) Surface(modifier = Modifier.align(Alignment.BottomEnd),
                     color = LabelContainerColor, contentColor = Color.White) {
                     Text(resolutionRange, Modifier.padding(4.dp), style = MaterialTheme.typography.labelSmall)
@@ -308,13 +307,13 @@ fun VideoCardV2(
                 isImage = isImage, imageCount = imageCount, width = width, height = height,
                 )
             }
-            Row(modifier = Modifier.fillMaxWidth()) {
-                TitleText(modifier = Modifier.weight(1f), title = title, uploader = uploader)
-                IconButton(onButtonClick, modifier = Modifier.align(Alignment.CenterVertically)) {
-                    Icon(
-                        imageVector = Icons.Outlined.MoreVert,
-                        contentDescription = stringResource(R.string.show_more_actions),
-                        modifier = Modifier.size(20.dp),
+            Column {
+                TitleText(title = title, uploader = uploader)
+                if (postUrl.isNotBlank()) {
+                    com.plugin.ui.PostInfoBadge(
+                        postUrl = postUrl,
+                        modifier = Modifier.padding(horizontal = 12.dp).padding(bottom = 6.dp),
+                        fallbackAuthor = uploader
                     )
                 }
             }
@@ -406,12 +405,12 @@ private fun TitleText(
         verticalArrangement = Arrangement.Top,
     ) {
         Text(
-            text = title,
+            text = com.plugin.ui.postCardTitle(title, uploader),
             style = MaterialTheme.typography.titleSmall,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
-        Text(
+        if (uploader.isNotBlank() && !com.plugin.PluginState.isEnabled(com.plugin.PluginId.POST_INFO) && !title.startsWith("$uploader [")) Text(
             modifier = Modifier.padding(top = 3.dp),
             text = uploader,
             style = MaterialTheme.typography.bodySmall,

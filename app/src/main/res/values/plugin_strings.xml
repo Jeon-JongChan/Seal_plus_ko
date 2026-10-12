@@ -20,4 +20,34 @@
     <string name="plugin_list_disabled">Enable the Instagram profile download plugin and try again.</string>
     <string name="plugin_library">Media folders and file manager</string>
     <string name="loc_disabled_tier_hint">Disabled resolution tiers stay in the base image or video folder. Lower tiers are not substituted.</string>
+    <string name="loc_frequent_accounts">Frequent Accounts</string>
+    <string name="loc_frequent_accounts_desc">View frequent Instagram accounts and browse posts or profiles.</string>
+    <string name="loc_post_info_plugin">Post Details Display</string>
+    <string name="loc_post_info_plugin_desc">Display author avatar, username, caption, and hashtags in queue and list.</string>
+    <string name="loc_wallpaper_setting">Wallpaper</string>
+    <string name="loc_wallpaper_preview">Wallpaper Preview &amp; Set</string>
+    <string name="loc_wallpaper_home">Home Screen</string>
+    <string name="loc_wallpaper_lock">Lock Screen</string>
+    <string name="loc_wallpaper_both">Both</string>
+    <string name="loc_wallpaper_apply">Set Wallpaper</string>
+    <string name="loc_wallpaper_applied">Wallpaper has been applied.</string>
+    <string name="loc_wallpaper_failed">Failed to set wallpaper.</string>
+    <string name="loc_open_instagram">Open in Instagram</string>
+    <string name="loc_post_info_show_profile">Show Author Avatar</string>
+    <string name="loc_post_info_show_author">Show Username</string>
+    <string name="loc_post_info_show_text">Show Post Text</string>
+    <string name="loc_post_info_show_hashtags">Show Hashtags</string>
+    <string name="loc_visit_count">%d visits</string>
+    <string name="loc_account_add">Add Account</string>
+    <string name="loc_profile_picture">Profile Picture</string>
+    <string name="loc_no_accounts">No frequent accounts found.</string>
+    <string name="loc_post_more">More</string>
+    <string name="loc_post_less">Less</string>
+    <string name="loc_post_identifier">Post %1$s</string>
+    <string name="loc_collected_posts">%1$d posts</string>
+    <string name="loc_account_open">Open account</string>
+    <string name="loc_video_wallpaper">Video wallpaper</string>
+    <string name="loc_video_wallpaper_description">Loop the selected video without sound.</string>
+    <string name="loc_video_wallpaper_next">Choose where to apply the video on the next screen.</string>
 </resources>
+

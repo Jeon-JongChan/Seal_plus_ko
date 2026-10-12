@@ -5,12 +5,12 @@ from pathlib import Path
 import re
 import subprocess
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 BASE = "7677f61a20fda4210e84215fef9e9b51d25daa47"
 GROUPS = {
     "image": "SOCIAL", "instagram": "SOCIAL", "tiktok": "SOCIAL",
     "listdownload": "LIST", "media": "MEDIA", "library": "LIBRARY",
-    "queue": "QUEUE", "interaction": "INTERACTION",
+    "queue": "QUEUE", "interaction": "INTERACTION", "enhancement": "IMAGE_AI", "folders": "FOLDERS",
 }
 SHARED_QUEUE_TYPES = r"com\.plugin\.queue\.(?:PluginTaskFactory|PluginTaskDownloader|PluginTaskAdapter|PluginTaskBackup|PluginTask)(?!\w)"
 

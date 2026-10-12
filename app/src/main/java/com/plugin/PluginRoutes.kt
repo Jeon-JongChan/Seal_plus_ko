@@ -5,4 +5,6 @@ object PluginRoutes {
     const val IMAGE_DOWNLOAD = "image_download"
     const val MEDIA_TOOLS = "media_tools"
     const val INSTAGRAM = "instagram_accounts_page"
+    const val FREQUENT_ACCOUNTS = "frequent_accounts_page"
+    const val POST_INFO = "post_info_page"
 }

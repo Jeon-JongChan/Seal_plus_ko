@@ -232,7 +232,7 @@ private fun FormatPresetDialog(type: DownloadType?, preferences: DownloadUtil.Do
             onSave = {
                 VIDEO_FORMAT.updateInt(format)
                 VIDEO_QUALITY.updateInt(res)
-                onPreferencesUpdate(com.plugin.compatibility.createPluginPreferences())
+                onPreferencesUpdate(com.plugin.compatibility.createPluginPreferences().copyPluginOptions(selectedFolder = preferences.selectedFolder))
             },
         )
     }
@@ -266,7 +266,7 @@ private fun FormatPresetDialog(type: DownloadType?, preferences: DownloadUtil.Do
                 AUDIO_CONVERSION_FORMAT.updateInt(conversionFmt)
                 AUDIO_CONVERT.updateBoolean(convertAudio)
                 AUDIO_FORMAT.updateInt(preferredFormat)
-                onPreferencesUpdate(com.plugin.compatibility.createPluginPreferences())
+                onPreferencesUpdate(com.plugin.compatibility.createPluginPreferences().copyPluginOptions(selectedFolder = preferences.selectedFolder))
             },
         )
     }
@@ -282,13 +282,36 @@ internal fun DownloadFormatButton(type: DownloadType?, preferences: DownloadUtil
     if (opened) FormatPresetDialog(type, preferences, onPreferencesUpdate, onDismiss = { opened = false })
 }
 
+/** 오류를 발생시킨 요청의 설정을 읽어 모든 조회·등록 실패에서 쿠키 편집을 제공합니다. */
+internal fun preferencesForRetry(action: Any): DownloadUtil.DownloadPreferences? = when (action) {
+    is InspectInstagramAction -> action.preferences
+    is DownloadInstagramAction -> action.preferences
+    is Action.FetchFormats -> action.preferences
+    is Action.FetchPlaylist -> action.preferences
+    is Action.DownloadWithPreset -> action.preferences
+    is Action.RunCommand -> action.preferences
+    else -> null
+}
+
+/** 재시도는 URL·종류·선택 폴더를 보존하고 편집한 쿠키 설정을 같은 요청에 반영합니다. */
+internal fun actionForRetry(action: Any, preferences: DownloadUtil.DownloadPreferences?): Any = if (preferences == null) action else when (action) {
+    is InspectInstagramAction -> action.copy(preferences = preferences)
+    is DownloadInstagramAction -> action.copy(preferences = preferences)
+    is Action.FetchFormats -> action.copy(preferences = preferences)
+    is Action.FetchPlaylist -> action.copy(preferences = preferences)
+    is Action.DownloadWithPreset -> action.copy(preferences = preferences)
+    is Action.RunCommand -> action.copy(preferences = preferences)
+    else -> action
+}
+
 /** 오류 원인을 보여주고 변경한 쿠키 설정으로 인스타그램 요청을 재시도합니다. */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
-private fun ErrorPage(modifier: Modifier = Modifier, state: Error, onActionPost: (Any) -> Unit) {
+internal fun ErrorPage(modifier: Modifier = Modifier, state: Error, onActionPost: (Any) -> Unit) {
     val view = LocalView.current
     val clipboardManager = LocalClipboardManager.current
     var retryPreferences by remember(state) {
-        mutableStateOf((state.action as? InspectInstagramAction)?.preferences, referentialEqualityPolicy())
+        mutableStateOf(preferencesForRetry(state.action), referentialEqualityPolicy())
     }
     val url =
         state.action.run {
@@ -296,6 +319,8 @@ private fun ErrorPage(modifier: Modifier = Modifier, state: Error, onActionPost:
                 is Action.FetchFormats -> url
                 is Action.FetchPlaylist -> url
                 is InspectInstagramAction -> urls.joinToString("\n")
+                is Action.DownloadWithPreset -> urlList.joinToString("\n")
+                is Action.RunCommand -> url
                 else -> ""
             }
         }
@@ -324,14 +349,13 @@ private fun ErrorPage(modifier: Modifier = Modifier, state: Error, onActionPost:
 
         retryPreferences?.let { preference ->
             Row(Modifier.padding(horizontal = 20.dp)) {
-                CookieOptions(preference, onUpdate = { retryPreferences = it })
+                CookieOptions(preference, persistDefaults = false, onUpdate = { retryPreferences = it })
             }
         }
-        Row(modifier = Modifier) {
+        androidx.compose.foundation.layout.FlowRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             FilledTonalButton(onClick = {
                 val action = state.action
-                onActionPost(if (action is InspectInstagramAction)
-                    action.copy(preferences = retryPreferences ?: action.preferences) else action)
+                onActionPost(actionForRetry(action, retryPreferences))
             }) { Text(stringResource(R.string.loc_retry_action)) }
             Spacer(Modifier.width(8.dp))
             Button(
@@ -738,7 +762,7 @@ fun ConfigurePagePlaylistVariant(
             useFormatSelection = false,
             onCancel = onDismissRequest,
             onDownload = {
-                onDownload(initialDownloadType)
+                onDownload(selectedType)
                 onDismissRequest()
             },
             onFetchInfo = { throw IllegalStateException() },
@@ -760,6 +784,7 @@ internal fun AdditionalSettings(
     with(preference) {
         Row(modifier = modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (selectedType != Command) com.plugin.ui.DownloadFolderSelector(preference, onPreferenceUpdate)
             CookieOptions(preference, onUpdate = onPreferenceUpdate)
             DownloadAllChip(preference, onPreferenceUpdate)
             if (showSubtitles) VideoFilterChip(
@@ -767,7 +792,7 @@ internal fun AdditionalSettings(
                 enabled = selectedType != Command,
                 onClick = {
                     SUBTITLE.updateBoolean(!downloadSubtitle)
-                    onPreferenceUpdate(com.plugin.compatibility.createPluginPreferences())
+                    onPreferenceUpdate(com.plugin.compatibility.createPluginPreferences().copyPluginOptions(selectedFolder = preference.selectedFolder))
                 },
                 label = stringResource(id = R.string.download_subtitles),
             )
@@ -776,7 +801,7 @@ internal fun AdditionalSettings(
                 enabled = selectedType != Command,
                 onClick = {
                     THUMBNAIL.updateBoolean(!createThumbnail)
-                    onPreferenceUpdate(com.plugin.compatibility.createPluginPreferences())
+                    onPreferenceUpdate(com.plugin.compatibility.createPluginPreferences().copyPluginOptions(selectedFolder = preference.selectedFolder))
                 },
                 label = stringResource(R.string.create_thumbnail),
             )

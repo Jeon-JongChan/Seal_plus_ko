@@ -87,11 +87,12 @@ private val LabelContainerColor: Color = Color.Black.copy(alpha = 0.68f)
 
 /** 파일 목록 자체의 미디어 상세 정보를 표시합니다. */
 @Composable
-fun PostMediaDetails(state: Task.ViewState, overlay: Boolean = false) {
+fun PostMediaDetails(state: Task.ViewState, overlay: Boolean = false, compact: Boolean = false) {
     val text = buildList {
         add(stringResource(R.string.loc_page_success, state.completedCount, state.mediaCount))
         if (state.imageCount > 0 && state.videoCount > 0)
             add(stringResource(R.string.loc_instagram_media_count, state.videoCount, state.imageCount))
+        if (!compact) {
         if (state.width > 0 && state.height > 0) {
             val max = "${state.width}×${state.height}"
             add(if (state.minWidth > 0 && (state.minWidth != state.width || state.minHeight != state.height))
@@ -104,6 +105,7 @@ fun PostMediaDetails(state: Task.ViewState, overlay: Boolean = false) {
         if (labels.isNotBlank()) add(labels)
         if (state.av1Mode > 0) add(stringResource(if (state.av1Mode == 2)
             R.string.revision5_encoded_keep else R.string.revision5_encoded_replace))
+        }
     }.joinToString(" · ")
     Surface(color = if (overlay) LabelContainerColor else Color.Transparent,
         contentColor = if (overlay) Color.White else MaterialTheme.colorScheme.onSurfaceVariant) {

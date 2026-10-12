@@ -180,7 +180,7 @@ private fun FormatPresetDialog(type: DownloadType?, preferences: DownloadUtil.Do
             onSave = {
                 VIDEO_FORMAT.updateInt(format)
                 VIDEO_QUALITY.updateInt(res)
-                onPreferencesUpdate(com.plugin.compatibility.createPluginPreferences())
+                onPreferencesUpdate(com.plugin.compatibility.createPluginPreferences().copyPluginOptions(selectedFolder = preferences.selectedFolder))
             },
         )
     }
@@ -214,7 +214,7 @@ private fun FormatPresetDialog(type: DownloadType?, preferences: DownloadUtil.Do
                 AUDIO_CONVERSION_FORMAT.updateInt(conversionFmt)
                 AUDIO_CONVERT.updateBoolean(convertAudio)
                 AUDIO_FORMAT.updateInt(preferredFormat)
-                onPreferencesUpdate(com.plugin.compatibility.createPluginPreferences())
+                onPreferencesUpdate(com.plugin.compatibility.createPluginPreferences().copyPluginOptions(selectedFolder = preferences.selectedFolder))
             },
         )
     }
@@ -256,6 +256,7 @@ internal fun AdditionalSettings(
     with(preference) {
         Row(modifier = modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (selectedType != Command) com.plugin.ui.DownloadFolderSelector(preference, onPreferenceUpdate)
             CookieOptions(preference, onUpdate = onPreferenceUpdate)
             DownloadAllChip(preference, onPreferenceUpdate)
             if (showSubtitles) VideoFilterChip(
@@ -263,7 +264,7 @@ internal fun AdditionalSettings(
                 enabled = selectedType != Command,
                 onClick = {
                     SUBTITLE.updateBoolean(!downloadSubtitle)
-                    onPreferenceUpdate(com.plugin.compatibility.createPluginPreferences())
+                    onPreferenceUpdate(com.plugin.compatibility.createPluginPreferences().copyPluginOptions(selectedFolder = preference.selectedFolder))
                 },
                 label = stringResource(id = R.string.download_subtitles),
             )
@@ -272,7 +273,7 @@ internal fun AdditionalSettings(
                 enabled = selectedType != Command,
                 onClick = {
                     THUMBNAIL.updateBoolean(!createThumbnail)
-                    onPreferenceUpdate(com.plugin.compatibility.createPluginPreferences())
+                    onPreferenceUpdate(com.plugin.compatibility.createPluginPreferences().copyPluginOptions(selectedFolder = preference.selectedFolder))
                 },
                 label = stringResource(R.string.create_thumbnail),
             )

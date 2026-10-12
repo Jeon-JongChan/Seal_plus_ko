@@ -23,7 +23,11 @@ local.properties
 .docs
 !/AGENTS.md
 .build/*
+!.build/.gitignore
 !.build/Environment.ps1
+!.build/Project.psd1
+!.build/Setup-Portable.ps1
+!.build/Seal/
 !.build/Setup.ps1
 !.build/Build.ps1
 !.build/Emulator.ps1

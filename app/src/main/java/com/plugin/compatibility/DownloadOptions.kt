@@ -235,6 +235,17 @@ fun MediaDirectoryOptions(preferences: DownloadUtil.DownloadPreferences,
         Entry(VIDEO_FOLDER_NAME, R.string.loc_video_folder_name, preferences.videoFolderName,
             { it.isEmpty() || MediaRules.folderName(it, "").isNotEmpty() }, { preferences.copyPluginOptions(videoFolderName = it) })
         Text(stringResource(R.string.revision5_empty_folder), style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.website_folder_target), style = MaterialTheme.typography.titleSmall)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(0 to R.string.revision6_classification_both, 2 to R.string.loc_media_images,
+                1 to R.string.loc_media_videos).forEach { (target, label) ->
+                FilterChip(selected = preferences.websiteFolderTarget == target, onClick = {
+                    PluginPreferences.WEBSITE_FOLDER_TARGET.updateInt(target)
+                    onUpdate(preferences.copyPluginOptions(websiteFolderTarget = target))
+                }, label = { Text(stringResource(label)) })
+            }
+        }
+        Text(stringResource(R.string.website_folder_target_hint), style = MaterialTheme.typography.bodySmall)
         Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
             Text(stringResource(R.string.loc_classify_downloads), Modifier.weight(1f))
             Switch(preferences.classifyMedia, onCheckedChange = {
@@ -242,6 +253,16 @@ fun MediaDirectoryOptions(preferences: DownloadUtil.DownloadPreferences,
             })
         }
         if (preferences.classifyMedia) {
+        Text(stringResource(R.string.classification_priority), style = MaterialTheme.typography.titleSmall)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(false to R.string.classification_lower_first, true to R.string.classification_upper_first).forEach { (upper, label) ->
+                FilterChip(selected = preferences.classificationUpperFirst == upper, onClick = {
+                    PluginPreferences.CLASSIFICATION_UPPER_FIRST.updateBoolean(upper)
+                    onUpdate(preferences.copyPluginOptions(classificationUpperFirst = upper))
+                }, label = { Text(stringResource(label)) })
+            }
+        }
+        Text(stringResource(R.string.classification_priority_hint), style = MaterialTheme.typography.bodySmall)
         Text(stringResource(R.string.revision6_classification_target), style = MaterialTheme.typography.titleSmall)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf(R.string.revision6_classification_both, R.string.loc_media_videos, R.string.loc_media_images).forEachIndexed { index, label ->
@@ -322,42 +343,46 @@ fun MediaDirectoryOptions(preferences: DownloadUtil.DownloadPreferences,
 
 /** 기존 쿠키 칩과 대화상자를 재사용하고 활성화할 때 전체 로그인 쿠키를 갱신합니다. */
 @Composable
-fun CookieOptions(preferences: DownloadUtil.DownloadPreferences, onUpdate: (DownloadUtil.DownloadPreferences) -> Unit) {
+fun CookieOptions(preferences: DownloadUtil.DownloadPreferences, persistDefaults: Boolean = true, onUpdate: (DownloadUtil.DownloadPreferences) -> Unit) {
     var opened by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
     val profiles by com.junkfood.seal.util.DatabaseUtil.getCookiesFlow().collectAsState(emptyList())
     /** 쿠키 파일 준비와 활성화를 공통 처리하고 빠른 프로필은 추가 선택창을 생략합니다. */
-    fun toggleCookies(enabled: Boolean, profileId: Int = -1) {
+    fun toggleCookies(enabled: Boolean, profileId: Int = preferences.cookieProfileId, explicit: Boolean = preferences.cookieProfileExplicit) {
             if (!busy) {
                 busy = true
                 scope.launch {
                     runCatching {
                         if (enabled) withContext(Dispatchers.IO) {
                             val file = com.plugin.runtime.PluginDownloadUtil.prepareCookies(profileId)
-                            // 단일 프로필 내용으로 다른 사이트의 쿠키를 덮어쓰지 않습니다.
-                            if (profileId < 0) DownloadUtil.getCookiesContentFromDatabase().getOrNull()?.let { file.writeText(it) }
                             check(file.isFile) { com.junkfood.seal.App.context.getString(R.string.loc_cookie_login_hint) }
                         }
-                        COOKIES.updateBoolean(enabled)
-                        onUpdate(preferences.copyPreservingPluginOptions { copy(cookies = enabled) }.copyPluginOptions(cookieProfileId = profileId))
+                        // 다시시도의 쿠키는 해당 요청에만 붙이고 새 다운로드창의 기본 설정을 바꾸지 않습니다.
+                        if (persistDefaults) {
+                            if (explicit) PluginPreferences.EXPLICIT_COOKIE_PROFILE.updateInt(profileId)
+                            COOKIES.updateBoolean(enabled)
+                        }
+                        onUpdate(preferences.copyPreservingPluginOptions { copy(cookies = enabled) }.copyPluginOptions(cookieProfileId = profileId, cookieProfileExplicit = explicit))
                     }.onFailure { error = it.message.orEmpty() }
                     busy = false
                 }
             }
     }
+    val selectedHost = profiles.firstOrNull { preferences.cookieProfileExplicit && it.id == preferences.cookieProfileId }?.url?.let {
+        runCatching { java.net.URI(it).host }.getOrNull()
+    }
     VideoFilterChip(selected = preferences.cookies, onClick = {
-        val quick = if (com.plugin.PluginState.isEnabled(com.plugin.PluginId.INTERACTION))
+        val quick = if (preferences.cookieProfileExplicit) preferences.cookieProfileId else if (com.plugin.PluginState.isEnabled(com.plugin.PluginId.INTERACTION))
             com.junkfood.seal.util.PreferenceUtil.run { QUICK_COOKIE_PROFILE.getInt(-1) } else -1
-        if (profiles.any { it.id == quick }) toggleCookies(!preferences.cookies, quick) else opened = true
-    }, label = stringResource(R.string.cookies))
+        if (!preferences.cookieProfileExplicit && profiles.any { it.id == quick }) toggleCookies(!preferences.cookies, quick) else opened = true
+    }, label = if (selectedHost == null) stringResource(R.string.cookies) else "${stringResource(R.string.cookies)} · $selectedHost")
     if (opened) CookiesQuickSettingsDialog(
         isCookiesEnabled = preferences.cookies,
-        cookieProfiles = profiles,
+        cookieProfiles = listOf(com.junkfood.seal.database.objects.CookieProfile(-1, stringResource(R.string.cookies_all_sources), "")) + profiles,
         onCookieProfileClicked = { profile ->
-            QUICK_COOKIE_PROFILE.updateInt(profile.id)
-            toggleCookies(true, profile.id)
+            toggleCookies(true, profile.id, explicit = true)
             opened = false
         },
         onDismissRequest = { if (!busy) opened = false },

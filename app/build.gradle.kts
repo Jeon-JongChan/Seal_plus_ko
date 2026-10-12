@@ -1,5 +1,11 @@
 @file:Suppress("UnstableApiUsage")
 
+import com.android.build.api.instrumentation.*
+import com.android.build.api.variant.ApplicationAndroidComponentsExtension
+import org.objectweb.asm.*
+import org.objectweb.asm.tree.*
+
+
 import com.android.build.api.variant.FilterConfiguration
 import java.io.FileInputStream
 import java.util.Properties
@@ -177,6 +183,10 @@ tasks.matching { it.name.startsWith("ksp") }.configureEach {
 dependencies {
     implementation(project(":color"))
 
+    // 이미지 AI는 별도 프로세스에서 실행하며 모델은 사용자가 내려받습니다.
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
+    implementation("com.google.android.gms:play-services-media-effect-enhancement:16.0.0-beta04")
+
     implementation(libs.bundles.core)
 
     implementation(libs.androidx.lifecycle.runtimeCompose)
@@ -206,4 +216,38 @@ dependencies {
     androidTestImplementation(libs.androidx.test.ext)
     androidTestImplementation(libs.androidx.test.espresso.core)
     implementation(libs.androidx.compose.ui.tooling)
+}
+
+/** 원본 소스는 그대로 두고 저장 루트 함수의 빌드 산출물만 공통 플러그인으로 연결합니다. */
+abstract class StoragePrivacyVisitorFactory : AsmClassVisitorFactory<InstrumentationParameters.None> {
+    /** 다른 원본 클래스와 다른 함수는 변환하지 않습니다. */
+    override fun isInstrumentable(classData: ClassData): Boolean = classData.className == "com.junkfood.seal.util.FileUtil"
+
+    /** 대상 함수의 서명·접근 제한·Kotlin 메타데이터를 유지하며 실행 본문만 교체합니다. */
+    override fun createClassVisitor(classContext: ClassContext, nextClassVisitor: ClassVisitor): ClassVisitor =
+        object : ClassVisitor(Opcodes.ASM9, nextClassVisitor) {
+            /** 내부 함수의 변형 이름도 인식하고 File 반환 함수 하나만 선택합니다. */
+            override fun visitMethod(access: Int, name: String, descriptor: String, signature: String?, exceptions: Array<out String>?): MethodVisitor {
+                val target = super.visitMethod(access, name, descriptor, signature, exceptions)
+                if (!name.startsWith("getExternalDownloadDirectory") || descriptor != "()Ljava/io/File;") return target
+                return object : MethodNode(Opcodes.ASM9, access, name, descriptor, signature, exceptions) {
+                    /** 새 본문의 프레임은 AGP가 계산하며 원본 지역 변수·예외 테이블을 남기지 않습니다. */
+                    override fun visitEnd() {
+                        instructions.clear(); tryCatchBlocks.clear(); localVariables?.clear()
+                        instructions.add(FieldInsnNode(Opcodes.GETSTATIC, "com/plugin/compatibility/StorageDirectories", "INSTANCE", "Lcom/plugin/compatibility/StorageDirectories;"))
+                        instructions.add(MethodInsnNode(Opcodes.INVOKEVIRTUAL, "com/plugin/compatibility/StorageDirectories", "externalDownloadDirectory", "()Ljava/io/File;", false))
+                        instructions.add(InsnNode(Opcodes.ARETURN))
+                        maxStack = 1; maxLocals = 1
+                        accept(target)
+                    }
+                }
+            }
+        }
+}
+
+// 빌드 시에만 원본 함수의 실행 연결을 바꾸며 원본 파일은 읽기 전용으로 보존합니다.
+val components = extensions.getByType<ApplicationAndroidComponentsExtension>()
+components.onVariants(components.selector().all()) { variant ->
+    variant.instrumentation.transformClassesWith(StoragePrivacyVisitorFactory::class.java, InstrumentationScope.PROJECT) {}
+    variant.instrumentation.setAsmFramesComputationMode(FramesComputationMode.COMPUTE_FRAMES_FOR_INSTRUMENTED_METHODS)
 }

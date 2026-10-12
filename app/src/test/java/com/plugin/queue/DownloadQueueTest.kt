@@ -1,5 +1,8 @@
 package com.plugin.queue
 
+import com.plugin.compatibility.requireTaskState
+import com.plugin.compatibility.updateTaskState
+import com.plugin.compatibility.removeTaskState
 import com.plugin.queue.PluginTask as Task
 import com.plugin.queue.PluginTaskDownloader as DownloaderV2
 
@@ -13,6 +16,19 @@ import org.junit.Test
 
 /** 파일 삭제 연동이 다른 파일·진행 중인 작업에 영향을 주지 않는지 검증합니다. */
 class DownloadQueueTest {
+    /** 삭제 후 진행·완료 콜백이 상태를 읽거나 갱신해도 NPE와 작업 부활이 없는지 검사합니다. */
+    @Test
+    fun lateCallbacksCannotRestoreRemovedTasks() {
+        val task = Task("https://example.invalid/deleted", preferences = DownloadUtil.DownloadPreferences.EMPTY)
+        val states = mutableStateMapOf(task to Task.State(Task.DownloadState.Idle, null, Task.ViewState()))
+        assertTrue(states.updateTaskState(task) { it.copy(downloadState = Task.DownloadState.Completed(null)) })
+        assertNotNull(states.removeTaskState(task))
+        assertFalse(states.updateTaskState(task) { it.copy(downloadState = Task.DownloadState.Idle) })
+        assertNull(states.removeTaskState(task))
+        val failure = runCatching { states.requireTaskState(task) }.exceptionOrNull()
+        assertTrue(failure is kotlinx.coroutines.CancellationException)
+        assertTrue(states.isEmpty())
+    }
     /** 경로와 file URI가 같은 완료 파일만 제거하고 진행 중인 작업은 보존합니다. */
     @Test
     fun removeCompletedFileOnlyRemovesMatchingCompletedTasks() {

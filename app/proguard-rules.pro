@@ -54,6 +54,9 @@
 # @Serializable and @Polymorphic are used at runtime for polymorphic serialization.
 -keepattributes RuntimeVisibleAnnotations,AnnotationDefault
 
+# ONNX JNI가 클래스와 메서드 이름으로 접근하므로 Release 축소에서도 보존합니다.
+-keep class ai.onnxruntime.** { *; }
+
 # Serializer for classes with named companion objects are retrieved using `getDeclaredClasses`.
 # If you have any, uncomment and replace classes with those containing named companion objects.
 #-keepattributes InnerClasses # Needed for `getDeclaredClasses`.

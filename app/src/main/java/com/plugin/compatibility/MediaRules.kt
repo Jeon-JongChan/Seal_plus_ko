@@ -54,8 +54,37 @@ object MediaRules {
 
     /** 일반 경로와 문서 URI에서 폴더 탭에 사용할 부모 위치를 읽습니다. */
     fun parentFolder(path: String): String = if (path.startsWith("content://"))
-        java.net.URLDecoder.decode(path, "UTF-8").substringBeforeLast('/', path)
+        runCatching { java.net.URLDecoder.decode(path.replace("+", "%2B"), "UTF-8") }.getOrDefault(path).substringBeforeLast('/', path)
     else File(path).parent.orEmpty()
+
+    /** 설정 폴더와 이력 폴더의 공통 상위 위치에서 탐색을 시작합니다. */
+    fun historyFolderRoot(preferred: String, folders: List<String>): String {
+        val paths = (folders + preferred).filter { it.isNotBlank() }.distinct()
+        if (paths.isEmpty()) return ""
+        var root = paths.first().trimEnd('/')
+        for (path in paths.drop(1)) {
+            while (root.isNotEmpty() && path != root && !path.startsWith(root + "/"))
+                root = root.substringBeforeLast('/', "")
+        }
+        return when {
+            root.isEmpty() && paths.all { it.startsWith('/') } -> "/"
+            root == "content:" || root == "content:/" -> "" // 서로 다른 문서 공급자는 가상 루트에서 구분합니다.
+            else -> root
+        }
+    }
+
+    /** 현재 폴더의 직접 하위 폴더만 반환하며 이름이 같아도 전체 경로로 구분합니다. */
+    fun historyFolderChildren(current: String, folders: List<String>): List<String> {
+        if (current.isEmpty()) return folders.map { path ->
+            if (path.startsWith('/')) "/" else path.substringBefore("/document/") + "/document"
+        }.distinct().sorted()
+        val prefix = current.trimEnd('/') + "/"
+        return folders.filter { it.startsWith(prefix) }.map { prefix + it.removePrefix(prefix).substringBefore('/') }.distinct().sorted()
+    }
+
+    /** 탐색 루트 밖으로 나가지 않도록 상위 이동 경로를 제한합니다. */
+    fun historyFolderParent(current: String, root: String): String =
+        if (current == root || root.isEmpty() && current.endsWith("/document")) root else current.trimEnd('/').substringBeforeLast('/', "").ifEmpty { if (root == "/") "/" else root }
 
     /** 파일 확장자와 실제 트랙 MIME로 전체·영상·이미지·오디오 탭을 구분합니다. */
     fun mediaKind(path: String, codec: String = ""): Int = when {
@@ -131,7 +160,7 @@ object MediaRules {
 
     /** 기존 앱에서 생성한 영상·이미지 화질 폴더 이름을 인식합니다. */
     // ponytail: 구버전 생성 기록이 없어 이름으로 판별합니다. 동명 수동 폴더까지 구분하려면 생성 경로 메타데이터가 필요합니다.
-    fun isQualityFolder(name: String): Boolean = name.matches(Regex("[0-9]+(p|x[0-9]+)"))
+    fun isQualityFolder(name: String): Boolean = name.matches(Regex("[0-9]+(p|x[0-9]+)", RegexOption.IGNORE_CASE))
 
     /** 표의 코덱별 경계를 그대로 사용하며 JSON에서 조정한 H.264 경계도 비례 반영합니다. */
     fun videoThreshold(height: Int, h264: Double, highFps: Boolean, codec: String,
@@ -207,30 +236,48 @@ object MediaRules {
         }
     }.getOrNull()
 
-    /** 이미지 해상도와 영상 원본의 초당 용량을 함께 고려하고 최소 기준 미달은 기본 폴더에 둡니다. */
+    /** 활성 화질 구간의 하한 또는 상한을 선택하고 해당 방향의 범위 밖은 기본 폴더에 둡니다. */
     fun classificationFolder(quality: com.junkfood.seal.database.objects.VideoQuality?,
         images: String = DEFAULT_IMAGE_TIERS, videos: String = DEFAULT_VIDEO_TIERS,
-        ratios: String = DEFAULT_CODEC_RATIOS, target: Int = 0): String? {
+        ratios: String = DEFAULT_CODEC_RATIOS, target: Int = 0, upperFirst: Boolean = true): String? {
         quality ?: return null
-        // 다운로드 종류 선택과 독립적으로 해상도 하위 폴더 분류만 제한합니다.
         val image = quality.codec.startsWith("image/")
         if ((target == 1 && image) || (target == 2 && !image)) return null
         val short = minOf(quality.width, quality.height)
         val long = maxOf(quality.width, quality.height)
         if (short <= 0) return null
-        if (quality.codec.startsWith("image/")) return imageTiers(images)?.lastOrNull {
-            short >= it.first && long >= it.second && "${it.first}x${it.second}" !in disabledTiers(images)
-        }?.let { "${it.first}x${it.second}" }
+        if (image) {
+            val tiers = imageTiers(images) ?: return null
+            val enabled = tiers.filter { "${it.first}x${it.second}" !in disabledTiers(images) }
+            val tier = if (upperFirst) enabled.lastOrNull { short >= it.first && long >= it.second }
+                else enabled.firstOrNull { short <= it.first || long <= it.second }
+            return tier?.let { "${it.first}x${it.second}" }
+        }
         val mbps = bitrateMbps(quality.bytes, quality.duration)?.div(8) ?: return null
-        if (quality.frameRate <= 0 || !quality.frameRate.isFinite()) return null
-        if (quality.codec.isBlank() || quality.codec == "unknown") return null
-        // 해상도와 기준 용량을 모두 충족한 마지막 구간을 사용해 상위 기준 없는 파일도 같은 구간에 둡니다.
-        return videoTiers(videos)?.lastOrNull {
-            short >= it.first && videoThreshold(it.first, if (quality.frameRate >= 48) it.third else it.second,
-                quality.frameRate >= 48, quality.codec, ratios)?.let { threshold -> mbps + 1e-9 >= threshold } == true &&
-                "${it.first}p" !in disabledTiers(videos)
-        }?.let { "${it.first}p" }
+        if (quality.frameRate <= 0 || !quality.frameRate.isFinite() || quality.codec.isBlank() || quality.codec == "unknown") return null
+        val tiers = videoTiers(videos) ?: return null
+        val enabled = tiers.filter { "${it.first}p" !in disabledTiers(videos) }
+        if (enabled.isEmpty() || videoThreshold(enabled.first().first, enabled.first().second,
+            quality.frameRate >= 48, quality.codec, ratios) == null) return null
+        val tier = if (upperFirst) enabled.lastOrNull { short >= it.first && videoThreshold(it.first,
+            if (quality.frameRate >= 48) it.third else it.second, quality.frameRate >= 48, quality.codec, ratios)
+                ?.let { threshold -> mbps + 1e-9 >= threshold } == true }
+        // 하위 우선은 사용자 지정 구간의 실제 해상도 상한이며 마지막 상한 초과는 분류하지 않습니다.
+        else enabled.firstOrNull { short <= it.first }
+        return tier?.let { "${it.first}p" }
+
     }
+    /** 확장자를 보존하고 이미 사용 중인 번호를 건너뛰어 두 파일을 모두 유지합니다. */
+    fun availableFileName(name: String, occupied: (String) -> Boolean): String {
+        if (!occupied(name)) return name
+        val dot = name.lastIndexOf('.').takeIf { it > 0 } ?: name.length
+        val base = name.substring(0, dot)
+        val extension = name.substring(dot)
+        var number = 1
+        while (occupied("$base ($number)$extension")) number++
+        return "$base ($number)$extension"
+    }
+
     /** 자동 유형에서 명시적인 재생목록 링크를 기존 목록 조회로 보냅니다. */
     fun isPlaylistUrl(url: String): Boolean = runCatching {
         val uri = URI(url)

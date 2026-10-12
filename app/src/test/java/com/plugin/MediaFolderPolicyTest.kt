@@ -11,17 +11,31 @@ import org.junit.Test
 
 /** 이미지·영상 구간의 독립 선택과 등록 작업의 설정 보존을 검증합니다. */
 class MediaFolderPolicyTest {
+    /** 웹사이트 스위치와 종류별 선택을 함께 적용하고 화질 분류 설정은 독립적으로 보존합니다. */
+    @Test
+    fun websiteTargetIsIndependentAndPreserved() {
+        for (enabled in listOf(false, true)) for (target in 0..2) {
+            val options = DownloadPreferences.EMPTY.copy(subdirectoryExtractor = enabled)
+                .copyPluginOptions(websiteFolderTarget = target, classificationTarget = 1)
+                .copyPreservingPluginOptions { copy() }
+            assertEquals(enabled && target != 1, options.useWebsiteFolder(image = true))
+            assertEquals(enabled && target != 2, options.useWebsiteFolder(image = false))
+            assertEquals(target, options.websiteFolderTarget)
+            assertEquals(1, options.classificationTarget)
+        }
+    }
+
     /** 분류 대상이 다른 종류와 다운로드 종류 선택을 바꾸지 않고 사본에도 보존되는지 검증합니다. */
     @Test
     fun classificationTargetIsIndependentAndPreserved() {
         val image = VideoQuality(1920, 1080, 0.0, 0.0, 1_000_000, "image/jpeg")
         val video = VideoQuality(1920, 1080, 30.0, 60.0, 120_000_000, "video/avc")
-        assertNotNull(MediaRules.classificationFolder(image, target = 0))
-        assertNotNull(MediaRules.classificationFolder(video, target = 0))
-        assertNull(MediaRules.classificationFolder(image, target = 1))
-        assertNotNull(MediaRules.classificationFolder(video, target = 1))
-        assertNotNull(MediaRules.classificationFolder(image, target = 2))
-        assertNull(MediaRules.classificationFolder(video, target = 2))
+        assertNotNull(MediaRules.classificationFolder(image, target = 0, upperFirst = true))
+        assertNotNull(MediaRules.classificationFolder(video, target = 0, upperFirst = true))
+        assertNull(MediaRules.classificationFolder(image, target = 1, upperFirst = true))
+        assertNotNull(MediaRules.classificationFolder(video, target = 1, upperFirst = true))
+        assertNotNull(MediaRules.classificationFolder(image, target = 2, upperFirst = true))
+        assertNull(MediaRules.classificationFolder(video, target = 2, upperFirst = true))
         val options = DownloadPreferences.EMPTY.copyPluginOptions(classificationTarget = 2, mediaSelection = 1)
         val copied = options.copyPreservingPluginOptions { copy() }
         assertEquals(2, copied.classificationTarget)
@@ -89,10 +103,10 @@ class MediaFolderPolicyTest {
             val threshold = values[index + if (high) 4 else 0]
             val bytes = Math.round(threshold * 1_000_000 * 100)
             val quality = VideoQuality(height * 2, height, if (high) 60.0 else 30.0, 100.0, bytes, codec)
-            assertEquals("${height}p", MediaRules.classificationFolder(quality))
-            assertNotEquals("${height}p", MediaRules.classificationFolder(quality.copy(bytes = bytes - 100)))
+            assertEquals("${height}p", MediaRules.classificationFolder(quality, upperFirst = true))
+            assertNotEquals("${height}p", MediaRules.classificationFolder(quality.copy(bytes = bytes - 100), upperFirst = true))
         }
-        assertNull(MediaRules.classificationFolder(VideoQuality(1920, 1080, 30.0, 100.0, 99_000_000, "unknown")))
+        assertNull(MediaRules.classificationFolder(VideoQuality(1920, 1080, 30.0, 100.0, 99_000_000, "unknown"), upperFirst = true))
         assertEquals(MediaRules.DEFAULT_VIDEO_TIERS + ";disabled=720p",
             MediaRules.currentVideoTiers(MediaRules.LEGACY_VIDEO_TIERS + ";disabled=720p"))
         assertEquals("720:0.2:0.3", MediaRules.currentVideoTiers("720:0.2:0.3"))
@@ -105,10 +119,10 @@ class MediaFolderPolicyTest {
         val video = VideoQuality(1920, 1080, 30.0, 60.0, 120_000_000, "video/avc")
         val images = MediaRules.withDisabledTiers(MediaRules.DEFAULT_IMAGE_TIERS, "1080x1920")
         val videos = MediaRules.withDisabledTiers(MediaRules.DEFAULT_VIDEO_TIERS, "1080p")
-        assertEquals("1080x1920", MediaRules.classificationFolder(image))
-        assertEquals("720x1280", MediaRules.classificationFolder(image, images = images))
-        assertEquals("1080p", MediaRules.classificationFolder(video, images = images))
-        assertEquals("720p", MediaRules.classificationFolder(video, videos = videos))
+        assertEquals("1080x1920", MediaRules.classificationFolder(image, upperFirst = true))
+        assertEquals("720x1280", MediaRules.classificationFolder(image, images = images, upperFirst = true))
+        assertEquals("1080p", MediaRules.classificationFolder(video, images = images, upperFirst = true))
+        assertEquals("720p", MediaRules.classificationFolder(video, videos = videos, upperFirst = true))
         val original = DownloadPreferences.EMPTY.copyPluginOptions(imageTiers = images, videoTiers = videos)
         assertEquals(setOf("1080x1920"), MediaRules.disabledTiers(original.imageTiers))
         assertEquals(setOf("1080p"), MediaRules.disabledTiers(original.videoTiers))
@@ -123,7 +137,7 @@ class MediaFolderPolicyTest {
         assertEquals("Images", MediaRules.optionalFolderName("../Images", "Images"))
         val video = VideoQuality(1280, 720, 30.0, 60.0, 120_000_000, "video/avc")
         val disabled = MediaRules.withDisabledTiers(MediaRules.DEFAULT_VIDEO_TIERS, "720p,360p")
-        assertEquals("480p", MediaRules.classificationFolder(video, videos = disabled))
+        assertEquals("480p", MediaRules.classificationFolder(video, videos = disabled, upperFirst = true))
         assertEquals(2.0, MediaRules.bitrateMbps(120_000_000, 60.0)!! / 8, 0.0001)
     }
 

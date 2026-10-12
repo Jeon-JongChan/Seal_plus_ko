@@ -31,5 +31,11 @@ sealed interface UiAction {
 
     /** 오류 내용을 복사합니다. */
     data class CopyErrorReport(val throwable: Throwable) : UiAction
+
+    /** 배경화면 설정 대화상자를 엽니다. */
+    data class OpenWallpaper(val url: String = "", val filePath: String? = null) : UiAction
+
+    /** 인스타그램 링크를 앱 또는 웹으로 엽니다. */
+    data class OpenInstagram(val url: String) : UiAction
 }
 

@@ -463,4 +463,6 @@
     <string name="revision6_classification_target">하위 폴더 적용 대상</string>
     <string name="revision6_classification_both">둘 다</string>
     <string name="revision6_classification_target_hint">선택한 종류만 해상도 하위 폴더로 분류합니다. 새 다운로드와 파일 스캔에 적용됩니다.</string>
+    <string name="website_folder_target">웹사이트별 폴더 적용 대상</string>
+    <string name="website_folder_target_hint">다운로드 디렉토리 설정 → 하위 디렉터리에 저장 → 웹사이트를 켰을 때 새 다운로드에 적용합니다. 화질 분류와는 별도 설정입니다.</string>
 </resources>

@@ -9,7 +9,7 @@ import com.plugin.compatibility.*
 
 /** 서로 독립적으로 활성화할 수 있는 내장 확장 기능입니다. */
 enum class PluginId {
-    SOCIAL, LIST, MEDIA, LIBRARY, QUEUE, INTERACTION;
+    SOCIAL, LIST, MEDIA, LIBRARY, QUEUE, INTERACTION, IMAGE_AI, ACCOUNTS, POST_INFO, FOLDERS;
 
     val preferenceKey: String get() = "plugin_enabled_${name.lowercase()}"
 }
@@ -49,7 +49,10 @@ object PluginPolicy {
             mediaSelection = if (PluginId.SOCIAL in enabled || (PluginId.LIST in enabled && value.listProcessing)) value.mediaSelection else 0,
             imageResolution = if (PluginId.SOCIAL in enabled || (PluginId.LIST in enabled && value.listProcessing)) value.imageResolution else 0,
             downloadAllMedia = (PluginId.LIST in enabled || PluginId.SOCIAL in enabled) && value.downloadAllMedia,
+            selectedFolder = if (PluginId.FOLDERS in enabled) value.selectedFolder else null,
+            classificationUpperFirst = PluginId.LIBRARY in enabled && value.classificationUpperFirst,
             classifyMedia = PluginId.LIBRARY in enabled && value.classifyMedia,
+            websiteFolderTarget = if (PluginId.LIBRARY in enabled) value.websiteFolderTarget else 0,
             transcodeAv1 = PluginId.MEDIA in enabled && value.transcodeAv1,
             keepAv1Original = PluginId.MEDIA in enabled && value.keepAv1Original,
             mediaProcessing = PluginId.MEDIA in enabled || PluginId.LIBRARY in enabled,
@@ -61,7 +64,7 @@ object PluginPolicy {
             socialProcessing = PluginId.SOCIAL in enabled,
             listProcessing = PluginId.LIST in enabled && value.listProcessing,
             videoContainer = if (PluginId.MEDIA in enabled) value.videoContainer else "mp4",
-            cookieProfileId = if (PluginId.INTERACTION in enabled) value.cookieProfileId else -1,
+            cookieProfileId = if (PluginId.INTERACTION in enabled || value.cookieProfileExplicit) value.cookieProfileId else -1,
         )
 
     /** 추가 유형은 해당 기능이 켜졌을 때만 제공하고 원본 유형의 순서를 유지합니다. */

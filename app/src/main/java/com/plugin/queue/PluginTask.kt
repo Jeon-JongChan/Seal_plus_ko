@@ -5,7 +5,7 @@ import com.junkfood.seal.util.DownloadUtil
 import com.junkfood.seal.util.Format
 import com.junkfood.seal.util.VideoInfo
 import com.junkfood.seal.util.toHttpsUrl
-import com.plugin.compatibility.InstagramMedia
+import com.plugin.compatibility.*
 import kotlinx.coroutines.Job
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
@@ -19,7 +19,13 @@ data class PluginTask(
     val preferences: DownloadUtil.DownloadPreferences,
     val id: String = createId(url, type, preferences),
     val timeCreated: Long = System.currentTimeMillis(),
+    val pluginOptions: PluginPreferencesRecord? = preferences.storedPluginOptions(),
 ) : Comparable<PluginTask> {
+    init {
+        // 복원된 원본 설정에만 붙입니다. 정책 적용으로 만든 새 사본의 최신 옵션을 덮어쓰지 않습니다.
+        if (preferences.storedPluginOptions() == null) pluginOptions?.let { preferences.attachPluginOptions(it) }
+    }
+
 
     /** 요청 생성 순서로 대기열을 정렬합니다. */
     override fun compareTo(other: PluginTask): Int = timeCreated.compareTo(other.timeCreated)
@@ -195,7 +201,7 @@ data class PluginTask(
 
         /** 같은 URL·유형·설정 조합을 같은 대기열 요청으로 식별합니다. */
         private fun createId(url: String, type: TypeInfo, preferences: DownloadUtil.DownloadPreferences): String =
-            "${url}_${type.id}_${preferences.hashCode()}"
+            "${url}_${type.id}_${preferences.hashCode()}" + preferences.selectedFolder?.let { "_folder:${it.key}" }.orEmpty()
 
         /** 요청 유형별 구분자를 계산합니다. */
         private val TypeInfo.id: String

@@ -64,6 +64,10 @@ fun PluginsPage(onBack: () -> Unit, onNavigate: (String) -> Unit) {
                     PluginId.LIBRARY -> R.string.plugin_library to R.string.plugin_library_desc
                     PluginId.QUEUE -> R.string.plugin_queue to R.string.plugin_queue_desc
                     PluginId.INTERACTION -> R.string.plugin_interaction to R.string.plugin_interaction_desc
+                    PluginId.IMAGE_AI -> R.string.plugin_image_ai to R.string.plugin_image_ai_desc
+                    PluginId.ACCOUNTS -> R.string.loc_frequent_accounts to R.string.loc_frequent_accounts_desc
+                    PluginId.FOLDERS -> R.string.plugin_download_folders to R.string.plugin_download_folders_desc
+                    PluginId.POST_INFO -> R.string.loc_post_info_plugin to R.string.loc_post_info_plugin_desc
                 }
                 val enabled = PluginState.isEnabled(id)
                 val plugin = featurePlugins.firstOrNull { it.id == id }

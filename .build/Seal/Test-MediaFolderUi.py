@@ -5,8 +5,8 @@ import runpy
 import re
 import xml.etree.ElementTree as ET
 
-ROOT = Path(__file__).resolve().parents[1]
-UI = runpy.run_path(str(ROOT / ".build/Test-PluginUi.py"))
+ROOT = Path(__file__).resolve().parents[2]
+UI = runpy.run_path(str(ROOT / ".build/Seal/Test-PluginUi.py"))
 adb, screen, tap = UI["adb"], UI["screen"], UI["tap"]
 
 
@@ -80,7 +80,7 @@ def main():
         tap(next(n for n in tree.iter("node") if n.get("text") == resources["loc_media_file_manager"]))
         tree = screen("folder-file-manager")
         assert any(n.get("text") == resources["loc_media_file_manager"] for n in tree.iter("node"))
-        (ROOT / ".build/logs/ui-review-file-manager.png").write_bytes(adb("exec-out", "screencap", "-p"))
+        (ROOT / ".build/Seal/logs/ui-review-file-manager.png").write_bytes(adb("exec-out", "screencap", "-p"))
         adb("shell", "input", "keyevent", "4")
         print("파일 관리 대화상자 열기·닫기 통과 (파일 변경 없음)", flush=True)
         for title in ("1080x1920", "1080p"):

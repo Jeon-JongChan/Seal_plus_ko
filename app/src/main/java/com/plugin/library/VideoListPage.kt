@@ -54,6 +54,11 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.ListItem
+import androidx.compose.foundation.clickable
+import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.material3.VerticalDivider
@@ -150,6 +155,8 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
     if (showFileManager) MediaFileManagerDialog { showFileManager = false }
     val viewState by viewModel.stateFlow.collectAsStateWithLifecycle()
     var mediaFilter by remember { mutableIntStateOf(0) }
+    var sortByName by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(PluginPreferences.historySortByName) }
+    var folderMode by remember { mutableStateOf(false) }
     var folderFilter by remember { mutableStateOf<String?>(null) }
     val observedVideoList by viewModel.videoListFlow.collectAsStateWithLifecycle(emptyList())
     var refreshedVideoList by remember { mutableStateOf<List<DownloadedVideoInfo>?>(null) }
@@ -159,6 +166,23 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
         if (!scan.running && scan.done > 0) refreshedVideoList = PluginDatabaseUtil.getDownloadHistory()
     }
     val fullVideoList = refreshedVideoList ?: observedVideoList
+    val preferredFolder = run {
+        val preferences = createPluginPreferences()
+        if (preferences.sdcard) {
+            runCatching {
+                val tree = android.net.Uri.parse(preferences.sdcardUri)
+                val document = android.provider.DocumentsContract.buildDocumentUriUsingTree(tree,
+                    android.provider.DocumentsContract.getTreeDocumentId(tree))
+                MediaRules.parentFolder(document.toString() + "/_")
+            }.getOrDefault(MediaRules.parentFolder(preferences.sdcardUri + "/_"))
+        } else MediaLibrary.rootPath(preferences)
+    }
+    val historyFolders = remember(fullVideoList) { fullVideoList.map { MediaRules.parentFolder(it.videoPath) }.filter { it.isNotBlank() }.distinct() }
+    val folderRoot = remember(historyFolders, preferredFolder) { MediaRules.historyFolderRoot(preferredFolder, historyFolders) }
+    LaunchedEffect(folderRoot) {
+        val currentFolder = folderFilter
+        if (folderMode && (currentFolder == null || folderRoot.isNotEmpty() && currentFolder != folderRoot && !currentFolder.startsWith(folderRoot.trimEnd('/') + "/"))) folderFilter = folderRoot
+    }
     val searchedVideoList by
         viewModel.searchedVideoListFlow.collectAsStateWithLifecycle(emptyList())
 
@@ -169,8 +193,14 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
         if (it.extractor.lowercase() in setOf("instagram", "tiktok")) MediaRules.identity(it.videoUrl.substringBefore('#'))
         else it.videoPath
     }.values.map { it.sortedBy { page -> page.postPageIndex } }
+        // 원본 이력에 시각 필드가 없어 증가하는 등록 ID로 최신 등록 순서를 유지합니다.
+        .sortMedia(sortByName, { post -> post.maxOf { it.id }.toLong() }, { post -> post.first().videoTitle })
     var openedPost by remember { mutableStateOf<Pair<List<String>, String?>?>(null) }
     openedPost?.let { (paths, initial) -> PostMediaViewer(paths, initial) { openedPost = null } }
+    var wallpaperPages by remember { mutableStateOf<List<com.plugin.ui.WallpaperPageItem>?>(null) }
+    wallpaperPages?.let { pages ->
+        com.plugin.ui.WallpaperPreviewDialog(pages) { wallpaperPages = null }
+    }
     val filterSet by viewModel.filterSetFlow.collectAsState(mutableSetOf())
 
     val scrollBehavior =
@@ -187,8 +217,12 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
 
-    val fileSizeMap by
-        viewModel.fileSizeMapFlow.collectAsStateWithLifecycle(initialValue = emptyMap())
+    // 이동 중 사라진 로컬 경로를 DocumentFile에 넘기지 않고 공통 안전한 크기 읽기를 사용합니다.
+    val fileSizeMap by androidx.compose.runtime.produceState<Map<Int, Long>>(emptyMap(), fullVideoList, scan.running) {
+        value = withContext(kotlinx.coroutines.Dispatchers.IO) {
+            fullVideoList.associate { it.id to MediaLibrary.fileBytes(it.videoPath) }
+        }
+    }
     val sheetState = rememberModalBottomSheetState(initialValue = ModalBottomSheetValue.Hidden)
     val hostState = remember { SnackbarHostState() }
 
@@ -208,8 +242,20 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
 
     var showExportDialog by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
+    var showCleanup by remember { mutableStateOf(false) }
+    if (showCleanup) HistoryCleanupDialog(onDismiss = { showCleanup = false }, onPermissionNeeded = {
+        showCleanup = false; showFileManager = true
+    }, onFinished = { count ->
+        showCleanup = false
+        scope.launch {
+            refreshedVideoList = PluginDatabaseUtil.getDownloadHistory()
+            hostState.showSnackbar("이력 ${count}개 정리 완료")
+        }
+    })
 
     val lazyListState = rememberLazyListState()
+    // 정렬·폴더·유형이 바뀌면 이전 항목의 위치 대신 새 목록의 처음을 표시합니다.
+    LaunchedEffect(folderFilter, mediaFilter) { lazyListState.requestScrollToItem(0) }
 
     @Composable
     /** FilterChips에 필요한 화면 구성 또는 처리 규칙을 제공합니다. */
@@ -223,18 +269,24 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
                 }
             }
             Row(Modifier.horizontalScroll(rememberScrollState())) {
-                VideoFilterChip(selected = folderFilter == null,
-                    onClick = { folderFilter = null }, label = stringResource(R.string.loc_all_folders))
-                videoList.map { MediaRules.parentFolder(it.videoPath) }.distinct().sorted().forEach { folder ->
-                    VideoFilterChip(selected = folderFilter == folder,
-                        onClick = { folderFilter = folder },
-                        label = folder.substringAfterLast('/').ifBlank { folder })
+                VideoFilterChip(selected = !folderMode, onClick = { folderMode = false; folderFilter = null }, label = "전체보기")
+                VideoFilterChip(selected = folderMode, onClick = { folderMode = true; folderFilter = folderRoot }, label = "폴더별")
+                VideoFilterChip(selected = !sortByName, onClick = { sortByName = false; PluginPreferences.historySortByName = false; lazyListState.requestScrollToItem(0) }, label = "시간순")
+                VideoFilterChip(selected = sortByName, onClick = { sortByName = true; PluginPreferences.historySortByName = true; lazyListState.requestScrollToItem(0) }, label = "이름순")
+            }
+            if (folderMode) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(enabled = folderFilter != folderRoot, onClick = {
+                        folderFilter = MediaRules.historyFolderParent(folderFilter.orEmpty(), folderRoot)
+                    }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "상위 폴더"); Text("상위") }
+                    Text(folderFilter?.ifBlank { "모든 위치" } ?: folderRoot, modifier = Modifier.weight(1f).padding(end = 12.dp),
+                        style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                 }
             }
         }
     }
 
-    val selectedItemIds = remember(videoList, viewState) { mutableStateListOf<Int>() }
+    val selectedItemIds = remember(videoList, viewState, mediaFilter, folderFilter) { mutableStateListOf<Int>() }
 
     LaunchedEffect(isSelectEnabled) {
         if (!isSelectEnabled) {
@@ -272,7 +324,7 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
         }
 
     val visibleItemCount =
-        remember(videoList, viewState) {
+        remember(videoList, viewState, mediaFilter, folderFilter) {
             mutableIntStateOf(videoList.count { it.filterSort(mediaFilter, folderFilter) })
         }
 
@@ -292,11 +344,13 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
     var showRemoveDialog by remember { mutableStateOf(false) }
     var showBottomSheet by remember { mutableStateOf(false) }
 
-    BackHandler(isSelectEnabled || viewState.isSearching) {
+    BackHandler(isSelectEnabled || viewState.isSearching || folderMode && folderFilter != folderRoot) {
         if (isSelectEnabled) {
             isSelectEnabled = false
-        } else {
+        } else if (viewState.isSearching) {
             viewModel.toggleSearch(false)
+        } else {
+            folderFilter = MediaRules.historyFolderParent(folderFilter.orEmpty(), folderRoot)
         }
     }
 
@@ -313,7 +367,10 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
                 title = {
                     Text(modifier = Modifier, text = stringResource(R.string.downloads_history))
                 },
-                navigationIcon = { BackButton { onNavigateBack() } },
+                navigationIcon = { BackButton {
+                    if (folderMode && folderFilter != folderRoot) folderFilter = MediaRules.historyFolderParent(folderFilter.orEmpty(), folderRoot)
+                    else onNavigateBack()
+                } },
                 actions = {
                     Row {
                         if (fullVideoList.isNotEmpty()) {
@@ -390,6 +447,9 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
                                         expanded = false
                                     },
                                 )
+                                DropdownMenuItem(text = { Text("정리하기") }, enabled = !scan.running,
+                                    leadingIcon = { Icon(Icons.Outlined.DeleteSweep, null) },
+                                    onClick = { showCleanup = true; expanded = false })
                             }
                         }
                     }
@@ -496,6 +556,18 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
                     }
                 }
             }
+            if (folderMode) {
+                val folders = videoList.filter { mediaFilter == 0 || MediaRules.mediaKind(it.videoPath, it.quality?.codec.orEmpty()) == mediaFilter }
+                    .map { MediaRules.parentFolder(it.videoPath) }.filter { it.isNotBlank() }.distinct()
+                for (folder in MediaRules.historyFolderChildren(folderFilter.orEmpty(), folders)) {
+                    item(key = "folder:$folder") {
+                        ListItem(modifier = Modifier.clickable(enabled = !isSelectEnabled) { folderFilter = folder },
+                            headlineContent = { Text(folder.substringAfterLast('/').ifBlank { "저장소" }) },
+                            supportingContent = { Text(folder, style = MaterialTheme.typography.bodySmall) },
+                            leadingContent = { Icon(Icons.Outlined.Folder, null) })
+                    }
+                }
+            }
             for (post in posts) {
                 val info = post.first()
                 val successful = post.filter { fileSizeMap.getOrElse(it.id) { 0L } > 0 }
@@ -532,7 +604,7 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
                                     Column {
                                         if (extractor == "External") Text(stringResource(R.string.revision5_external),
                                             color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
-                                        PostMediaDetails(details, overlay = true)
+                                        PostMediaDetails(details, overlay = true, compact = true)
                                     }
                                 },
                                 videoUrl = videoUrl,
@@ -559,6 +631,14 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
                                         sheetState.show()
                                     }
                                 },
+                                onWallpaperClick = {
+                                    val files = if (successful.isNotEmpty()) successful.map { it.videoPath } else listOf(videoPath)
+                                    val targetList = files.mapIndexed { idx, p -> com.plugin.ui.WallpaperPageItem(p, idx) }
+                                    if (targetList.isNotEmpty()) wallpaperPages = targetList
+                                },
+                                onInstagramClick = {
+                                    com.plugin.compatibility.WallpaperHelper.openInstagramUrl(context, videoUrl)
+                                },
                             )
                         }
                     }
@@ -568,7 +648,7 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
     }
 
     if (showBottomSheet) {
-        val isFileAvailable = fileSizeMap[currentVideoInfo.id] != 0L
+        val isFileAvailable = (fileSizeMap[currentVideoInfo.id] ?: 0L) > 0
         VideoDetailDrawer(
             sheetState = sheetState,
             info = currentVideoInfo,

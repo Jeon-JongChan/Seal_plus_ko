@@ -5,10 +5,10 @@ import re
 import subprocess
 import xml.etree.ElementTree as ET
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 ADB = ROOT / ".build/tools/android-sdk/platform-tools/adb.exe"
 DEVICE = "emulator-5556"
-LOGS = ROOT / ".build/logs"
+LOGS = ROOT / ".build/Seal/logs"
 
 
 def adb(*args):
