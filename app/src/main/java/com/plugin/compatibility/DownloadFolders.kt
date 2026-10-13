@@ -39,7 +39,7 @@ object DownloadFolders {
     /** 기본 루트는 허용하고 모든 경로 성분의 이동·화질 폴더 진입은 차단합니다. */
     internal fun validRelative(path: String): Boolean = path.isEmpty() ||
         path.length <= 4096 && path.split('/').all { it.isNotEmpty() && it !in setOf(".", "..", "tmp") &&
-            !it.contains('\\') && !it.any(Char::isISOControl) && !MediaRules.isQualityFolder(it) }
+            !it.contains('\\') && !it.any(Char::isISOControl) && !MediaRules.isQualityFolder(it) && !MediaRules.isNoFacePath(it) }
 
     /** 정규 경로와 각 하위 링크를 검사해 지정 루트 밖으로 나가는 경로를 거부합니다. */
     internal fun local(folder: DownloadFolder): File {
@@ -68,6 +68,7 @@ object DownloadFolders {
 
     /** UI·다운로드 양쪽에서 현재 기본 디렉터리와 실제 폴더를 다시 검증합니다. */
     fun validate(folder: DownloadFolder, preferences: DownloadPreferences): DownloadFolder {
+        require(!MediaRules.isNoFacePath(folder.root)) { "NOFACE 폴더는 플러그인 대상으로 선택할 수 없습니다." }
         require(folder.root in roots(preferences)) { "기본 디렉터리가 변경되었습니다. 저장폴더를 다시 선택하세요." }
         if (folder.root.startsWith("content://")) document(folder) else local(folder)
         return folder

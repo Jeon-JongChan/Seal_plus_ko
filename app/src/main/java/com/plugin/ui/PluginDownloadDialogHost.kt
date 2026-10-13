@@ -41,9 +41,10 @@ fun PluginDownloadDialogHost(viewModel: PluginDownloadDialogViewModel, onFinishe
             if (!showDialog) preferences = createPluginPreferences()
             showDialog = true
         } else {
+            // 빠른 Activity 종료는 바텀 시트의 닫기 애니메이션을 기다리지 않습니다.
+            if (selection == SelectionState.Idle) latestFinished()
             sheetState.hide()
             showDialog = false
-            if (selection == SelectionState.Idle) latestFinished()
         }
     }
     if (showDialog) {
@@ -59,12 +60,13 @@ fun PluginDownloadDialogHost(viewModel: PluginDownloadDialogViewModel, onFinishe
         }
     }
     val originalDownloader: com.junkfood.seal.download.DownloaderV2 = org.koin.compose.koinInject()
-    val selectionDownloader = remember(originalDownloader, preferences.selectedFolder) {
-        folderAwareDownloader(originalDownloader, preferences.selectedFolder)
+    val requestPreferences = viewModel.selectionPreferences
+    val selectedFolder = if (requestPreferences != null) requestPreferences.selectedFolder else preferences.selectedFolder
+    val selectionDownloader = remember(originalDownloader, selectedFolder, requestPreferences, requestPreferences?.storedPluginOptions()) {
+        folderAwareDownloader(originalDownloader, selectedFolder, requestPreferences)
     }
     when (val current = selection) {
-        is SelectionState.FormatSelection -> if (preferences.selectedFolder == null) FormatPage(state = current,
-            onDismissRequest = { viewModel.postAction(Action.Reset) }) else FolderFormatPage(current, selectionDownloader) { viewModel.postAction(Action.Reset) }
+        is SelectionState.FormatSelection -> FolderFormatPage(current, selectionDownloader) { viewModel.postAction(Action.Reset) }
         is SelectionState.PlaylistSelection -> PlaylistSelectionPage(state = current, downloader = selectionDownloader,
             onDismissRequest = { viewModel.postAction(Action.Reset) })
         SelectionState.Idle -> {}
@@ -72,10 +74,12 @@ fun PluginDownloadDialogHost(viewModel: PluginDownloadDialogViewModel, onFinishe
 }
 
 /** 원본 형식·재생목록 화면이 만든 요청에도 선택 폴더를 붙여 원본 화면 수정 없이 연결합니다. */
-internal fun folderAwareDownloader(original: com.junkfood.seal.download.DownloaderV2, folder: DownloadFolder?): com.junkfood.seal.download.DownloaderV2 {
-    if (folder == null) return original
+internal fun folderAwareDownloader(original: com.junkfood.seal.download.DownloaderV2, folder: DownloadFolder?,
+    requestPreferences: com.junkfood.seal.util.DownloadUtil.DownloadPreferences? = null): com.junkfood.seal.download.DownloaderV2 {
+    if (folder == null && requestPreferences == null) return original
     /** 원본이 새로 만든 형식 설정은 보존하고 저장 위치만 요청 당시 선택으로 고정합니다. */
-    fun selected(task: com.junkfood.seal.download.Task) = task.copy(preferences = task.preferences.withStoredPluginOptions().copyPluginOptions(selectedFolder = folder))
+    fun selected(task: com.junkfood.seal.download.Task) = task.copy(preferences = selectionRequestPreferences(
+        task.preferences.withStoredPluginOptions(), requestPreferences).copyPluginOptions(selectedFolder = folder))
     return object : com.junkfood.seal.download.DownloaderV2 by original {
         /** URL 작업에 명시적 저장 위치를 전달합니다. */
         override fun enqueue(task: com.junkfood.seal.download.Task) { original.enqueue(selected(task)) }
@@ -85,6 +89,14 @@ internal fun folderAwareDownloader(original: com.junkfood.seal.download.Download
         override fun enqueue(taskWithState: com.junkfood.seal.download.TaskFactory.TaskWithState) { enqueue(taskWithState.task, taskWithState.state) }
     }
 }
+
+/** 사용자가 고른 형식·구간은 유지하고 조회에 사용한 인증·네트워크 설정만 같은 요청으로 연결합니다. */
+internal fun selectionRequestPreferences(selected: com.junkfood.seal.util.DownloadUtil.DownloadPreferences,
+    request: com.junkfood.seal.util.DownloadUtil.DownloadPreferences?): com.junkfood.seal.util.DownloadUtil.DownloadPreferences =
+    if (request == null) selected else selected.copyPreservingPluginOptions { copy(cookies = request.cookies, proxy = request.proxy,
+        proxyUrl = request.proxyUrl, forceIpv4 = request.forceIpv4, userAgentString = request.userAgentString) }
+        .copyPluginOptions(cookieProfileId = request.cookieProfileId, cookieProfileExplicit = request.cookieProfileExplicit,
+            selectedFolder = request.selectedFolder)
 
 /** 기존 형식 선택 내용과 바텀 시트를 재사용하면서 저장폴더를 유지하는 등록기를 전달합니다. */
 @OptIn(androidx.compose.material.ExperimentalMaterialApi::class)

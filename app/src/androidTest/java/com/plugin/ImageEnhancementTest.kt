@@ -24,6 +24,108 @@ import java.io.File
 
 /** 실제 ONNX 모델·서비스 분리·취소·확정 저장을 Android에서 검증합니다. */
 class ImageEnhancementTest {
+    /** 전체 아이콘·미리보기·복제 저장이 게시글의 각 원본과 연결되고 영상은 제외됩니다. */
+    @Test fun postImagesShowPreviewAndSaveAllCopies() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        check(context.packageName.endsWith(".devicecheck"))
+        val fixture = File(context.cacheDir, "post-ai-${java.util.UUID.randomUUID()}").apply { mkdirs() }
+        val images = listOf("one.png", "two.png").map { name -> File(fixture, name).apply {
+            val bitmap = Bitmap.createBitmap(16, 12, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.GRAY) }
+            outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }; bitmap.recycle()
+        } }
+        val originals = images.map { it.readBytes() }
+        val saved = java.util.concurrent.CopyOnWriteArrayList<Pair<String, String>>()
+        val kv = com.tencent.mmkv.MMKV.defaultMMKV()
+        val keys = listOf(EnhancementModels.SELECTED, EnhancementModels.ACCELERATED, EnhancementModels.GOOGLE_FIRST, EnhancementModels.BACKEND)
+        val existed = keys.filter(kv::containsKey).toSet()
+        val model = kv.decodeString(keys[0], ""); val accelerated = kv.decodeBool(keys[1], true)
+        val google = kv.decodeBool(keys[2], false); val backend = kv.decodeString(keys[3], "litert")
+        try {
+            kv.encode(keys[0], EnhancementModels.DEFAULT_MODEL); kv.encode(keys[1], false)
+            kv.encode(keys[2], false); kv.encode(keys[3], "litert")
+            ActivityScenario.launch(PluginMainActivity::class.java).use { scenario ->
+                scenario.onActivity { activity -> activity.setContent { SealTheme {
+                    ImageEnhancementPlugin.PostImageAction(images.map { it.path } + listOf(File(fixture, "clip.mp4").path, File(fixture, "NOFACE/ignored.png").path)) { source, output, replace ->
+                        assertFalse(replace); saved += source to output
+                    }
+                } } }
+                tap("게시글 전체 화질 개선"); awaitNode("최소"); tap("최소")
+                awaitNode("전체 복제"); tap("다음"); awaitNode("2 / 2장")
+                // 두 번째 원본 변경으로 부분 저장 실패를 만들고 성공한 첫 복제가 다시 저장되지 않는지 확인합니다.
+                images[1].appendBytes(byteArrayOf(0))
+                tap("전체 복제")
+                awaitNode("1장 저장 완료 · 나머지 1장: 원본이 변경되었습니다. 다시 보정한 뒤 저장하세요.")
+                assertEquals(1, saved.size)
+                images[1].writeBytes(originals[1])
+                tap("전체 복제")
+                repeat(200) { if (saved.size < 2) SystemClock.sleep(100) }
+                assertEquals(images.map { it.path }, saved.map { it.first })
+                images.forEachIndexed { index, file -> assertArrayEquals(originals[index], file.readBytes()) }
+                saved.forEach { (_, output) ->
+                    val bitmap = android.graphics.BitmapFactory.decodeFile(output)
+                    try { assertEquals(32, bitmap.width); assertEquals(24, bitmap.height) } finally { bitmap.recycle() }
+                }
+            }
+            runBlocking {
+                val before = File(context.cacheDir, "image-ai").listFiles().orEmpty().map { it.name }.toSet()
+                assertTrue(runCatching { EnhancementClient.enhancePost(context, images.map { it.path } + File(fixture, "missing.png").path, 2) { _, _, _ -> } }.isFailure)
+                assertEquals(before, File(context.cacheDir, "image-ai").listFiles().orEmpty().map { it.name }.toSet())
+            }
+        } finally {
+            kv.encode(keys[0], model); kv.encode(keys[1], accelerated); kv.encode(keys[2], google); kv.encode(keys[3], backend)
+            (keys - existed).forEach(kv::removeValueForKey)
+            fixture.walkBottomUp().forEach { it.delete() }
+        }
+    }
+    /** 내장 기본 모델의 실제 추론과 첫 타일 이후 CPU 실행 기록·진행 알림을 확인합니다. */
+    @Test fun bundledModelReportsActualExecution(): Unit = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val fixture = File(context.cacheDir, "ai-mobile-" + java.util.UUID.randomUUID()).apply { mkdirs() }
+        val source = Bitmap.createBitmap(48, 48, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.GREEN) }
+        val messages = mutableListOf<String>()
+        var progressAfterMeasurement = false
+        try {
+            val model = File(fixture, "model.onnx")
+            EnhancementModels.stage(context, EnhancementModels.DEFAULT_MODEL, model)
+            val result = OnnxEnhancer.process(source, model.path, 96 to 96,
+                { if (it > 0 && messages.any { message -> message.startsWith("실제 실행") }) progressAfterMeasurement = true },
+                false, { messages += it }, cpuThreads = 1)
+            try { assertEquals(96, result.width); assertEquals(96, result.height) } finally { result.recycle() }
+            assertTrue(messages.any { it.startsWith("실제 실행 · CPU") && it.contains("1 스레드") })
+            assertTrue(progressAfterMeasurement)
+            assertTrue(fixture.listFiles().orEmpty().none { it.name.startsWith("execution-profile") })
+            val kv = com.tencent.mmkv.MMKV.defaultMMKV()
+            val keys = listOf(EnhancementModels.SELECTED, EnhancementModels.ACCELERATED, EnhancementModels.GOOGLE_FIRST, EnhancementModels.CPU_THREADS, EnhancementModels.BACKEND)
+            val existed = keys.filter(kv::containsKey).toSet()
+            val previousModel = kv.decodeString(keys[0], "")
+            val previousAcceleration = kv.decodeBool(keys[1], true)
+            val previousGoogle = kv.decodeBool(keys[2], false)
+            val previousThreads = kv.decodeInt(keys[3], 2)
+            val previousBackend = kv.decodeString(keys[4], "litert")
+            var preview: EnhancementClient.Preview? = null
+            try {
+                kv.encode(keys[0], EnhancementModels.DEFAULT_MODEL); kv.encode(keys[1], false)
+                // Google 우선 설정이 남아 있어도 CPU 전용 요청은 선택 엔진으로 실행해야 합니다.
+                kv.encode(keys[2], true); kv.encode(keys[3], 1); kv.encode(keys[4], "litert")
+                val file = File(fixture, "source.png")
+                file.outputStream().use { source.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                messages.clear(); progressAfterMeasurement = false
+                preview = EnhancementClient.enhance(context, file.path, 2, onEngine = { messages += it }) {
+                    if (it > 0 && messages.any { message -> message.startsWith("실제 실행") }) progressAfterMeasurement = true
+                }
+                assertTrue(progressAfterMeasurement)
+                assertTrue(preview.engine.startsWith("실제 실행") && preview.engine.contains("LiteRT") && preview.engine.contains("CPU"))
+                assertNotEquals(android.os.Process.myPid(), preview.workerPid)
+            } finally {
+                preview?.let(EnhancementClient::discard)
+                kv.encode(keys[0], previousModel); kv.encode(keys[1], previousAcceleration)
+                kv.encode(keys[2], previousGoogle); kv.encode(keys[3], previousThreads); kv.encode(keys[4], previousBackend)
+                keys.filterNot { it in existed }.forEach(kv::removeValueForKey)
+            }
+        } finally { source.recycle(); fixture.walkBottomUp().forEach { it.delete() } }
+    }
+
     /** 동일 모델·입력의 추론 시간을 세 번 측정하고 변경 전후 색상 오차·원본 보존을 기록합니다. */
     @Test fun benchmarkTiles(): Unit = runBlocking {
         val instrumentation = InstrumentationRegistry.getInstrumentation()

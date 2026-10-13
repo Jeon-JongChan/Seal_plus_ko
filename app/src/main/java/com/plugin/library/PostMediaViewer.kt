@@ -12,8 +12,20 @@ import com.plugin.compatibility.PluginPreferences
 import com.plugin.compatibility.PluginPreferences.MEDIA_INFO_OVERLAY
 
 import com.plugin.compatibility.MediaRules
-import android.widget.MediaController
 import android.widget.VideoView
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.rememberTransformableState
+import androidx.compose.foundation.gestures.transformable
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Pause
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -64,6 +76,25 @@ fun PostMediaViewer(paths: List<String>, initialPath: String?, onDismiss: () -> 
     var deleting by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
+    var zoomed by remember { mutableStateOf(false) }
+    var currentVideo by remember { mutableStateOf<VideoView?>(null) }
+    var videoPlayer by remember { mutableStateOf<android.media.MediaPlayer?>(null) }
+    var position by remember { mutableIntStateOf(0) }
+    var duration by remember { mutableIntStateOf(0) }
+    var playing by remember { mutableStateOf(false) }
+    var seeking by remember { mutableStateOf(false) }
+    LaunchedEffect(pager.currentPage) { zoomed = false }
+    LaunchedEffect(currentVideo) {
+        position = 0; duration = 0; playing = false
+        while (currentVideo != null) {
+            currentVideo?.let { video -> runCatching {
+                duration = video.duration.coerceAtLeast(0); playing = video.isPlaying
+                if (!seeking) position = video.currentPosition.coerceIn(0, duration)
+            } }
+            delay(250)
+        }
+    }
+    SideEffect { runCatching { videoPlayer?.setVolume(volume, volume) } }
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
     var showWallpaperDialog by remember { mutableStateOf(false) }
@@ -72,7 +103,7 @@ fun PostMediaViewer(paths: List<String>, initialPath: String?, onDismiss: () -> 
         value = withContext(Dispatchers.IO) { com.plugin.compatibility.PluginDatabaseUtil.getDownloadHistory().firstOrNull { it.videoPath == pages.getOrNull(pager.currentPage) }?.videoUrl }
     }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
+        Surface(Modifier.fillMaxSize().clipToBounds(), color = MaterialTheme.colorScheme.surface) {
             Column(Modifier.fillMaxSize().systemBarsPadding()) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                     Text("${pager.currentPage + 1} / $totalPages", Modifier.weight(1f), maxLines = 1)
@@ -84,7 +115,7 @@ fun PostMediaViewer(paths: List<String>, initialPath: String?, onDismiss: () -> 
                     }
                     IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, stringResource(R.string.close)) }
                 }
-                HorizontalPager(pager, Modifier.fillMaxWidth().weight(1f)) { page ->
+                HorizontalPager(pager, Modifier.fillMaxWidth().weight(1f).clipToBounds(), userScrollEnabled = !zoomed) { page ->
                     val originalPath = pages[page]
                     val info by produceState<com.junkfood.seal.database.objects.DownloadedVideoInfo?>(null, originalPath, revision) {
                         value = withContext(Dispatchers.IO) {
@@ -101,31 +132,54 @@ fun PostMediaViewer(paths: List<String>, initialPath: String?, onDismiss: () -> 
                     val path = info?.videoPath ?: originalPath
                     val uri = remember(path) { FileUtil.createIntentForOpeningFile(path)?.data }
                     val image = com.plugin.compatibility.MediaRules.mediaKind(path, info?.quality?.codec.orEmpty()) == 2
-                    var player by remember(path) { mutableStateOf<android.media.MediaPlayer?>(null) }
-                    Box(Modifier.fillMaxSize()) {
+                    var scale by remember(path) { mutableFloatStateOf(1f) }
+                    var offset by remember(path) { mutableStateOf(Offset.Zero) }
+                    var size by remember(path) { mutableStateOf(IntSize.Zero) }
+                    val transform = rememberTransformableState { zoom, pan, _ ->
+                        scale = (scale * zoom).coerceIn(1f, 5f)
+                        // 확대된 영역의 끝까지만 이동하고 기본 배율에서는 게시글 넘기기를 유지합니다.
+                        val limitX = size.width * (scale - 1f) / 2f
+                        val limitY = size.height * (scale - 1f) / 2f
+                        offset = Offset((offset.x + pan.x).coerceIn(-limitX, limitX), (offset.y + pan.y).coerceIn(-limitY, limitY))
+                        if (page == pager.currentPage) zoomed = scale > 1f
+                    }
+                    Box(Modifier.fillMaxSize().clipToBounds().background(MaterialTheme.colorScheme.surface)) {
+                        Box(Modifier.fillMaxSize().onSizeChanged { size = it }
+                            .transformable(transform, canPan = { scale > 1f })
+                            .pointerInput(path) { detectTapGestures(onDoubleTap = {
+                                scale = if (scale > 1f) 1f else 2f; offset = Offset.Zero
+                                if (page == pager.currentPage) zoomed = scale > 1f
+                            }) }
+                            .graphicsLayer { scaleX = scale; scaleY = scale; translationX = offset.x; translationY = offset.y }) {
                         if (image) AsyncImage(coil.request.ImageRequest.Builder(context).data(uri)
                             .memoryCacheKey("$path#$revision").diskCacheKey("$path#$revision").build(), stringResource(R.string.loc_image_preview),
                             Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
                         else if (page == pager.currentPage && uri != null) {
                             val video = remember(uri) { VideoView(context).apply {
-                                setMediaController(MediaController(context).also { it.setAnchorView(this) })
                                 setAudioAttributes(android.media.AudioAttributes.Builder()
                                     .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
                                     .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MOVIE).build())
                                 setVideoURI(uri)
                                 setOnPreparedListener { mediaPlayer ->
-                                    player = mediaPlayer
+                                    videoPlayer = mediaPlayer; currentVideo = this
                                     mediaPlayer.setVolume(volume, volume)
                                     start()
                                 }
                             } }
-                            SideEffect { runCatching { player?.setVolume(volume, volume) } }
-                            DisposableEffect(video) { onDispose { player = null; video.stopPlayback() } }
+                            DisposableEffect(video) { onDispose {
+                                if (currentVideo === video) { currentVideo = null; videoPlayer = null }
+                                video.stopPlayback()
+                            } }
                             AndroidView(factory = { video }, modifier = Modifier.fillMaxSize())
                         }
+                        }
+                        if (page == pager.currentPage) FilledTonalButton(Modifier.align(Alignment.BottomEnd).padding(8.dp), onClick = {
+                            scale = if (scale < 2f) 2f else if (scale < 4f) 4f else 1f
+                            offset = Offset.Zero; zoomed = scale > 1f
+                        }) { Text("확대 ${(scale * 100).toInt()}%") }
                         if (image && page == pager.currentPage) Box(Modifier.align(Alignment.TopStart).padding(8.dp).then(Modifier.zIndex(1f))) {
-                            com.plugin.compatibility.ImagePluginActions(path) { output, replace ->
-                                pages = if (replace) pages.map { if (it == originalPath) output else it }
+                            com.plugin.compatibility.ImagePluginActions(path, pages) { source, output, replace ->
+                                pages = if (replace) pages.map { if (it == source || (source == path && it == originalPath)) output else it }
                                     else (pages + output).distinct()
                                 totalPages = maxOf(totalPages, pages.size)
                                 revision++
@@ -162,6 +216,21 @@ fun PostMediaViewer(paths: List<String>, initialPath: String?, onDismiss: () -> 
                 }
                 val current = pages.getOrNull(pager.currentPage)
                 if (current != null && com.plugin.compatibility.MediaRules.mediaKind(current) != 2) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(enabled = currentVideo != null, onClick = {
+                            currentVideo?.let { video ->
+                                if (video.isPlaying) video.pause() else { if (position >= duration) video.seekTo(0); video.start() }
+                                playing = video.isPlaying
+                            }
+                        }) { Icon(if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (playing) "일시정지" else "재생") }
+                        Text(com.junkfood.seal.util.toDurationText(position / 1000), style = MaterialTheme.typography.labelSmall)
+                        Slider(position.toFloat().coerceIn(0f, duration.coerceAtLeast(1).toFloat()),
+                            enabled = duration > 0, valueRange = 0f..duration.coerceAtLeast(1).toFloat(),
+                            onValueChange = { seeking = true; position = it.toInt() }, onValueChangeFinished = {
+                                currentVideo?.seekTo(position); seeking = false
+                            }, modifier = Modifier.weight(1f))
+                        Text(com.junkfood.seal.util.toDurationText(duration / 1000), style = MaterialTheme.typography.labelSmall)
+                    }
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = { volume = if (volume > 0) 0f else 1f; PluginPreferences.mediaVolume = volume }) {
                             Text(stringResource(if (volume == 0f) R.string.loc_sound_off else R.string.loc_sound_on))

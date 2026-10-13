@@ -315,7 +315,6 @@ class PluginTaskEngine(private val appContext: Context) : PluginTaskDownloader, 
                             return@onFailure
                         }
                         task.downloadState = Error(throwable = throwable, action = FetchInfo)
-                        ToastUtil.makeToastSuspend(appContext.getString(R.string.fetch_info_error_msg))
                         NotificationUtil.notifyError(
                             title = viewState.title,
                             textId = R.string.fetch_info_error_msg,

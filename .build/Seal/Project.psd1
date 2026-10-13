@@ -2,6 +2,7 @@
 @{
     BuildTask = ':app:assembleGenericDebug'
     TestTask = ':app:testGenericDebugUnitTest'
+    TestApkTask = ':app:assembleGenericDebugAndroidTest'
     ApkDirectory = 'app/build/outputs/apk/generic/debug'
     ApplicationId = 'com.junkfood.seal.debug'
     AvdName = 'SealApi35'

@@ -39,13 +39,16 @@ class PluginDownloadDialogViewModel(private val downloader: DownloaderV2) : View
     val selectionStateFlow = mSelectionStateFlow.asStateFlow()
     val sheetStateFlow = mSheetStateFlow.asStateFlow()
     val sheetValueFlow = mSheetValueFlow.asStateFlow()
+    /** 형식 선택이 끝나도 조회 요청의 쿠키·프록시·확장 설정을 등록 작업에 보존합니다. */
+    var selectionPreferences: DownloadUtil.DownloadPreferences? = null
+        private set
 
     /** 현재 표시 중인 기본 또는 확장 상태입니다. */
     private val sheetState
         get() = sheetStateFlow.value
 
     private val controller = PluginDialogController(viewModelScope, downloader,
-        mSheetStateFlow, mSelectionStateFlow, ::hideDialog)
+        mSheetStateFlow, mSelectionStateFlow, ::hideDialog, { selectionPreferences = it })
 
     /** 기능별 요청을 먼저 처리하고 기본 요청은 보존한 처리 흐름으로 전달합니다. */
     fun postAction(request: Any) {
@@ -81,6 +84,7 @@ class PluginDownloadDialogViewModel(private val downloader: DownloaderV2) : View
                     ))
                     .onSuccess { info ->
                         withContext(Dispatchers.Main) {
+                            selectionPreferences = preferences
                             when (info) {
                                 is PlaylistResult -> {
                                     mSelectionStateFlow.update {
@@ -120,6 +124,7 @@ class PluginDownloadDialogViewModel(private val downloader: DownloaderV2) : View
                     )
                     .onSuccess { info ->
                         withContext(Dispatchers.Main) {
+                            selectionPreferences = preferences
                             mSelectionStateFlow.update {
                                 SelectionState.FormatSelection(info = info)
                             }
@@ -205,6 +210,7 @@ class PluginDownloadDialogViewModel(private val downloader: DownloaderV2) : View
 
     /** 닫은 선택 화면의 상태를 초기화합니다. */
     private fun resetSelectionState() {
+        selectionPreferences = null
         mSelectionStateFlow.update { SelectionState.Idle }
     }
 

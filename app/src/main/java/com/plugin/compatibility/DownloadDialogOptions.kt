@@ -239,6 +239,7 @@ internal fun DownloadFormatButton(type: DownloadType?, preferences: DownloadUtil
         Preset(preference = preferences, downloadType = if (type == Playlist) Video else type,
             selected = true, showEditIcon = true, onEdit = { opened = true }, onClick = { opened = true })
     }
+    DownloadAllChip(preferences, onPreferencesUpdate)
     if (opened) FormatPresetDialog(type, preferences, onPreferencesUpdate, onDismiss = { opened = false })
 }
 
@@ -258,7 +259,6 @@ internal fun AdditionalSettings(
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (selectedType != Command) com.plugin.ui.DownloadFolderSelector(preference, onPreferenceUpdate)
             CookieOptions(preference, onUpdate = onPreferenceUpdate)
-            DownloadAllChip(preference, onPreferenceUpdate)
             if (showSubtitles) VideoFilterChip(
                 selected = downloadSubtitle,
                 enabled = selectedType != Command,

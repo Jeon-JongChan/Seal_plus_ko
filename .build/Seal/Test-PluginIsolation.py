@@ -10,7 +10,7 @@ BASE = "7677f61a20fda4210e84215fef9e9b51d25daa47"
 GROUPS = {
     "image": "SOCIAL", "instagram": "SOCIAL", "tiktok": "SOCIAL",
     "listdownload": "LIST", "media": "MEDIA", "library": "LIBRARY",
-    "queue": "QUEUE", "interaction": "INTERACTION", "enhancement": "IMAGE_AI", "folders": "FOLDERS",
+    "queue": "QUEUE", "interaction": "INTERACTION", "enhancement": "IMAGE_AI", "folders": "FOLDERS", "faces": "FACE_SORT",
 }
 SHARED_QUEUE_TYPES = r"com\.plugin\.queue\.(?:PluginTaskFactory|PluginTaskDownloader|PluginTaskAdapter|PluginTaskBackup|PluginTask)(?!\w)"
 

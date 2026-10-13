@@ -31,6 +31,10 @@ val baseVersionName = currentVersion.name
 
 android {
     compileSdk = 35
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
 
     if (keystorePropertiesFile.exists()) {
         val keystoreProperties = Properties()
@@ -150,13 +154,17 @@ android {
         }
     }
 
-    kotlinOptions { freeCompilerArgs = freeCompilerArgs + "-opt-in=kotlin.RequiresOptIn" }
+
+    sourceSets.getByName("main").jniLibs.srcDir(rootProject.file(".build/Seal/runtime/qualcomm/jniLibs"))
 
     packaging {
         resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
         jniLibs.useLegacyPackaging = true
     }
-    androidResources { generateLocaleConfig = true }
+    androidResources {
+        generateLocaleConfig = true
+        noCompress += "tflite"
+    }
 
     namespace = "com.junkfood.seal"
 
@@ -173,7 +181,13 @@ tasks.withType<Test>().configureEach {
 
 ktfmt { kotlinLangStyle() }
 
-kotlin { jvmToolchain(21) }
+kotlin {
+    jvmToolchain(21)
+    compilerOptions {
+        freeCompilerArgs.add("-opt-in=kotlin.RequiresOptIn")
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8)
+    }
+}
 
 // 경로 인자를 직접 전달해도 스키마 변경이 증분 빌드 입력에 반영되도록 추적합니다.
 tasks.matching { it.name.startsWith("ksp") }.configureEach {
@@ -183,8 +197,13 @@ tasks.matching { it.name.startsWith("ksp") }.configureEach {
 dependencies {
     implementation(project(":color"))
 
-    // 이미지 AI는 별도 프로세스에서 실행하며 모델은 사용자가 내려받습니다.
+    // 기본 모델은 내장하고 LiteRT의 공통 API가 제조사 NPU·GPU를 선택합니다.
+    implementation("com.google.ai.edge.litert:litert:2.3.0") { exclude(group = "androidx.lifecycle") }
+    implementation("com.google.ai.edge.litert:litert-gpu:2.3.0")
+    implementation("com.google.ai.edge.litert:litert-npu-runtime-qualcomm:2.3.0")
+    implementation("com.google.ai.edge.litert:litert-npu-runtime-mediatek:2.3.0")
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
+    implementation("com.google.mediapipe:tasks-vision:1.1.0")
     implementation("com.google.android.gms:play-services-media-effect-enhancement:16.0.0-beta04")
 
     implementation(libs.bundles.core)

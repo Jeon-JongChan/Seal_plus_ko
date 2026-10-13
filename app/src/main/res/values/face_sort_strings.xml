@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="plugin_face_sort">얼굴 없는 사진 분류</string>
+    <string name="plugin_face_sort_desc">YuNet·MediaPipe로 이미지만 검사하고 얼굴 없는 사진을 NOFACE 폴더로 모읍니다.</string>
+</resources>

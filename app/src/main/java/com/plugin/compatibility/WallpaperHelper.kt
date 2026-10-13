@@ -41,6 +41,7 @@ object WallpaperHelper {
 
     /** 원본·Coil 캐시 비트맵을 변경하지 않고 화면 크기의 소유 가능한 사본을 반환합니다. */
     suspend fun loadBitmap(context: Context, pathOrUrl: String, requestedWidth: Int = context.resources.displayMetrics.widthPixels, requestedHeight: Int = context.resources.displayMetrics.heightPixels): Bitmap? = withContext(Dispatchers.IO) {
+        if (MediaRules.isNoFacePath(pathOrUrl)) return@withContext null
         val width = requestedWidth.coerceIn(1, 2048)
         val height = requestedHeight.coerceIn(1, 2048)
         var owned: Bitmap? = null

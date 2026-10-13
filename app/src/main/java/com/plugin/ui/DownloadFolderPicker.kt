@@ -7,7 +7,6 @@ import android.os.Environment
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
@@ -24,6 +23,7 @@ import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -42,7 +42,9 @@ fun DownloadFolderSelector(preferences: DownloadPreferences, onUpdate: (Download
     if (!PluginState.isEnabled(PluginId.FOLDERS)) return
     var opened by remember { mutableStateOf(false) }
     val configuredQuick = runCatching { DownloadFolders.quick() }.getOrNull()
-    val result by produceState<Result<List<DownloadFolder>>?>(null, preferences, opened, configuredQuick) {
+    // 쿠키·형식 토글 때마다 SAF 폴더를 다시 조회하지 않고 저장 루트가 바뀔 때 갱신합니다.
+    val roots = DownloadFolders.roots(preferences)
+    val result by produceState<Result<List<DownloadFolder>>?>(null, roots, opened, configuredQuick) {
         value = withContext(Dispatchers.IO) { runCatching { DownloadFolders.registered().filter {
             runCatching { DownloadFolders.validate(it, preferences) }.isSuccess
         } } }
@@ -50,9 +52,9 @@ fun DownloadFolderSelector(preferences: DownloadPreferences, onUpdate: (Download
     val quick = result?.getOrNull()?.firstOrNull { it == configuredQuick }
     val viewConfiguration = LocalViewConfiguration.current
     val folderConfiguration = remember(viewConfiguration) {
-        /** 이 저장폴더 버튼만 정확히 2초 길게 누르기를 사용합니다. */
+        /** 이 저장폴더 버튼만 정확히 1초 길게 누르기를 사용합니다. */
         object : ViewConfiguration by viewConfiguration {
-            override val longPressTimeoutMillis: Long = 2_000L
+            override val longPressTimeoutMillis: Long = 1_000L
         }
     }
     val selectFolder = {
@@ -63,18 +65,19 @@ fun DownloadFolderSelector(preferences: DownloadPreferences, onUpdate: (Download
     }
     Box {
         CompositionLocalProvider(LocalViewConfiguration provides folderConfiguration) {
-            val selected = if (quick != null) preferences.selectedFolder == quick else preferences.selectedFolder != null
-            // 한 입력 처리기만 사용해 내부 칩 클릭이 2초 길게 누르기를 가로채지 않게 합니다.
-            Surface(modifier = Modifier.combinedClickable(enabled = configuredQuick == null || result != null,
+            val selected = preferences.selectedFolder != null
+            // 한 입력 처리기만 사용해 내부 칩 클릭이 1초 길게 누르기를 가로채지 않게 합니다.
+            Surface(modifier = Modifier.minimumInteractiveComponentSize().combinedClickable(enabled = configuredQuick == null || result != null,
                 role = Role.Button, onClick = selectFolder, onLongClick = { opened = true },
                 onLongClickLabel = stringResource(R.string.plugin_download_folders)).semantics { this.selected = selected },
-                shape = MaterialTheme.shapes.small, border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
-                color = if (selected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surface,
+                shape = FilterChipDefaults.shape, border = FilterChipDefaults.filterChipBorder(enabled = true, selected = selected),
+                color = if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
                 contentColor = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant) {
-                Row(Modifier.heightIn(min = 48.dp).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                Row(Modifier.height(FilterChipDefaults.Height).padding(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     Icon(Icons.Outlined.Folder, null, Modifier.size(18.dp))
-                    Text(if (quick != null) stringResource(R.string.download_folder_quick_label, quick.label)
+                    Text(if (preferences.selectedFolder != null && preferences.selectedFolder != quick) preferences.selectedFolder!!.label
+                        else if (quick != null) stringResource(R.string.download_folder_quick_label, quick.label)
                         else preferences.selectedFolder?.label ?: stringResource(R.string.plugin_download_folders),
                         maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.labelLarge)
@@ -114,9 +117,7 @@ fun DownloadFolderPicker(preferences: DownloadPreferences, onDismiss: () -> Unit
             .recoverCatching { settings.launch(Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)) }
             .onFailure { launchError = it.message.orEmpty() }
     }
-    val needsPermission = !preferences.sdcard && !preferences.privateDirectory &&
-        if (Build.VERSION.SDK_INT >= 30) !Environment.isExternalStorageManager()
-        else androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED
+    val needsPermission = StorageDirectories.requiresManagementPermission(context, preferences)
     LaunchedEffect(needsPermission) { if (needsPermission && !permissionRequested) requestPermission() }
     val result by produceState<Result<List<DownloadFolder>>?>(null, current, refresh) {
         value = null

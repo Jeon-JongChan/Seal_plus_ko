@@ -279,6 +279,7 @@ internal fun DownloadFormatButton(type: DownloadType?, preferences: DownloadUtil
     var opened by remember { mutableStateOf(false) }
     Preset(preference = preferences, downloadType = if (type == Playlist) Video else type,
         selected = true, showEditIcon = true, onEdit = { opened = true }, onClick = { opened = true })
+    DownloadAllChip(preferences, onPreferencesUpdate)
     if (opened) FormatPresetDialog(type, preferences, onPreferencesUpdate, onDismiss = { opened = false })
 }
 
@@ -318,7 +319,6 @@ internal fun ErrorPage(modifier: Modifier = Modifier, state: Error, onActionPost
             when (this) {
                 is Action.FetchFormats -> url
                 is Action.FetchPlaylist -> url
-                is InspectInstagramAction -> urls.joinToString("\n")
                 is Action.DownloadWithPreset -> urlList.joinToString("\n")
                 is Action.RunCommand -> url
                 else -> ""
@@ -602,6 +602,7 @@ private fun ConfigurePage(
                         enabled = selectedType != Playlist,
                         onClick = { useFormatSelection = true },
                     )
+                    DownloadAllChip(preferences, onPreferencesUpdate)
                 } else {
                     if (showTemplateSelectionDialog) {
                         TemplatePickerDialog { showTemplateSelectionDialog = false }
@@ -747,6 +748,7 @@ fun ConfigurePagePlaylistVariant(
                 onEdit = { onPresetEdit(selectedType) },
             )
         }
+        DownloadAllChip(preferences, onPreferencesUpdate)
         DrawerSheetSubtitle(text = stringResource(R.string.additional_settings), modifier = Modifier.padding(horizontal = 20.dp))
         AdditionalSettings(
             modifier = Modifier.padding(horizontal = 16.dp),
@@ -786,7 +788,6 @@ internal fun AdditionalSettings(
             horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (selectedType != Command) com.plugin.ui.DownloadFolderSelector(preference, onPreferenceUpdate)
             CookieOptions(preference, onUpdate = onPreferenceUpdate)
-            DownloadAllChip(preference, onPreferenceUpdate)
             if (showSubtitles) VideoFilterChip(
                 selected = downloadSubtitle,
                 enabled = selectedType != Command,

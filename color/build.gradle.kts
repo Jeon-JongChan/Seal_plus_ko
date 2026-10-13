@@ -10,6 +10,7 @@ java {
 }
 kotlin {
     jvmToolchain(21)
+    compilerOptions { jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_1_8) }
 }
 android {
     compileSdk = 35
@@ -19,7 +20,7 @@ android {
     namespace = "com.junkfood.seal.color"
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_1_8
-        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
     }
     buildTypes {
         release {

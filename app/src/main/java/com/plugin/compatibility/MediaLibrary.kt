@@ -54,7 +54,7 @@ object MediaLibrary {
                         .walkTopDown()
                         .onFail { directory, cause -> throw SecurityException(
                             context.getString(R.string.revision6_folder_access_error, directory.path), cause) }
-                        .onEnter { !java.nio.file.Files.isSymbolicLink(it.toPath()) && it.name != "tmp" &&
+                        .onEnter { !MediaRules.isNoFacePath(it.path) && !java.nio.file.Files.isSymbolicLink(it.toPath()) && it.name != "tmp" &&
                             (includeClassified || !it.name.matches(Regex("[0-9]+(p|x[0-9]+)"))) }
                         .filter {
                             it.isFile && !it.isHidden && !java.nio.file.Files.isSymbolicLink(it.toPath()) &&
@@ -129,7 +129,7 @@ object MediaLibrary {
         check(!preferences.sdcard) { context.getString(R.string.revision6_saf_cleanup_hint) }
         val root = File(rootPath(preferences)).canonicalFile
         var count = 0
-        root.walkBottomUp().onEnter { !java.nio.file.Files.isSymbolicLink(it.toPath()) }.forEach { directory ->
+        root.walkBottomUp().onEnter { !MediaRules.isNoFacePath(it.path) && !java.nio.file.Files.isSymbolicLink(it.toPath()) }.forEach { directory ->
             if (directory != root && directory.isDirectory &&
                 directory.canonicalFile.toPath().startsWith(root.toPath()) &&
                 directory.listFiles()?.isEmpty() == true && directory.delete()) count++
@@ -139,6 +139,7 @@ object MediaLibrary {
 
     /** SAF 폴더에서도 이동에 필요한 부모 URI를 함께 보관합니다. */
     private fun listTreeVideos(parent: DocumentFile, extensions: Set<String>, includeClassified: Boolean): List<MediaFile> {
+        if (MediaRules.isNoFacePath(parent.name.orEmpty()) || MediaRules.isNoFacePath(parent.uri.toString())) return emptyList()
         if (!parent.canRead()) throw SecurityException(context.getString(R.string.revision6_folder_access_error, parent.uri.toString()))
         return parent.listFiles().flatMap { file ->
             if (file.isDirectory) {
@@ -161,6 +162,7 @@ object MediaLibrary {
 
     /** 기존 파일을 덮어쓰지 않고 화질 폴더로 이동하며 이력도 갱신합니다. */
     suspend fun classify(file: MediaFile, preferences: DownloadUtil.DownloadPreferences, replaceDuplicates: Boolean = false): String {
+        if (MediaRules.isNoFacePath(file.path) || MediaRules.isNoFacePath(file.parentUri.orEmpty())) return file.path
         val classificationQuality = file.sourceQuality ?: file.quality
         val group = if (preferences.classifyMedia) MediaRules.classificationFolder(classificationQuality,
             preferences.imageTiers, preferences.videoTiers, preferences.codecRatios, preferences.classificationTarget, preferences.classificationUpperFirst) else null
@@ -224,6 +226,23 @@ object MediaLibrary {
             }
         PluginDatabaseUtil.updateMediaPath(file.path, newPath)
         return newPath
+    }
+
+    /** 사용자 분류 대상 폴더로 이동하며 중복 번호·SAF 검증·이력 갱신을 재사용합니다. */
+    suspend fun moveToFolder(file: MediaFile, targetPath: String, targetDocument: DocumentFile? = null): String {
+        val moved = if (file.parentUri == null) {
+            val target = File(targetPath)
+            check(target.isDirectory && !java.nio.file.Files.isSymbolicLink(target.toPath())) { "대상 폴더를 확인하세요." }
+            moveClassifiedFile(File(file.path), File(target, file.name), false).absolutePath
+        } else {
+            val target = targetDocument
+                ?.takeIf { it.isDirectory && it.canWrite() } ?: error("대상 폴더의 쓰기 권한이 필요합니다.")
+            moveDocumentCollision(file, target, false)
+        }
+        // 이동은 확정됐으므로 중단 요청이 와도 이력 경로 갱신까지 완료합니다.
+        kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { PluginDatabaseUtil.updateMediaPath(file.path, moved) }
+        if (file.parentUri == null) MediaScannerConnection.scanFile(context, arrayOf(file.path, moved), null, null)
+        return moved
     }
 
     /** 로컬 중복 처리 뒤에만 파일과 이력을 교체하며 일반 다운로드의 충돌 거부 규칙은 유지합니다. */
@@ -294,7 +313,7 @@ object MediaLibrary {
             return if (ancestor != null && MediaRules.isQualityFolder(directory.name.orEmpty())) ancestor else directory
         }
         // ponytail: 공급자별 불투명 ID를 지원하는 폴더 순회입니다. 대규모 SAF 스캔은 부모 인덱스로 개선합니다.
-        for (child in directory.listFiles().filter { it.isDirectory && it.name != "tmp" }) {
+        for (child in directory.listFiles().filter { it.isDirectory && it.name != "tmp" && !MediaRules.isNoFacePath(it.name.orEmpty()) }) {
             classificationTreeBase(child, parentUri, directory)?.let { return it }
         }
         return null
@@ -326,7 +345,7 @@ object MediaLibrary {
             recorded
                 .map { it.videoPath }
                 .filter { path ->
-                    exists(path) && (selected == null || DownloadFolders.contains(selected, path, preferences)) &&
+                    !MediaRules.isNoFacePath(path) && exists(path) && (selected == null || DownloadFolders.contains(selected, path, preferences)) &&
                         (if (path.startsWith("content://"))
                                 DocumentFile.fromSingleUri(context, Uri.parse(path))?.name.orEmpty()
                             else File(path).name)
@@ -349,7 +368,7 @@ object MediaLibrary {
                 .flatMap { root ->
                     root
                         .walkTopDown()
-                        .onEnter { it.name != "tmp" && !java.nio.file.Files.isSymbolicLink(it.toPath()) }
+                        .onEnter { !MediaRules.isNoFacePath(it.path) && it.name != "tmp" && !java.nio.file.Files.isSymbolicLink(it.toPath()) }
                         .filter { file ->
                             file.isFile &&
                                 !file.isHidden &&
@@ -378,7 +397,10 @@ object MediaLibrary {
         extensions: Set<String>,
     ): List<String> =
         directory.listFiles().flatMap { item ->
-            if (item.isDirectory) findInTree(item, names, id, extensions)
+            if (item.isDirectory) {
+                if (MediaRules.isNoFacePath(item.name.orEmpty()) || MediaRules.isNoFacePath(item.uri.toString())) emptyList()
+                else findInTree(item, names, id, extensions)
+            }
             else {
                 val name = item.name.orEmpty()
                 if (
@@ -516,6 +538,7 @@ object MediaLibrary {
         collisionReplace: Boolean? = null,
     ): List<String> =
         if (!preferences.mediaProcessing) paths else paths.flatMap { original ->
+            if (MediaRules.isNoFacePath(original)) return@flatMap listOf(original)
             val source = File(original)
             val video = source.extension.lowercase() in setOf("mp4", "mkv", "webm", "mov", "m4v")
             val actualQuality = readMediaQuality(original)

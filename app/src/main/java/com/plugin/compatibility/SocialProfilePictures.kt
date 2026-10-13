@@ -66,13 +66,13 @@ object SocialProfilePictures {
 
     /** 실제 쿠키를 매번 다시 읽고 리다이렉트로 다른 호스트에 전달하지 않습니다. */
     suspend fun publicPage(url: String, preferences: DownloadUtil.DownloadPreferences, taskId: String,
-        httpClient: OkHttpClient = clientFor(preferences)): Pair<String, String> {
+        httpClient: OkHttpClient = clientFor(preferences), jsonResponse: Boolean = false): Pair<String, String> {
         currentCoroutineContext().ensureActive()
         val call = httpClient.newCall(Request.Builder()
             .url(url)
             // 단순 페이지 요청에 없던 문서 탐색 헤더를 전달해 공개 게시물 데이터를 조회합니다.
             .header("User-Agent", preferences.userAgentString.ifBlank { PUBLIC_PAGE_USER_AGENT })
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+            .header("Accept", if (jsonResponse) "application/json" else "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
             .header("Accept-Language", "en-US,en;q=0.9")
             .header("Sec-Fetch-Dest", "document")
             .header("Sec-Fetch-Mode", "navigate")
@@ -80,6 +80,15 @@ object SocialProfilePictures {
             .header("Sec-Fetch-User", "?1")
             .header("Upgrade-Insecure-Requests", "1")
             .apply {
+                if (jsonResponse) {
+                    header("X-IG-App-ID", "936619743392459")
+                    header("Referer", "https://www.instagram.com/")
+                    header("Sec-Fetch-Dest", "empty")
+                    header("Sec-Fetch-Mode", "cors")
+                    header("Sec-Fetch-Site", "same-origin")
+                    removeHeader("Sec-Fetch-User")
+                    removeHeader("Upgrade-Insecure-Requests")
+                }
                 if (preferences.cookies && url.toHttpUrl().host in setOf("instagram.com", "www.instagram.com")) {
                     val session = CookieRules.header(com.plugin.runtime.PluginDownloadUtil.cookieContent(preferences.cookieProfileId), url.toHttpUrl())
                     if (session.isNotEmpty()) header("Cookie", session.entries.joinToString("; ") { "${it.key}=${it.value}" })
@@ -98,7 +107,8 @@ object SocialProfilePictures {
 
     /** 기존 공개 문서 파서를 공유하며 응답 크기를 제한합니다. */
     internal fun documents(html: String): Sequence<JsonElement> =
-        if (html.length > 16_000_000) emptySequence() else
+        if (html.length > 16_000_000) emptySequence() else listOfNotNull(
+            runCatching { Json.parseToJsonElement(html) }.getOrNull()).asSequence() +
             Regex("""<script\b[^>]*>(\{.*?\})</script>""", setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE))
                 .findAll(html).mapNotNull { runCatching { Json.parseToJsonElement(it.groupValues[1]) }.getOrNull() }
 
@@ -109,6 +119,8 @@ object SocialProfilePictures {
             if (depth > 64) return null
             if (node is JsonObject) {
                 if ((node["username"] as? JsonPrimitive)?.contentOrNull?.equals(username, true) == true) {
+                    val hd = ((node["hd_profile_pic_url_info"] as? JsonObject)?.get("url") as? JsonPrimitive)?.contentOrNull.orEmpty()
+                    if (SocialPostMetadataStore.validProfilePicture(hd)) return hd
                     listOf("profile_pic_url_hd", "profile_pic_url").forEach { key ->
                         val url = (node[key] as? JsonPrimitive)?.contentOrNull.orEmpty()
                         if (SocialPostMetadataStore.validProfilePicture(url)) return url
@@ -116,17 +128,29 @@ object SocialProfilePictures {
                 }
                 return node.values.firstNotNullOfOrNull { picture(it, depth + 1) }
             }
+            // Relay 응답은 계정 JSON을 문자열에 한 번 더 감싸 전달하기도 합니다.
+            if (node is JsonPrimitive && node.isString) {
+                val nested = node.content.trim()
+                if (nested.startsWith('{') || nested.startsWith('['))
+                    runCatching { Json.parseToJsonElement(nested) }.getOrNull()?.let { return picture(it, depth + 1) }
+            }
             return (node as? JsonArray)?.firstNotNullOfOrNull { picture(it, depth + 1) }
         }
         return documents(html).firstNotNullOfOrNull { picture(it) }
     }
 
-    /** 게시물 전체 목록을 조회하지 않고 프로필 공개 페이지 한 번으로 사진을 갱신합니다. */
+    /** 공개 페이지에 계정 사진이 없으면 동일 쿠키·프록시의 프로필 JSON 응답으로 보완합니다. */
     suspend fun profilePicture(username: String, preferences: DownloadUtil.DownloadPreferences): String? =
         withContext(Dispatchers.IO) {
             require(username.matches(Regex("[A-Za-z0-9._]{1,30}")) && username !in setOf(".", ".."))
             val taskId = "profile-picture:" + java.util.UUID.randomUUID()
-            try { parseProfilePicture(publicPage("https://www.instagram.com/$username/", preferences, taskId).first, username) }
+            try {
+                val page = try { publicPage("https://www.instagram.com/$username/", preferences, taskId).first }
+                    catch (_: Exception) { currentCoroutineContext().ensureActive(); "" }
+                parseProfilePicture(page, username) ?: parseProfilePicture(publicPage(
+                    "https://www.instagram.com/api/v1/users/web_profile_info/?username=$username", preferences, taskId,
+                    jsonResponse = true).first, username)
+            }
             finally { cancel(taskId) }
         }
 

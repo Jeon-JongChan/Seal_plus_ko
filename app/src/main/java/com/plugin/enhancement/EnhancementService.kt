@@ -10,7 +10,7 @@ import kotlinx.coroutines.*
 import java.io.File
 
 /** 외부에 노출하지 않은 별도 프로세스에서 이미지 하나만 처리합니다. */
-class EnhancementService : Service() {
+open class EnhancementService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private var job: Job? = null
     private val messenger = Messenger(Handler(Looper.getMainLooper()) { message ->
@@ -21,7 +21,7 @@ class EnhancementService : Service() {
             val data = Bundle(message.data); val reply = message.replyTo
             job = scope.launch {
                 try {
-                    process(data) { percent -> send(reply, PROGRESS, Bundle().apply { putInt("progress", percent) }) }
+                    process(data) { percent -> send(reply, PROGRESS, Bundle().apply { putInt("progress", percent); putString("engine", data.getString("engine")) }) }
                     send(reply, DONE, data)
                 } catch (failure: Throwable) {
                     send(reply, FAILED, Bundle().apply { putString("error", if (failure is OutOfMemoryError)
@@ -60,13 +60,15 @@ class EnhancementService : Service() {
             check((source.width.toLong() * source.height + target.first.toLong() * target.second) * 4 + 32 * 1024 * 1024 <=
                 Runtime.getRuntime().maxMemory() * 7 / 10) { "이 기기의 메모리로 처리하기에는 큽니다. 더 낮은 배율을 선택하세요." }
             val model = File(directory, "model.onnx")
-            val googleAvailable = if (data.getBoolean("google")) {
+            // CPU 전용 선택은 Google의 자동 가속 우선 설정보다 우선합니다.
+            val googleAvailable = if (data.getBoolean("google") && data.getBoolean("accelerated")) {
                 try { GoogleEnhancer.availability(this).let { it.first && it.second } }
                 catch (cancel: CancellationException) { throw cancel }
                 catch (_: Exception) { false }
             } else false
             if (googleAvailable) {
                 try {
+                    data.putString("engine", "Google 보정 실행 중"); progress(0)
                     var current = source
                     try {
                         for (pass in 0 until 4) {
@@ -87,9 +89,32 @@ class EnhancementService : Service() {
                     if (!model.isFile) throw failure
                 }
             }
+            var liteRtFallback = false
+            val liteModel = File(directory, "model.tflite")
+            if (output == null && data.getString("backend") == "litert" && liteModel.isFile) {
+                try {
+                    data.putString("engine", if (!data.getBoolean("accelerated")) "LiteRT CPU 초기화 중"
+                        else if (data.getBoolean("allow_npu", true)) "LiteRT NPU·GPU 초기화 중" else "LiteRT GPU 초기화 중 · NPU 제외")
+                    progress(0)
+                    output = LiteRtEnhancer.process(this, source, liteModel.path, target, progress,
+                        data.getBoolean("accelerated"), data.getInt("cpu_threads", 2), data.getBoolean("allow_npu", true)) { data.putString("engine", it); progress(0) }
+                } catch (cancel: CancellationException) { throw cancel }
+                catch (failure: Exception) { android.util.Log.w("ImageAi", "LiteRT 실행 실패로 ONNX 대체", failure); liteRtFallback = true }
+                catch (failure: LinkageError) { android.util.Log.w("ImageAi", "LiteRT ABI·런타임 미지원으로 ONNX 대체", failure); liteRtFallback = true }
+            }
+            if (output == null && liteRtFallback && !model.isFile && liteModel.isFile) {
+                check(data.getBoolean("accelerated")) { "LiteRT CPU에서 이 모델을 실행할 수 없습니다." }
+                // 사용자 TFLite에는 ONNX 사본이 없으므로 가속 실패는 동일 모델의 CPU로 복구합니다.
+                output = LiteRtEnhancer.process(this, source, liteModel.path, target, progress,
+                    false, data.getInt("cpu_threads", 2), false) { data.putString("engine", "가속 실패 후 $it"); progress(0) }
+            }
             if (output == null) {
                 check(model.isFile) { "사용할 모델을 먼저 선택하거나 Google 모듈을 설치하세요." }
-                output = OnnxEnhancer.process(source, model.absolutePath, target, progress, data.getBoolean("accelerated")) { data.putString("engine", it) }
+                val onnxAccelerated = data.getBoolean("accelerated") && data.getBoolean("allow_npu", true)
+                data.putString("engine", if (onnxAccelerated) "ONNX 가속 초기화 중" else "ONNX CPU 초기화 중")
+                progress(0)
+                output = OnnxEnhancer.process(source, model.absolutePath, target, progress, onnxAccelerated,
+                    { data.putString("engine", if (liteRtFallback) "LiteRT 대체 · $it" else it); progress(0) }, cpuThreads = data.getInt("cpu_threads", 2))
             }
             currentCoroutineContext().ensureActive()
             val image = checkNotNull(output)
@@ -126,3 +151,9 @@ class EnhancementService : Service() {
         const val FAILED = 5
     }
 }
+
+/** NPU 초기화 중 네이티브 종료가 발생해도 다른 프로세스에서 GPU를 다시 시도합니다. */
+class EnhancementGpuService : EnhancementService()
+
+/** 두 가속 경로가 종료돼도 다운로드와 분리된 새 CPU 프로세스에서 재시도합니다. */
+class EnhancementCpuService : EnhancementService()

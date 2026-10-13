@@ -60,7 +60,6 @@ class SocialDownloadController(
                 }
             }.onFailure { error ->
                 if (error is kotlinx.coroutines.CancellationException) throw error
-                ToastUtil.makeToastSuspend(App.context.getString(R.string.fetch_info_error_msg))
                 onState(SheetState.Error(Action.FetchPlaylist(action.url, action.preferences), error))
             }
         }

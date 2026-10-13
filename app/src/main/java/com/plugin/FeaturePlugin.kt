@@ -21,6 +21,10 @@ interface FeaturePlugin {
     /** 저장된 이미지를 처리하는 플러그인만 뷰어의 공통 동작에 참여합니다. */
     @Composable
     fun ImageAction(path: String, onSaved: (String, Boolean) -> Unit) {}
+
+    /** 게시글 이미지 전체 동작은 저장 원본 경로도 전달해 각 페이지를 정확히 갱신합니다. */
+    @Composable
+    fun PostImageAction(paths: List<String>, onSaved: (String, String, Boolean) -> Unit) {}
 }
 
 // 플러그인을 이 목록에 등록하면 메뉴와 화면 경로에 함께 연결됩니다.
@@ -28,4 +32,5 @@ val featurePlugins: List<FeaturePlugin> = listOf(ImageDownloadPlugin, ListDownlo
     com.plugin.library.LibraryPlugin, com.plugin.interaction.InteractionPlugin,
     com.plugin.enhancement.ImageEnhancementPlugin,
     com.plugin.instagram.FrequentAccountsPlugin,
-    com.plugin.instagram.PostInfoPlugin, com.plugin.folders.DownloadFoldersPlugin)
+    com.plugin.instagram.PostInfoPlugin, com.plugin.folders.DownloadFoldersPlugin,
+    com.plugin.faces.FaceSortPlugin)

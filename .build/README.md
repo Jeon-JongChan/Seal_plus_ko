@@ -11,8 +11,11 @@ Seal 저장소에서는 `Seal/Project.psd1`이 필요한 값만 덮어씁니다.
 ```powershell
 # 도구가 없는 새 환경에서 구성합니다. SDK 라이선스 동의 및 최초 다운로드가 필요합니다.
 powershell -NoProfile -ExecutionPolicy Bypass -File .build/Setup-Portable.ps1 -Emulator
-# 기본 APK 또는 명시한 Gradle 작업을 실행합니다.
+# 옵션이 없으면 앱 APK만 생성합니다.
+powershell -NoProfile -ExecutionPolicy Bypass -File .build/Build.ps1
+# 단위 검사와 검사 APK 생성은 각각 명시적으로 선택합니다.
 powershell -NoProfile -ExecutionPolicy Bypass -File .build/Build.ps1 -Test
+powershell -NoProfile -ExecutionPolicy Bypass -File .build/Build.ps1 -TestApk
 powershell -NoProfile -ExecutionPolicy Bypass -File .build/Build.ps1 -Offline :app:assembleRelease
 powershell -NoProfile -ExecutionPolicy Bypass -File .build/Start-App.ps1
 ```
@@ -37,3 +40,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .build/Test-PortableOptions.
 ```
 
 Seal 전용 검사와 기존 구성 기록은 [Seal/README.md](Seal/README.md)에 보관합니다.
+
+일반 빌드는 검사 APK를 자동 추가하지 않습니다. `-Test`는 단위 검사만 실행하고, `-TestApk`는 `Project.psd1`의 `TestApkTask`를 추가해 검사 APK를 생성합니다. 두 옵션은 함께 사용할 수 있으며 검사 APK 생성만으로 기기 검사를 실행하지 않습니다. 직접 지정한 Gradle 검사 작업은 명시적 요청으로 처리합니다. 반복 빌드는 Gradle 데몬과 프로젝트 구성 캐시 설정을 사용하며 출력에는 이번에 갱신된 APK·AAB만 표시합니다.

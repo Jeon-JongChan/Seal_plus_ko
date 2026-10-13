@@ -15,6 +15,50 @@ import java.io.File
 
 /** 화질 구간 방향·저장 경계·요청 복원·일반 오류 쿠키 재시도를 함께 검증합니다. */
 class DownloadFoldersTest {
+    /** 형식 선택을 거친 재시도도 요청 쿠키를 보존하고 사용자가 고른 형식·플러그인 설정은 유지합니다. */
+    @Test fun selectionKeepsRequestCookiesAndChosenFormat() {
+        val request = DownloadPreferences.EMPTY.copy(cookies = true, proxy = true, proxyUrl = "http://localhost:8080")
+            .attachPluginOptions(PluginPreferencesRecord(cookieProfileId = 7, cookieProfileExplicit = true))
+        val selected = DownloadPreferences.EMPTY.copy(cookies = false, videoResolution = 720)
+            .attachPluginOptions(PluginPreferencesRecord(classificationUpperFirst = true))
+        val actual = com.plugin.ui.selectionRequestPreferences(selected, request)
+        assertTrue(actual.cookies)
+        assertEquals(7, actual.cookieProfileId)
+        assertTrue(actual.cookieProfileExplicit)
+        assertEquals(request.proxyUrl, actual.proxyUrl)
+        assertEquals(720, actual.videoResolution)
+        assertTrue(actual.classificationUpperFirst)
+        assertFalse(selected.cookies)
+        assertSame(selected, com.plugin.ui.selectionRequestPreferences(selected, null))
+    }
+
+    /** 대소문자·하위 폴더·SAF 인코딩을 제외하며 비슷한 파일명은 허용합니다. */
+    @Test fun noFaceFoldersAreExcluded() {
+        for (path in listOf("C:\\Seal\\NOFACE\\a.jpg", "/Seal/noface/720p/a.jpg",
+            "content://provider/document/primary%3ASeal%2FNoFace%2Fa.jpg", "content://provider/document/primary%3ANOFACE%2Fa.jpg")) {
+            assertTrue(path, MediaRules.isNoFacePath(path))
+        }
+        assertFalse(MediaRules.isNoFacePath("/Seal/noface.jpg"))
+        assertFalse(MediaRules.isNoFacePath("/Seal/mynoface/a.jpg"))
+        assertFalse(DownloadFolders.validRelative("Images/NOFACE/child"))
+        assertTrue(DownloadFolders.validRelative("Images/people"))
+    }
+
+    /** 재시도 쿠키 사본은 원래 요청과 다음 요청의 쿠키·프로필·저장폴더를 변경하지 않습니다. */
+    @Test fun retryCookiesStayWithTheirRequest() {
+        val original = DownloadPreferences.EMPTY.copy(cookies = false).attachPluginOptions(PluginPreferencesRecord(cookieProfileId = -1))
+        val changed = original.copyPreservingPluginOptions { copy(cookies = true) }
+            .copyPluginOptions(cookieProfileId = 42, cookieProfileExplicit = true)
+        val request = Action.FetchPlaylist("https://example.com/failed", original)
+        val retry = actionForRetry(request, changed) as Action.FetchPlaylist
+        assertTrue(retry.preferences.cookies)
+        assertEquals(42, retry.preferences.cookieProfileId)
+        assertFalse(original.cookies)
+        assertEquals(-1, original.cookieProfileId)
+        assertFalse((request.preferences.copyPreservingPluginOptions { copy() }).cookies)
+        assertNotSame(request.preferences, retry.preferences)
+    }
+
     /** 480p·720p 활성 구간의 양쪽 꼬리와 정확한 경계·사이값을 확인합니다. */
     @Test fun qualityPriority() {
         val tiers = "480:0.07:0.105,720:0.14:0.210"

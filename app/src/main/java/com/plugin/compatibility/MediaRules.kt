@@ -9,6 +9,13 @@ import kotlinx.serialization.json.*
 
 /** 파일 관리와 게시물 선택에 공통으로 사용하는 순수 계산 규칙입니다. */
 object MediaRules {
+    /** 얼굴 분류 결과 폴더와 모든 하위 경로를 다른 플러그인 작업에서 제외합니다. */
+    fun isNoFacePath(path: String): Boolean {
+        val decoded = if (path.startsWith("content://") || path.startsWith("file://"))
+            runCatching { java.net.URLDecoder.decode(path.replace("+", "%2B"), "UTF-8") }.getOrDefault(path) else path
+        return decoded.replace('\\', '/').split('/').any { it.substringAfterLast(':').equals("noface", true) }
+    }
+
     /** 제목과 확장자 사이에 저장된 미디어 ID를 읽습니다. */
     private fun savedSourceId(name: String): String? =
         Regex("\\[([A-Za-z0-9_-]+)](?:[-_]av1)?\\.[^.]+$").find(name)?.groupValues?.get(1)

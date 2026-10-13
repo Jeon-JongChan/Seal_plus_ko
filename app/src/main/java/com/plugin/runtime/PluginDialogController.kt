@@ -28,6 +28,7 @@ class PluginDialogController(
     private val mSheetStateFlow: MutableStateFlow<Any>,
     private val mSelectionStateFlow: MutableStateFlow<SelectionState>,
     private val hideDialog: () -> Unit,
+    private val onSelectionPreferences: (DownloadUtil.DownloadPreferences) -> Unit,
 ) {
     private val socialController by lazy {
         com.plugin.instagram.SocialDownloadController(scope, downloader,
@@ -110,6 +111,7 @@ class PluginDialogController(
                     ))
                     .onSuccess { info ->
                         withContext(Dispatchers.Main) {
+                            onSelectionPreferences(preferences)
                             when (info) {
                                 is PlaylistResult -> {
                                     if (preferences.downloadAllMedia) {
@@ -133,7 +135,7 @@ class PluginDialogController(
                         }
                     }
                     .onFailure { th ->
-                        ToastUtil.makeToastSuspend(App.context.getString(R.string.fetch_info_error_msg))
+                        if (th is CancellationException) throw th
                         mSheetStateFlow.update { SheetState.Error(action = action, throwable = th) }
                     }
             }
@@ -158,6 +160,7 @@ class PluginDialogController(
                     )
                     .onSuccess { info ->
                         withContext(Dispatchers.Main) {
+                            onSelectionPreferences(preferences)
                             mSelectionStateFlow.update {
                                 SelectionState.FormatSelection(info = info)
                             }
@@ -167,8 +170,8 @@ class PluginDialogController(
                         }
                     }
                     .onFailure { th ->
+                        if (th is CancellationException) throw th
                         withContext(Dispatchers.Main) {
-                            ToastUtil.makeToastSuspend(App.context.getString(R.string.fetch_info_error_msg))
                             mSheetStateFlow.update { SheetState.Error(action, throwable = th) }
                         }
                     }

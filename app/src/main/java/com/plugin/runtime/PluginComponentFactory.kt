@@ -7,6 +7,6 @@ import androidx.core.app.CoreComponentFactory
 class PluginComponentFactory : CoreComponentFactory() {
     /** Android 9 이상에서 보정 전용 프로세스에는 최소 Application만 생성합니다. */
     override fun instantiateApplication(cl: ClassLoader, className: String): Application =
-        if (Application.getProcessName().endsWith(":image_ai")) Application()
+        if (Application.getProcessName().substringAfterLast(':') in setOf("image_ai", "image_ai_gpu", "image_ai_cpu")) Application()
         else super.instantiateApplication(cl, className)
 }

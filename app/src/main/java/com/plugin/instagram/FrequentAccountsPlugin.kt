@@ -41,6 +41,13 @@ object FrequentAccountsPlugin : FeaturePlugin {
         val history by com.junkfood.seal.util.DatabaseUtil.getDownloadHistoryFlow().collectAsStateWithLifecycle(emptyList())
         val accounts by remember { derivedStateOf { FrequentAccountStore.fromHistory(history) } }
         val context = LocalContext.current
+        val preferences = createPluginPreferences()
+        val imageLoader = remember(context, preferences.proxy, preferences.proxyUrl, preferences.forceIpv4) {
+            // CDN 사진도 프로필 조회와 같은 프록시·IPv4 설정을 사용하며 쿠키는 전달하지 않습니다.
+            coil.ImageLoader.Builder(context).okHttpClient { SocialProfilePictures.clientFor(preferences)
+                .newBuilder().followRedirects(true).followSslRedirects(true).build() }.build()
+        }
+        DisposableEffect(imageLoader) { onDispose { imageLoader.shutdown() } }
         var picture by remember { mutableStateOf<String?>(null) }
         Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.loc_frequent_accounts)) }, navigationIcon = { BackButton(onBack) }) }) { padding ->
             LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -49,7 +56,7 @@ object FrequentAccountsPlugin : FeaturePlugin {
                     OutlinedCard(Modifier.fillMaxWidth()) {
                         Column(Modifier.padding(12.dp)) {
                             Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                                AccountPicture(account) { picture = it }
+                                AccountPicture(account, imageLoader) { picture = it }
                                 Column(Modifier.padding(start = 12.dp).weight(1f)) {
                                     Text(account.username, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
                                     Text("${account.platform} · ${stringResource(R.string.loc_collected_posts, account.visitCount)}", style = MaterialTheme.typography.bodySmall)
@@ -74,16 +81,16 @@ object FrequentAccountsPlugin : FeaturePlugin {
         }
         picture?.let { url -> AlertDialog(onDismissRequest = { picture = null },
             title = { Text(stringResource(R.string.loc_profile_picture)) },
-            text = { AsyncImage(url, null, Modifier.size(240.dp), contentScale = ContentScale.Fit) },
+            text = { AsyncImage(profilePictureRequest(context, url), null, imageLoader, Modifier.size(240.dp), contentScale = ContentScale.Fit) },
             confirmButton = { TextButton(onClick = { picture = null }) { Text(stringResource(R.string.close)) } }) }
     }
 }
 
 /** 누락·만료된 사진을 화면의 계정만 다시 조회하며 실패 시 기본 아이콘에서 재시도합니다. */
 @Composable
-private fun AccountPicture(account: FrequentAccount, onOpen: (String) -> Unit) {
+private fun AccountPicture(account: FrequentAccount, imageLoader: coil.ImageLoader, onOpen: (String) -> Unit) {
     val context = LocalContext.current
-    var failed by remember(account.username) { mutableStateOf(false) }
+    var failed by remember(account.platform, account.username, account.profilePicUrl) { mutableStateOf(false) }
     var attempted by remember(account.username) { mutableStateOf(false) }
     var refresh by remember(account.username) { mutableIntStateOf(0) }
     var version by remember(account.username) { mutableIntStateOf(0) }
@@ -104,10 +111,16 @@ private fun AccountPicture(account: FrequentAccount, onOpen: (String) -> Unit) {
     }, contentAlignment = androidx.compose.ui.Alignment.Center) {
         Icon(Icons.Outlined.AccountCircle, stringResource(R.string.loc_profile_picture), Modifier.fillMaxSize())
         if (account.profilePicUrl.isNotBlank() && !failed) AsyncImage(
-            coil.request.ImageRequest.Builder(context).data(account.profilePicUrl)
-                .memoryCacheKey("${account.profilePicUrl}#$version").diskCacheKey("${account.profilePicUrl}#$version").build(),
-            stringResource(R.string.loc_profile_picture), Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
+            profilePictureRequest(context, account.profilePicUrl, version),
+            stringResource(R.string.loc_profile_picture), imageLoader, Modifier.fillMaxSize(), contentScale = ContentScale.Crop,
             onError = { failed = true })
         if (loading) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
     }
 }
+
+/** 목록과 확대 화면에서 동일한 CDN 헤더·갱신 캐시 키를 사용합니다. */
+private fun profilePictureRequest(context: android.content.Context, url: String, version: Int = 0): coil.request.ImageRequest =
+    coil.request.ImageRequest.Builder(context).data(url)
+        .addHeader("User-Agent", "Mozilla/5.0")
+        .addHeader("Referer", "https://www.instagram.com/")
+        .memoryCacheKey("$url#$version").diskCacheKey("$url#$version").build()

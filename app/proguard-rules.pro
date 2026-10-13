@@ -69,3 +69,9 @@
 #-keepnames class <1>$$serializer { # -keepnames suffices; class is kept when serializer() is kept.
 #    static <1>$$serializer INSTANCE;
 #}
+# LiteRT JNI는 ElementType 등 클래스를 문자열로 찾으므로 이름·생성자·열거형을 보존합니다.
+-keep class com.google.ai.edge.litert.** { *; }
+# MediaPipe의 protobuf 런타임이 메시지 필드를 이름으로 조회하므로 필드 제거를 막습니다.
+-keepclassmembers class * extends com.google.protobuf.GeneratedMessageLite {
+    <fields>;
+}

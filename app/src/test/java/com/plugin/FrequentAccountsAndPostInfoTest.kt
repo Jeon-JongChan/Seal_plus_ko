@@ -12,6 +12,27 @@ import org.junit.Test
 
 /** 자주 방문하는 계정, 게시글 정보 및 배경화면/인스타그램 퀵 기능 단위 테스트 */
 class FrequentAccountsAndPostInfoTest {
+    /** JSON API·Relay 문자열·고해상도 객체에서도 요청 계정의 사진만 읽습니다. */
+    @Test fun profilePicturesReadApiAndRelayResponses() {
+        val user = """{"username":"review","hd_profile_pic_url_info":{"url":"https://s.cdninstagram.com/hd.jpg"}}"""
+        assertEquals("https://s.cdninstagram.com/hd.jpg", SocialProfilePictures.parseProfilePicture("""{"data":{"user":$user}}""", "review"))
+        val wrapped = kotlinx.serialization.json.JsonPrimitive(user).toString()
+        assertEquals("https://s.cdninstagram.com/hd.jpg", SocialProfilePictures.parseProfilePicture("<script>{\"payload\":$wrapped}</script>", "review"))
+        assertNull(SocialProfilePictures.parseProfilePicture(user, "other"))
+    }
+
+    /** 방문 횟수와 관계없이 게시글 수 내림차순이며 캐러셀 파일·URL 변형은 한 번만 셉니다. */
+    @Test fun accountHistorySortsByUniquePosts() {
+        val row = com.junkfood.seal.database.objects.DownloadedVideoInfo(id = 1, videoTitle = "게시글", videoAuthor = "few",
+            videoUrl = "https://www.instagram.com/p/ONE/", thumbnailUrl = "", videoPath = "/one.jpg", extractor = "Instagram")
+        val history = listOf(row.copy(id = 20), row.copy(id = 21, videoPath = "/two.jpg", videoUrl = "https://instagram.com/reel/ONE/?utm_source=x#seal-media=2"),
+            row.copy(id = 2, videoAuthor = "many", videoUrl = "https://www.instagram.com/p/TWO/"),
+            row.copy(id = 3, videoAuthor = "many", videoUrl = "https://www.instagram.com/p/THREE/"))
+        val accounts = FrequentAccountStore.fromHistory(history) { null }
+        assertEquals(listOf("many", "few"), accounts.map { it.username })
+        assertEquals(listOf(2, 1), accounts.map { it.visitCount })
+    }
+
 
     /** 공개 응답 본문을 보존하고 잘못된 프로필 주소·게시글 식별자를 거부합니다. */
     @Test fun instagramMetadataIsPureAndKeepsPublicCaption() {

@@ -41,8 +41,8 @@ object PluginDatabaseUtil {
         if (oldPath.isBlank() || newPath.isBlank() || oldPath == newPath) return@withContext
         getWritableDatabase().use { db ->
                 db.execSQL(
-                    "UPDATE DownloadedVideoInfo SET videoPath = ? WHERE videoPath = ?",
-                    arrayOf(newPath, oldPath)
+                    "UPDATE DownloadedVideoInfo SET videoPath = ?, thumbnailUrl = CASE WHEN thumbnailUrl = ? THEN ? ELSE thumbnailUrl END, videoUrl = CASE WHEN videoUrl = ? THEN ? ELSE videoUrl END WHERE videoPath = ?",
+                    arrayOf(newPath, oldPath, newPath, oldPath, newPath, oldPath)
                 )
         }
         PluginMediaMetadataStore.updatePath(oldPath, newPath)

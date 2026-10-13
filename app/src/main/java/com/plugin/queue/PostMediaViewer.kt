@@ -126,8 +126,8 @@ fun PostMediaViewer(paths: List<String>, initialPath: String?, onDismiss: () -> 
                             AndroidView(factory = { video }, modifier = Modifier.fillMaxSize())
                         }
                         if (image && page == pager.currentPage) Box(Modifier.align(Alignment.TopStart).padding(8.dp).then(Modifier.zIndex(1f))) {
-                            com.plugin.compatibility.ImagePluginActions(path) { output, replace ->
-                                pages = if (replace) pages.map { if (it == originalPath) output else it }
+                            com.plugin.compatibility.ImagePluginActions(path, pages) { source, output, replace ->
+                                pages = if (replace) pages.map { if (it == source || (source == path && it == originalPath)) output else it }
                                     else (pages + output).distinct()
                                 totalPages = maxOf(totalPages, pages.size)
                                 revision++

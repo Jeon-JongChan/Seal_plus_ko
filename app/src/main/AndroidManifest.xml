@@ -44,6 +44,11 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         tools:targetApi="tiramisu">
+        <!-- Android 12 이상에서 선택적 GPU·DSP 공개 라이브러리에 접근합니다. -->
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
+        <uses-native-library android:name="libcdsprpc.so" android:required="false" />
+        <uses-native-library android:name="libadsprpc.so" android:required="false" />
+
         <uses-native-library android:name="libOpenCL.so" android:required="false" />
         <uses-native-library android:name="libOpenCL-car.so" android:required="false" />
         <uses-native-library android:name="libOpenCL-pixel.so" android:required="false" />
@@ -51,6 +56,10 @@
         <uses-native-library android:name="libGLESv3.so" android:required="false" />
         <service android:name="com.plugin.enhancement.EnhancementService"
             android:exported="false" android:process=":image_ai" />
+        <service android:name="com.plugin.enhancement.EnhancementGpuService"
+            android:exported="false" android:process=":image_ai_gpu" />
+        <service android:name="com.plugin.enhancement.EnhancementCpuService"
+            android:exported="false" android:process=":image_ai_cpu" />
         <activity
             android:name=".CrashReportActivity"
             android:exported="false"
@@ -105,6 +114,12 @@
             android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="User initiated local media folder scan and classification" />
+        </service>
+
+        <service android:name="com.plugin.faces.FaceScanService" android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User initiated offline face detection and image folder classification" />
         </service>
 
         <activity

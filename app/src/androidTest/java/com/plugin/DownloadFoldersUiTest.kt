@@ -2,6 +2,7 @@ package com.plugin
 
 import android.os.SystemClock
 import android.view.accessibility.AccessibilityNodeInfo
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.*
 import androidx.test.core.app.ActivityScenario
@@ -32,7 +33,9 @@ class DownloadFoldersUiTest {
         val before = DownloadFolders.registered()
         val beforeQuick = DownloadFolders.quick()
         val enabled = PluginState.isEnabled(PluginId.FOLDERS)
-        val root = File(App.privateDownloadDir)
+        val previousRoot = App.videoDownloadDir
+        val root = File(context.cacheDir, "folder-ui-root-" + java.util.UUID.randomUUID()).apply { mkdirs() }
+        App.videoDownloadDir = root.path
         val fixture = root.resolve("000-folder-review-" + java.util.UUID.randomUUID())
         val instagram = fixture.resolve("Instagram").apply { mkdirs() }
         val hot = instagram.resolve("Hot").apply { mkdirs() }
@@ -40,7 +43,7 @@ class DownloadFoldersUiTest {
         val linkRoot = File(context.cacheDir, fixture.name).apply { mkdirs() }
         val link = linkRoot.resolve("outside-link")
         val folder = DownloadFolder(root.path, hot.relativeTo(root).invariantSeparatorsPath)
-        val prefs = DownloadPreferences.EMPTY.copy(privateDirectory = true, subdirectoryExtractor = true).copyPluginOptions(mediaProcessing = true)
+        val prefs = DownloadPreferences.EMPTY.copy(privateDirectory = false, sdcard = false, subdirectoryExtractor = true).copyPluginOptions(mediaProcessing = true)
         val picked = AtomicReference<DownloadFolder?>()
         val selected = AtomicReference<DownloadPreferences>()
         try {
@@ -60,7 +63,10 @@ class DownloadFoldersUiTest {
                 instrumentation.waitForIdleSync(); assertEquals(folder, picked.get())
                 scenario.onActivity { it.setContent { SealTheme {
                     var value by remember { pluginPreferencesState(prefs) }
-                    DownloadFolderSelector(value) { value = it; selected.set(it) }
+                    // 단독 검사 화면도 실제 다운로드창처럼 시스템 표시줄 밖에서 터치를 받습니다.
+                    androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.safeDrawingPadding()) {
+                        DownloadFolderSelector(value) { value = it; selected.set(it) }
+                    }
                 } } }
                 tap(context.getString(R.string.plugin_download_folders)); tap(folder.label)
                 instrumentation.waitForIdleSync(); assertEquals(folder, selected.get().selectedFolder)
@@ -72,7 +78,10 @@ class DownloadFoldersUiTest {
                 assertEquals(folder, DownloadFolders.quick())
                 scenario.onActivity { it.setContent { SealTheme {
                     var value by remember { pluginPreferencesState(prefs) }
-                    DownloadFolderSelector(value) { value = it; selected.set(it) }
+                    // 단독 검사 화면도 실제 다운로드창처럼 시스템 표시줄 밖에서 터치를 받습니다.
+                    androidx.compose.foundation.layout.Box(androidx.compose.ui.Modifier.safeDrawingPadding()) {
+                        DownloadFolderSelector(value) { value = it; selected.set(it) }
+                    }
                 } } }
                 val quickLabel = context.getString(R.string.download_folder_quick_label, folder.label)
                 tap(quickLabel)
@@ -81,21 +90,26 @@ class DownloadFoldersUiTest {
                 tap(quickLabel)
                 instrumentation.waitForIdleSync(); assertNull(selected.get().selectedFolder)
                 assertTrue(selected.get().useWebsiteFolder(image = true))
-                // 실제 포인터를 2초 이상 유지해 목록만 열리고 퀵 선택이 함께 바뀌지 않는지 확인합니다.
+                // 실제 포인터를 1초 이상 유지해 목록만 열리고 퀵 선택이 함께 바뀌지 않는지 확인합니다.
                 val bounds = android.graphics.Rect().also { await(quickLabel).getBoundsInScreen(it) }
                 val down = SystemClock.uptimeMillis()
                 val automation = instrumentation.uiAutomation
                 val press = android.view.MotionEvent.obtain(down, down, android.view.MotionEvent.ACTION_DOWN,
                     bounds.exactCenterX(), bounds.exactCenterY(), 0).apply { source = android.view.InputDevice.SOURCE_TOUCHSCREEN }
                 assertTrue(automation.injectInputEvent(press, true)); press.recycle()
-                SystemClock.sleep(2_200)
+                SystemClock.sleep(1_200)
                 val release = android.view.MotionEvent.obtain(down, SystemClock.uptimeMillis(), android.view.MotionEvent.ACTION_UP,
                     bounds.exactCenterX(), bounds.exactCenterY(), 0).apply { source = android.view.InputDevice.SOURCE_TOUCHSCREEN }
                 assertTrue(automation.injectInputEvent(release, true)); release.recycle()
                 await(context.getString(R.string.download_folder_default))
                 assertNull(selected.get().selectedFolder)
-                tap(folder.label); instrumentation.waitForIdleSync(); assertEquals(folder, selected.get().selectedFolder)
                 val other = DownloadFolders.registered().first { it != folder }
+                tap(other.label); instrumentation.waitForIdleSync(); assertEquals(other, selected.get().selectedFolder)
+                // 퀵 폴더가 있어도 긴 누르기 메뉴에서 고른 실제 폴더명을 표시합니다.
+                await(other.label)
+                assertNull(find(instrumentation.uiAutomation.rootInActiveWindow, quickLabel))
+                tap(other.label); instrumentation.waitForIdleSync(); assertEquals(folder, selected.get().selectedFolder)
+                await(quickLabel)
                 DownloadFolders.setQuick(other); assertEquals(other, DownloadFolders.quick())
                 DownloadFolders.save(listOf(folder)); assertNull(DownloadFolders.quick())
                 assertTrue(runCatching { DownloadFolders.setQuick(other) }.isFailure)
@@ -109,7 +123,7 @@ class DownloadFoldersUiTest {
                 imageTiers = MediaRules.withDisabledTiers(MediaRules.DEFAULT_IMAGE_TIERS, "1080x1920"))
             val destination = MediaLibrary.finish(listOf(source.path), request, "folder-review", classificationQuality =
                 VideoQuality(1920, 1080, 0.0, 0.0, source.length(), "image/jpeg"), mediaRoot = DownloadFolders.outputRoot(request, root)).single()
-            assertEquals(hot.resolve("1440x2560/folder-review.jpg").path, destination)
+            assertEquals(hot.resolve("720x1280/folder-review.jpg").path, destination)
             assertArrayEquals(original, File(destination).readBytes())
             assertFalse(hot.resolve("Images").exists())
             assertFalse(hot.resolve("Instagram").exists())
@@ -117,6 +131,7 @@ class DownloadFoldersUiTest {
             DownloadFolders.save(before); DownloadFolders.setQuick(beforeQuick); PluginState.setEnabled(PluginId.FOLDERS, enabled)
             // 테스트가 만든 링크를 먼저 제거해 폴더 정리에서 앱 캐시로 넘어가지 않습니다.
             link.delete(); linkRoot.delete(); fixture.walkBottomUp().forEach { it.delete() }
+            root.delete(); App.videoDownloadDir = previousRoot
         }
     }
 

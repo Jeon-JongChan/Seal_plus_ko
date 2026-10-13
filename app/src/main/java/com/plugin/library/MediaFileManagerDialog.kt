@@ -45,10 +45,7 @@ fun MediaFileManagerDialog(onDismiss: () -> Unit) {
         refresh++
     }
     // 읽기 오류가 없어도 다른 앱이 저장한 파일의 이동에는 별도의 쓰기 접근이 필요합니다.
-    val needsStoragePermission = !preferences.sdcard && !preferences.privateDirectory &&
-        if (android.os.Build.VERSION.SDK_INT >= 30) !android.os.Environment.isExternalStorageManager()
-        else androidx.core.content.ContextCompat.checkSelfPermission(context,
-            android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED
+    val needsStoragePermission = StorageDirectories.requiresManagementPermission(context, preferences)
     /** 명시적 버튼 또는 첫 접근 실패에서 시스템 권한 화면을 열고 자동 반복은 막습니다. */
     fun requestStoragePermission() {
         permissionRequested = true
@@ -100,7 +97,7 @@ fun MediaFileManagerDialog(onDismiss: () -> Unit) {
                     }
                 }
                 Text(stringResource(R.string.revision6_scan_hint), style = MaterialTheme.typography.bodySmall)
-                if (!preferences.sdcard && !preferences.privateDirectory) {
+                if (!preferences.sdcard) {
                     Text(stringResource(if (needsStoragePermission) R.string.revision6_storage_permission_hint
                         else R.string.revision6_storage_permission_granted), style = MaterialTheme.typography.bodySmall)
                     OutlinedButton(enabled = !scan.running, onClick = { requestStoragePermission() }) {

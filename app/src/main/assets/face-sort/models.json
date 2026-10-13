@@ -1,0 +1,62 @@
+[
+  {
+    "file": "yunet.onnx",
+    "url": "https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx",
+    "source_sha256": "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4",
+    "sha256": "65443783acc01baa71e8d172e0f8270de261f609495d0249c9cd4fe4290d2367",
+    "bytes": 229821
+  },
+  {
+    "file": "blaze_face_short_range.tflite",
+    "url": "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite",
+    "source_sha256": "b4578f35940bf5a1a655214a1cce5cab13eba73c1297cd78e1a04c2380b0152f",
+    "sha256": "b4578f35940bf5a1a655214a1cce5cab13eba73c1297cd78e1a04c2380b0152f",
+    "bytes": 229746
+  },
+  {
+    "file": "LICENSE.YuNet.txt",
+    "url": "https://raw.githubusercontent.com/opencv/opencv_zoo/main/models/face_detection_yunet/LICENSE",
+    "source_sha256": "c83b8120c50ccbd4c4f96edf53141bdd566ebb8f8e9227e415326aa1b1aba958",
+    "sha256": "c83b8120c50ccbd4c4f96edf53141bdd566ebb8f8e9227e415326aa1b1aba958",
+    "bytes": 1085
+  },
+  {
+    "file": "LICENSE.MediaPipe.txt",
+    "url": "https://raw.githubusercontent.com/google-ai-edge/mediapipe/master/LICENSE",
+    "source_sha256": "8707eef0533987efc5b155d64761eeb6e20793f50b9bd1a68dad1cf4719d0ed8",
+    "sha256": "8707eef0533987efc5b155d64761eeb6e20793f50b9bd1a68dad1cf4719d0ed8",
+    "bytes": 12331
+  },
+  {
+    "file": "yunet-320.tflite",
+    "source": "yunet.onnx",
+    "source_sha256": "65443783acc01baa71e8d172e0f8270de261f609495d0249c9cd4fe4290d2367",
+    "sha256": "efd180d26d8403a09ff205f6b9d9ec7db686b8749690f7887a8525bd42b1cd3e",
+    "bytes": 226048,
+    "conversion": "onnx2tf 1.26.3 / TensorFlow 2.19.0 / FP32 / BGR NHWC"
+  },
+  {
+    "file": "yunet-640.tflite",
+    "source": "yunet.onnx",
+    "source_sha256": "65443783acc01baa71e8d172e0f8270de261f609495d0249c9cd4fe4290d2367",
+    "sha256": "4a58b34b8237fa9fe19415c8a2eddfa3ed227beaf5a75a5ce238a2aa469c8432",
+    "bytes": 226048,
+    "conversion": "onnx2tf 1.26.3 / TensorFlow 2.19.0 / FP32 / BGR NHWC"
+  },
+  {
+    "file": "yunet-960.tflite",
+    "source": "yunet.onnx",
+    "source_sha256": "65443783acc01baa71e8d172e0f8270de261f609495d0249c9cd4fe4290d2367",
+    "sha256": "82b2297786657ce6dba3471a0649621a1789ed220bd983494007f3d152f19c51",
+    "bytes": 226152,
+    "conversion": "onnx2tf 1.26.3 / TensorFlow 2.19.0 / FP32 / BGR NHWC"
+  },
+  {
+    "file": "yunet-1280.tflite",
+    "source": "yunet.onnx",
+    "source_sha256": "65443783acc01baa71e8d172e0f8270de261f609495d0249c9cd4fe4290d2367",
+    "sha256": "f734ea9aafcf72c54c49a080e2e4c703a92b6aa15a2e797cb9353d091e08bcf1",
+    "bytes": 226176,
+    "conversion": "onnx2tf 1.26.3 / TensorFlow 2.19.0 / FP32 / BGR NHWC"
+  }
+]

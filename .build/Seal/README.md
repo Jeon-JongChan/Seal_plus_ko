@@ -13,7 +13,7 @@
 
 # Windows 포터블 빌드·테스트
 
-Windows x64용 JDK 21, Android SDK 35, Gradle 8.10.2와 캐시를 이 폴더에 둡니다. Python이나 Android Studio 설치 없이 PowerShell과 프로젝트의 Gradle Wrapper를 사용합니다. 모든 경로는 실행할 때 프로젝트 위치에서 다시 계산합니다.
+Windows x64용 JDK 21, Android SDK 35, Gradle 8.13와 캐시를 이 폴더에 둡니다. Python이나 Android Studio 설치 없이 PowerShell과 프로젝트의 Gradle Wrapper를 사용합니다. 모든 경로는 실행할 때 프로젝트 위치에서 다시 계산합니다.
 
 프로젝트 루트에서 실행합니다.
 
@@ -42,7 +42,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .build/Emulator.ps1 -DnsServ
 powershell -NoProfile -ExecutionPolicy Bypass -File .build/Build.ps1 :app:connectedGenericDebugAndroidTest
 ```
 
-다른 PC로 옮길 때 저장소 전체와 `.build/tools/`, `.build/gradle-cache/`, `.build/Seal/android-user/`를 함께 복사하세요. 숨김 폴더를 제외하지 않아야 합니다. 경로가 바뀌어도 스크립트가 JDK·SDK·캐시 경로와 기존 `local.properties`의 SDK 경로를 현재 위치에 맞춥니다. `.build/Seal/android-user/`에는 같은 디버그 서명을 유지하는 테스트용 키도 있습니다. 경로를 포함하는 Gradle configuration cache와 빌드 뒤에 남는 Gradle·Kotlin 데몬은 사용하지 않습니다. Gradle 캐시는 필요한 빌드 작업을 한 번 실행해 내려받은 의존성 범위에서 오프라인으로 사용할 수 있습니다.
+다른 PC로 옮길 때 저장소 전체와 `.build/tools/`, `.build/gradle-cache/`, `.build/Seal/android-user/`를 함께 복사하세요. 숨김 폴더를 제외하지 않아야 합니다. 경로가 바뀌어도 스크립트가 JDK·SDK·캐시 경로와 기존 `local.properties`의 SDK 경로를 현재 위치에 맞춥니다. `.build/Seal/android-user/`에는 같은 디버그 서명을 유지하는 테스트용 키도 있습니다. 반복 빌드는 Gradle 데몬과 프로젝트의 구성 캐시 설정을 재사용합니다. Gradle 캐시는 필요한 빌드 작업을 한 번 실행해 내려받은 의존성 범위에서 오프라인으로 사용할 수 있습니다. 검사 APK는 기본 작업에 추가하지 않으며 `-TestApk`로 요청합니다. `-Test`는 단위 검사만 선택합니다.
 
 | 경로 | 용도 |
 | --- | --- |
@@ -69,7 +69,7 @@ Git에는 `Setup-Portable.ps1`과 `.build/`의 실행 스크립트·검사 스�
 
 빠른 다운로드의 쿠키 프로필 선택, 미디어 파일 관리·비트레이트 분류(기본 4Mbps), 하위 폴더 이동 후 중복 재탐색, Instagram 이미지·계정 목록·혼합 캐러셀 선택, 선택 시 AV1 변환 후 원본 대체를 추가했습니다. AV1·폴더 분류는 기본 비활성화이며 쿠키도 사용자가 켠 경우에만 적용합니다. AV1은 libsvtav1 preset 8·기본 CRF 32를 사용합니다. 분류는 체감 화질이나 AI 평가가 아닙니다.
 
-AGP 8.7.3, Room 2.7.2·KSP2, OkHttp 정식판 4.12.0, Coil 2.7.0, youtubedl-android 관련 래퍼 0.18.1 등으로 조정했습니다. Kotlin 2.0.20·Gradle 8.10.2, 앱 DB 버전 5는 유지했습니다. 상세 표는 [프로젝트 README](../../README.md)에 있습니다.
+AGP 8.13.2, Room 2.7.2·KSP2, OkHttp 정식판 4.12.0, Coil 2.7.0, youtubedl-android 관련 래퍼 0.18.1 등으로 조정했습니다. Kotlin 2.4.21·Gradle 8.13·KSP 2.3.12를 사용하며 R8은 9.1.29로 연결합니다. 앱 DB 버전 5는 유지했습니다. 상세 표는 [프로젝트 README](../../README.md)에 있습니다.
 
 앱의 FFmpeg·yt-dlp·aria2c는 SDK 도구가 아니라 Gradle이 받는 Android 의존성입니다. AAR은 `gradle-cache/caches/modules-2/files-2.1/`에 보관되고 APK에 포함된 Android 네이티브 파일을 기기 내부에서 실행합니다. 확인한 번들은 FFmpeg 7.1.1·aria2c 1.37.0·yt-dlp 2025.11.12이며 래퍼 0.18.1과 버전 체계가 다릅니다. yt-dlp 업데이트 기능은 FFmpeg 번들 교체 기능이 아닙니다.
 

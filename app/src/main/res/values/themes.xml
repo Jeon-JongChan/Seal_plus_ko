@@ -11,6 +11,8 @@
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:colorBackgroundCacheHint">@null</item>
         <item name="android:windowContentOverlay">@null</item>
+        <!-- 빠른 공유 창에서 시트와 시스템 창의 전환 애니메이션이 중복되지 않게 합니다. -->
+        <item name="android:windowAnimationStyle">@null</item>
     </style>
 
 </resources>

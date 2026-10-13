@@ -4,7 +4,7 @@ gradle.projectsEvaluated {
     if (app != null) {
         // Android 플러그인이 기본 java 경로를 추가한 뒤 최종 컴파일 입력을 제한합니다.
         gradle.taskGraph.whenReady {
-            app.tasks.matching { it.name == 'compileGenericDebugAndroidTestKotlin' }.each {
+            app.tasks.matching { it.name.startsWith('compileGeneric') && it.name.endsWith('AndroidTestKotlin') }.each {
                 it.getSourceFileFilter().exclude('**/com/junkfood/**')
                 it.doFirst {
                     assert !it.sources.files.any { file -> file.path.replace('\\', '/').contains('/com/junkfood/') }

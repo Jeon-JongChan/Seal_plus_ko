@@ -2,6 +2,7 @@
 @{
     BuildTask = ':app:assembleDebug'
     TestTask = ':app:testDebugUnitTest'
+    TestApkTask = ':app:assembleDebugAndroidTest'
     ApkDirectory = 'app/build/outputs/apk/debug'
     ApplicationId = ''
     ApiLevel = 35
