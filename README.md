@@ -1,4 +1,56 @@
-﻿<div align="center">
+# Seal Plus — 변경 사항 / Changes
+
+Seal 기반 Android 미디어 다운로더 확장판.
+An extended Android media downloader based on Seal.
+
+## Seal 원본 대비 / Compared with upstream Seal
+
+| 기능 / Feature | 한국어 / Korean | English |
+| --- | --- | --- |
+| 플러그인 / Plugins | 13개 기능 개별 활성화. 기본 비활성. 설정·기록 보존. | 13 independently enabled features. Disabled by default. Settings and history retained. |
+| 소셜 미디어 / Social media | Instagram·TikTok 이미지·영상 및 혼합 게시글 선택 다운로드. | Selective downloads of Instagram and TikTok images, videos, and mixed posts. |
+| 목록 다운로드 / List downloads | 계정·게시글 목록 조회. 개별·전체 다운로드. | Account and post lists. Individual or batch downloads. |
+| 미디어 처리 / Media processing | AV1 변환·컨테이너 선택·기존 파일 재사용. | AV1 conversion, container selection, and existing file reuse. |
+| 라이브러리 / Library | 폴더·해상도별 분류. 이동한 파일과 게시글 연결. | Folder and resolution sorting. Post matching for moved files. |
+| 대기열 / Queue | 게시글 묶음·정렬·선택 관리. 5개씩 추가 표시. | Grouped posts, sorting, and selection. Load five more at a time. |
+| 입력·메뉴 / Input and menus | 통합 입력·메뉴 즐겨찾기·빠른 쿠키 선택. | Unified input, menu favorites, and quick cookie selection. |
+| AI 이미지 / AI images | 이미지 복원·확대. 공유 모델·상세 조정·비교·교체 또는 복제. | Image restoration and upscaling. Shared models, controls, comparison, replace or save a copy. |
+| AI 동영상 / AI videos | QuickSRNet Small 기본·간편 최대 Medium. 모델 공유·FPS 선택·RIFE Vulkan 보간. | QuickSRNet Small by default; Medium for the maximum preset. Shared models, FPS selection, and RIFE Vulkan interpolation. |
+| 자주 방문하는 계정 / Frequent accounts | 기본 정렬은 받은 게시글 수. 프로필·게시글 바로 열기. | Default sorting by downloaded post count. Open profiles and posts directly. |
+| 게시글 정보 / Post details | 프로필 사진·계정명·본문·태그 표시 선택. | Optional avatars, usernames, captions, and hashtags. |
+| 저장폴더 / Save folders | 기존 폴더 등록·요청별 선택·퀵 폴더 전환. | Register existing folders, choose per request, and switch quick folders. |
+| 얼굴 분류 / Face sorting | YuNet·MediaPipe 판별. NOFACE 게시글 연결 유지·변경 작업 제외. | YuNet and MediaPipe detection. NOFACE keeps post matching and is excluded from processing. |
+| 공유 메뉴 / Share menu | 빠른 다운로드만 기본 표시. 한 기능 선택 시 바로 실행. | Quick download is the default share action. A single selected action opens directly. |
+| 뷰어 / Viewer | 전체 화면·핀치 확대·반투명 배율. 재생바·음량 분리. | Full screen, pinch zoom, and translucent zoom indicator. Separate seek and volume controls. |
+| 다운로드창 / Download dialog | 형식 선택 한 줄·링크 입력 두 줄. 재시도·쿠키·로그 보기 한 줄. | One format row, two link-input lines, and one row for retry, cookies, and logs. |
+| 쿠키 / Cookies | 재시도 쿠키는 현재 요청에만 적용. | Retry cookies apply only to the current request. |
+| 공통 구조 / Shared structure | 파사드·팩토리·전략/어댑터·템플릿. 공통 기능은 항시 활성. | Facades, factories, strategies/adapters, and templates. Shared services are always enabled. |
+
+## 빌드·개발 / Build and development
+
+- Android 7.0 이상 / Android 7.0 or later.
+- Windows 포터블 환경 / Portable Windows toolchain: JDK·SDK·Gradle·AVD → `.build/`.
+- 원본 소스 보존·확장 코드 분리 / Upstream sources preserved; extensions in `app/src/main/java/com/plugin/`.
+- GPU·NPU: 호환 모델·기기 필요 / GPU/NPU: compatible models and devices required.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File Setup-Portable.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .build/Build.ps1
+```
+
+- [설치·빌드 안내 / Setup and build guide](.build/README.md)
+- [플러그인·공통 API / Plugins and shared APIs](app/src/main/java/com/plugin/README.md)
+- [의존성 버전 / Dependency versions](gradle/libs.versions.toml)
+
+RIFE 네이티브 빌드: NDK·CMake 준비 후 `.build/Seal/native/rife/Build.ps1` 실행.
+RIFE native build: install NDK and CMake, then run `.build/Seal/native/rife/Build.ps1`.
+
+## 원본 Seal 안내 / Upstream Seal information
+
+아래 배지·다운로드·스크린샷·연락처는 원본 Seal 기준.
+The badges, downloads, screenshots, and contacts below refer to upstream Seal.
+
+<div align="center">
 
 <img width="" src="fastlane/metadata/android/en-US/images/icon.png"  width=160 height=160  align="center">
 
@@ -55,77 +107,6 @@ English
 
 </div>
 
-
-## Seal Plus 현재 변경 사항 (2026-10-09)
-
-이 저장소는 Seal 기반의 수정본입니다. 아래 내용은 이 프로젝트에서 추가·변경한 기능이며, 기존 상단 배지와 다운로드 링크는 원본 프로젝트를 가리킵니다. 이 수정본의 APK는 직접 빌드해야 하며 원본 배포 APK에 아래 기능이 포함되어 있다고 보장하지 않습니다.
-
-### 추가 기능과 편의성 개선
-
-| 번호 | 적용 내용 | 사용 방식·기준 |
-| --- | --- | --- |
-| 1 | 빠른 다운로드의 쿠키 설정 | 공통 다운로드 설정에서 사용 여부와 프로필 선택. 사용자가 켠 경우에만 적용합니다. |
-| 2 | 미디어 파일 관리와 폴더 분류 | 파일 크기와 길이로 평균 비트레이트 계산. 기본 경계 4Mbps, 설정 범위 1–100Mbps. 길이 조회 실패 시 미분류입니다. |
-| 3 | 이동한 파일의 중복 다운로드 방지 | 기록과 실제 파일을 확인하고 다운로드 루트·하위 폴더·선택한 SAF 트리에서 재탐색합니다. 내용 해시·영상 유사도 검사는 아닙니다. |
-| 4 | Instagram 이미지 다운로드 | 이미지·영상 구분, 이미지 MIME·파일 검증 후 저장. |
-| 5 | Instagram 계정 저장·목록 조회 | 계정 이름을 저장하고 접근 가능한 feed·clips를 페이지 순회합니다. 로그인 쿠키는 사용자가 지정한 경우에만 사용합니다. |
-| 6 | 혼합 캐러셀 선택 다운로드 | 이미지·영상을 개별 항목으로 선택하고 유형을 필터링합니다. 해상도는 서버가 제공한 후보 중 선택합니다. |
-| 7 | AV1 변환과 원본 대체 | 옵션 선택 시 FFmpeg libsvtav1으로 변환하고 검증한 출력의 이름 확정 후 원본을 삭제합니다. 기본 CRF 32, 조정 범위 20–50입니다. |
-
-직접 입력한 여러 HTTP(S) 링크의 추출·중복 제거도 개선했습니다. AV1과 자동 폴더 분류는 기본적으로 꺼져 있습니다. 비트레이트 분류는 압축 효율·오디오 크기 등에 영향을 받으므로 체감 화질 점수는 아닙니다. 변환 확정 전 실패·취소 시 원본을 보존하며, 확정 후 분류 실패까지 원본을 복구하는 구조는 아닙니다.
-
-Instagram API 변경·호출 제한·접근 권한에 따라 목록 조회가 실패하거나 제한될 수 있습니다. 비공개 계정은 로그인 계정의 접근 권한이 필요합니다. AI 유사 영상 판별은 구현하지 않았습니다. 이미지 AI 화질 향상은 선택 플러그인으로 제공하며 LiteRT와 ONNX 실행을 지원합니다.
-
-### 라이브러리와 빌드 설정
-
-| 항목 | 이전 → 현재 |
-| --- | --- |
-| Android Gradle Plugin | 8.7.2 → 8.13.2 |
-| AppCompat / Coil / Serialization | 1.7.0 → 1.7.1 / 2.5.0 → 2.7.0 / 1.7.2 → 1.7.3 |
-| OkHttp | 5.0.0-alpha10 → 4.12.0, Kotlin 2.0과 호환되는 정식판 사용 |
-| Room | 2.6.1 → 2.7.2, KSP2 활성화·공백 경로의 스키마 인자 처리 수정 |
-| Espresso / AndroidX Test Ext | 3.5.0 → 3.6.1 / 1.1.4 → 1.2.1 |
-| youtubedl-android·FFmpeg·aria2c 래퍼 | 0.17.3 → 0.18.1, 업스트림 사전 릴리스 |
-
-Kotlin 2.4.21·Gradle 8.13·KSP 2.3.12와 Kotlin 2.4 호환 R8 9.1.29를 사용하며 compile/target SDK 35, min SDK 24를 사용합니다. Room DB 버전 5와 기존 자동 마이그레이션은 유지했습니다. 전체 버전은 [버전 목록](gradle/libs.versions.toml)에서 확인할 수 있습니다. 모든 의존성을 절대 최신 버전으로 올린 것은 아니며 기존 코드와 호환되는 조합을 사용합니다.
-
-확인한 번들 엔진은 FFmpeg 7.1.1·aria2c 1.37.0·yt-dlp 2025.11.12입니다. 래퍼 버전과 실제 엔진 버전은 다릅니다. yt-dlp는 오래된 버전 경고를 표시하며 기존 앱의 엔진 업데이트 경로를 사용할 수 있습니다. 이 경로가 FFmpeg 전체 번들을 업데이트하지는 않습니다.
-
-### Windows 포터블 빌드
-
-JDK·SDK·Gradle 캐시·AVD를 프로젝트의 `.build/`에 모았습니다. Android Studio 없이 Windows x64 PowerShell에서 실행할 수 있습니다. GitHub에서 코드만 내려받은 뒤 프로젝트 루트에서 사용합니다. 설치와 첫 빌드에는 인터넷이 필요하고, SDK 라이선스에 동의하고 설치합니다. 시스템 환경 변수는 변경하지 않습니다.
-
-```powershell
-# 최초 설치와 빌드
-powershell -NoProfile -ExecutionPolicy Bypass -File Setup-Portable.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File .build/Build.ps1
-
-# 기본은 APK만 생성. 단위 테스트까지 실행하려면 -Test
-powershell -NoProfile -ExecutionPolicy Bypass -File .build/Build.ps1 -Test
-
-# 필요한 의존성이 준비된 경우 오프라인 빌드
-powershell -NoProfile -ExecutionPolicy Bypass -File .build/Build.ps1 -Offline
-
-# 에뮬레이터 준비와 부팅 후 앱 자동 실행
-powershell -NoProfile -ExecutionPolicy Bypass -File Setup-Portable.ps1 -Emulator
-powershell -NoProfile -ExecutionPolicy Bypass -File Start-App.ps1
-```
-
-APK는 `app/build/outputs/apk/generic/debug/`에 생성합니다. 에뮬레이터는 x86_64 APK를 사용하고 실제 기기는 해당 ABI 또는 Universal APK를 사용합니다. 설치 진입점과 `.build/`의 실행 스크립트·README는 Git에 포함하며, 도구·캐시·AVD·로그는 제외합니다. 다른 PC에서는 설치 스크립트를 다시 실행하거나 기존 `.build/` 전체를 복사할 수 있습니다. 에뮬레이터는 대상 PC의 CPU 가상화와 Windows Hypervisor Platform이 필요합니다. GPU 기본값은 `auto`이며 `-Gpu host`로 강제하거나 드라이버 문제 시 `-Gpu software`로 실행할 수 있습니다. 실행 중인 AVD는 종료 후 재실행해야 변경 옵션이 적용됩니다.
-
-설치 스크립트는 루트 `Start-App.ps1`도 생성합니다. 이 명령은 에뮬레이터 창을 열고 부팅을 기다린 뒤, 빌드된 x86_64 Debug APK가 있으면 업데이트 설치하고 앱을 실행합니다. 루트 Gradle의 `build/` 출력은 `.build/Seal/gradle-output/`으로 통합했으며, APK 출력 경로는 유지됩니다.
-
-### 검증과 상세 문서
-
-단위 테스트 6개와 API 35 x86_64 Android 테스트 2개가 통과했습니다. 실제 FFmpeg AV1 변환·원본 대체·분류·이동 후 중복 탐색, 로컬 HTTP 영상 다운로드, 공백 있는 새 경로에서 오프라인 APK 빌드를 검증했습니다. 이동 검증은 같은 PC에서 대용량 도구·캐시를 junction으로 재사용했으며 다른 물리 PC에서 수행한 실험은 아닙니다.
-
-YouTube·Instagram 실사이트·로그인 쿠키·대량 목록·SAF 공급자·ARM 실기기·16KB 페이지 환경은 미검증입니다. ARM64 번들의 libwebp 정렬 관련 16KB 호환성 문제도 남아 있습니다. 외부 HTTPS 다운로드는 당시 에뮬레이터 DNS 오류로 실패하여 로컬 HTTP 검증과 구분합니다.
-
-- [포터블 환경 설치·실행·이동 안내](.build/README.md)
-- [코드 구조·데이터 흐름·변경 상세 HTML 보고서](.docs/20261009-0419-portable-build-and-code-report.html): 다크모드·오프라인 열람·밝은 배경 PDF 인쇄 지원.
-- [누적 변경·검증 기록](.docs/20261009-0157-dependency-and-link-improvements.md)
-
-`.docs/`는 Git 제외 경로이므로 상세 보고서는 해당 로컬 폴더를 함께 전달받아야 열립니다. 포터블 README와 스크립트는 코드와 함께 제공됩니다. 저장소만 전달할 때도 이 README에서 기능·버전·검증 요약은 확인할 수 있습니다.
 
 ## 📱 Screenshots
 
@@ -238,9 +219,3 @@ Some of the UI designs and codes are borrowed from [Read You](https://github.com
 <a href="#start-of-content">👆 Scroll to top</a>
 </td></table>
 </div>
-
-## 번역과 내장 기능 플러그인
-
-기존 지원 언어를 유지하면서 영어·한국어·스페인어의 미디어 설정, 인스타그램 목록, 즐겨찾기와 오류 안내를 번역했습니다. 기능별 문구는 각 `values*`의 `media_strings.xml`, `instagram_strings.xml`, `navigation_strings.xml`에서 관리합니다.
-
-추가 기능은 `app/src/main/java/com/plugin/`의 내장 플러그인으로 분리하며 **플러그인 관리**에서 13개 기능을 각각 켜고 끕니다. 기존 설치와 신규 설치 모두 처음에는 꺼져 있고, 꺼도 기존 파일·작업·세부 설정은 유지됩니다. AI 이미지·동영상 화질개선은 모델을 공유하며 영상 기본은 QuickSRNet Small, 간편 최대는 Medium입니다. 공유 메뉴는 기본 빠른 다운로드 하나이며 공유 메뉴 플러그인에서 변경합니다. 원본 소스·DB 호환성은 유지합니다. [기능 코드·번역 추가 안내](app/src/main/java/com/plugin/README.md)를 참고하세요. 번역 검사: `powershell -NoProfile -ExecutionPolicy Bypass -File .build/Seal/Test-Localization.ps1`.
