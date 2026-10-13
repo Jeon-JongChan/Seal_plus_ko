@@ -1,7 +1,6 @@
 package com.plugin.compatibility
 
 import com.junkfood.seal.util.DownloadUtil.DownloadPreferences
-import java.util.concurrent.ConcurrentHashMap
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.referentialEqualityPolicy
@@ -41,21 +40,23 @@ data class PluginPreferencesRecord(
     val listProcessing: Boolean = false,
 )
 
-private val preferenceOptionsMap = ConcurrentHashMap<Int, PluginPreferencesRecord>()
-
-private fun DownloadPreferences.prefKey(): Int = System.identityHashCode(this)
+// 이미 설치된 Guava의 약한 식별 키로 동일 값의 요청을 구별하고 소멸한 화면 설정을 회수합니다.
+private val preferenceOptionsMap = com.google.common.collect.MapMaker().weakKeys()
+    .makeMap<DownloadPreferences, PluginPreferencesRecord>()
+private val defaultPluginOptions = PluginPreferencesRecord()
 
 /** 플러그인 옵션을 DownloadPreferences에 연결합니다. */
 fun DownloadPreferences.attachPluginOptions(record: PluginPreferencesRecord): DownloadPreferences {
-    preferenceOptionsMap[prefKey()] = record
+    preferenceOptionsMap[this] = record
     return this
 }
 
+/** 등록하지 않은 원본 요청의 기본 옵션은 매번 생성하지 않고 공유합니다. */
 private fun DownloadPreferences.getRecord(): PluginPreferencesRecord =
-    preferenceOptionsMap[prefKey()] ?: PluginPreferencesRecord()
+    preferenceOptionsMap[this] ?: defaultPluginOptions
 
 /** 대기열 백업에 연결할 요청 당시 확장 설정이며 연결되지 않은 구형 요청은 null입니다. */
-fun DownloadPreferences.storedPluginOptions(): PluginPreferencesRecord? = preferenceOptionsMap[prefKey()]
+fun DownloadPreferences.storedPluginOptions(): PluginPreferencesRecord? = preferenceOptionsMap[this]
 
 /** 기본 모델 필드를 바꿀 때 요청에 연결한 확장 옵션도 새 사본에 보존합니다. */
 fun DownloadPreferences.copyPreservingPluginOptions(
@@ -64,7 +65,7 @@ fun DownloadPreferences.copyPreservingPluginOptions(
 
 /** 원본 화면의 요청에만 저장된 확장 옵션을 보완하고 이미 선택한 옵션은 유지합니다. */
 fun DownloadPreferences.withStoredPluginOptions(): DownloadPreferences =
-    if (preferenceOptionsMap.containsKey(prefKey())) this
+    if (preferenceOptionsMap.containsKey(this)) this
     else com.plugin.runtime.PluginDownloadUtil.configure(this)
 
 /** 원본 저장값과 활성 플러그인 설정을 함께 읽습니다. */

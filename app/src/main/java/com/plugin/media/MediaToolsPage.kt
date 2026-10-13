@@ -36,7 +36,7 @@ fun MediaToolsPage(onBack: () -> Unit) {
 }
 
 /** 미디어 설정 화면과 메뉴를 공통 등록부에 제공하는 내장 플러그인입니다. */
-object MediaSettingsPlugin : FeaturePlugin {
+object MediaSettingsPlugin : FeaturePlugin() {
     override val id = com.plugin.PluginId.MEDIA
     override val route = PluginRoutes.MEDIA_TOOLS
     override val titleResource = R.string.loc_media_tools
@@ -44,7 +44,7 @@ object MediaSettingsPlugin : FeaturePlugin {
 
     /** 영상 인코딩 설정 화면을 표시합니다. */
     @Composable
-    override fun Content(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) {
+    override fun RenderContent(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) {
         MediaToolsPage(onBack)
     }
 }

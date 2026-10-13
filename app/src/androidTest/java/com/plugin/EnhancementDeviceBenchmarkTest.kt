@@ -5,7 +5,7 @@ import android.graphics.Color
 import android.os.Bundle
 import android.os.SystemClock
 import androidx.test.platform.app.InstrumentationRegistry
-import com.plugin.enhancement.*
+import com.plugin.compatibility.enhancement.*
 import com.google.ai.edge.litert.*
 import kotlinx.coroutines.runBlocking
 import org.json.JSONArray

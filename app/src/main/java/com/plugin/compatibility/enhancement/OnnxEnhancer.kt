@@ -1,4 +1,4 @@
-package com.plugin.enhancement
+package com.plugin.compatibility.enhancement
 
 import ai.onnxruntime.*
 import ai.onnxruntime.providers.NNAPIFlags
@@ -16,22 +16,22 @@ import kotlin.math.roundToInt
 object OnnxEnhancer {
     /** 지원 GPU·NPU를 자동 활용하고 네이티브 가속 오류일 때만 CPU로 재시도합니다. */
     suspend fun process(source: Bitmap, model: String, target: Pair<Int, Int>, progress: (Int) -> Unit,
-        accelerated: Boolean, engine: (String) -> Unit, cpuThreads: Int = 2): Bitmap {
+        accelerated: Boolean, engine: (String) -> Unit, cpuThreads: Int = 2, sampling: Int = EnhancementSampling.BILINEAR): Bitmap {
         if (accelerated && Build.VERSION.SDK_INT >= 29 && OrtProvider.NNAPI in OrtEnvironment.getAvailableProviders()) {
             try {
                 engine("NNAPI 가속 요청 · 첫 타일 실행 확인 중")
-                return run(source, model, target, progress, true, engine, cpuThreads)
+                return run(source, model, target, progress, true, engine, cpuThreads, sampling)
             } catch (_: OrtException) {
                 // 가속 드라이버·모델 지원 오류는 원본에서 CPU로 다시 시작합니다.
                 currentCoroutineContext().ensureActive()
             }
         }
         engine(if (accelerated) "CPU 대체 요청 · 첫 타일 실행 확인 중" else "CPU 요청 · 첫 타일 실행 확인 중")
-        return run(source, model, target, progress, false, engine, cpuThreads)
+        return run(source, model, target, progress, false, engine, cpuThreads, sampling)
     }
 
     /** 모델 세션과 타일 버퍼를 요청 안에서만 소유해 다운로드와 실행 자원을 공유하지 않습니다. */
-    private suspend fun run(source: Bitmap, model: String, target: Pair<Int, Int>, progress: (Int) -> Unit, accelerated: Boolean, engine: (String) -> Unit, cpuThreads: Int): Bitmap {
+    private suspend fun run(source: Bitmap, model: String, target: Pair<Int, Int>, progress: (Int) -> Unit, accelerated: Boolean, engine: (String) -> Unit, cpuThreads: Int, sampling: Int): Bitmap {
         val environment = OrtEnvironment.getEnvironment()
         OrtSession.SessionOptions().use { options ->
             if (accelerated) {
@@ -81,7 +81,7 @@ object OnnxEnhancer {
                 var resultFloats = FloatArray(0)
                 OnnxTensor.createTensor(environment, buffer, longArrayOf(1, 3, tileHeight.toLong(), tileWidth.toLong())).use { tensor ->
                     val feed = mapOf(session.inputNames.single() to tensor)
-                    return ImageTiles.process(source, target, tileWidth, tileHeight, true, progress, inspect) { floats, consume ->
+                    return ImageTiles.process(source, target, tileWidth, tileHeight, true, progress, inspect, sampling) { floats, consume ->
                         buffer.clear(); buffer.put(floats); buffer.rewind()
                         session.run(feed).use { result ->
                             val image = result[0] as? OnnxTensor ?: error("이미지 결과 텐서가 아닙니다.")

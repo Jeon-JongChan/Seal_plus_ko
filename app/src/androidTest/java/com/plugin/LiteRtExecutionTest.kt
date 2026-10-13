@@ -3,7 +3,7 @@ package com.plugin
 import android.graphics.Bitmap
 import android.graphics.Color
 import androidx.test.platform.app.InstrumentationRegistry
-import com.plugin.enhancement.*
+import com.plugin.compatibility.enhancement.*
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test

@@ -44,7 +44,9 @@ class FaceDetector(private val context: Context, model: String, private val thre
                 mediaPipe = createMediaPipe(if (gpu) Delegate.GPU else Delegate.CPU)
                 engine = if (gpu) "MediaPipe · GPU" else "MediaPipe · CPU"
             } catch (failure: RuntimeException) {
+                if (!gpu) throw failure
                 android.util.Log.w("FaceDetector", "GPU 초기화 실패로 CPU 사용", failure)
+                gpu = false
                 mediaPipe = createMediaPipe(Delegate.CPU)
                 engine = "MediaPipe · CPU 대체"
             }
@@ -73,6 +75,7 @@ class FaceDetector(private val context: Context, model: String, private val thre
 
     /** 얼굴이 하나라도 검출되면 원래 위치를 유지합니다. */
     fun hasFace(bitmap: Bitmap): Boolean {
+        require(!bitmap.isRecycled) { "이미 해제된 이미지는 검사할 수 없습니다." }
         liteRt?.let { detector ->
             require(bitmap.width <= resolution && bitmap.height <= resolution)
             val input = gpuInput ?: FloatArray(resolution * resolution * 3).also { gpuInput = it }
@@ -96,7 +99,9 @@ class FaceDetector(private val context: Context, model: String, private val thre
             catch (failure: LinkageError) { useOnnxCpu(failure) }
         }
         mediaPipe?.let { detector ->
-            val image = BitmapImageBuilder(bitmap).build()
+            // MPImage.close()는 전달받은 Bitmap을 해제하므로 호출자가 소유한 입력은 복사합니다.
+            val image = BitmapImageBuilder(bitmap.copy(Bitmap.Config.ARGB_8888, false)
+                ?: error("얼굴 검사 이미지를 준비할 수 없습니다.")).build()
             try {
                 return try { detector.detect(image).detections().isNotEmpty() }
                 catch (failure: RuntimeException) {

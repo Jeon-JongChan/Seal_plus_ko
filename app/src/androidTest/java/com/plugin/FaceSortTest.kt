@@ -19,6 +19,81 @@ import java.util.UUID
 
 /** 테스트가 생성한 캐시 이미지로만 두 모델과 무손실 폴더 분류를 검사합니다. */
 class FaceSortTest {
+    /** 폴더 이름이 보이지 않는 SAF ID도 읽기 메타데이터를 보존하고 변경 작업에서 제외합니다. */
+    @Test fun opaqueNoFaceIdExcludesProcessingOnly(): Unit = runBlocking {
+        val path = "content://test-provider/tree/root/document/${UUID.randomUUID()}.png"
+        try {
+            PluginMediaMetadataStore.save(path, postPageIndex = 2, postPageCount = 3, excludedFromProcessing = true)
+            assertEquals(3, PluginMediaMetadataStore.get(path)?.postPageCount)
+            assertTrue(PluginMediaMetadataStore.isProcessingExcluded(path))
+            assertTrue(com.plugin.compatibility.enhancement.EnhancementRules.postImages(listOf(path)).isEmpty())
+            val preferences = DownloadPreferences.EMPTY.copy(sdcard = false)
+            assertEquals(path, MediaLibrary.classify(MediaLibrary.MediaFile(path, "page.png", 10, 0.0), preferences))
+            PluginMediaMetadataStore.save(path, excludedFromProcessing = false)
+            assertEquals(3, PluginMediaMetadataStore.get(path)?.postPageCount)
+            assertFalse(PluginMediaMetadataStore.isProcessingExcluded(path))
+            assertEquals(listOf(path), com.plugin.compatibility.enhancement.EnhancementRules.postImages(listOf(path)))
+        } finally { PluginMediaMetadataStore.delete(path) }
+    }
+    /** 얼굴 분류로 이동한 사진도 원래 게시글에 연결되고 읽기 검색만 허용됩니다. */
+    @Test fun noFaceKeepsPostMatching(): Unit = runBlocking {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        check(context.packageName.endsWith(".devicecheck")) { "전용 검사 앱에서만 실행합니다." }
+        val fixture = File(context.cacheDir, "noface-post-${UUID.randomUUID()}").apply { mkdirs() }
+        val oldRoot = App.videoDownloadDir
+        val id = UUID.randomUUID().toString()
+        val source = File(fixture, "post [$id].png")
+        val url = "https://www.instagram.com/p/$id/"
+        var moved: String? = null
+        try {
+            App.videoDownloadDir = fixture.path
+            val bitmap = Bitmap.createBitmap(32, 24, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.GRAY) }
+            try { source.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) } }
+            finally { bitmap.recycle() }
+            PluginDatabaseUtil.insertInfoImmediately(DownloadedVideoInfo(0, "게시글", "작성자", url, source.path,
+                source.path, "Instagram"))
+            val preferences = DownloadPreferences.EMPTY.copy(sdcard = false, privateDirectory = false)
+            moved = FaceFolders.move(context, FaceFolders.candidates(context, preferences, false).single())
+            val recognized = MediaLibrary.listVideos(preferences).single()
+            assertEquals(moved, recognized.path)
+            assertEquals(moved, MediaLibrary.resolveDownloadedPath(source.path, preferences))
+            assertEquals(listOf(moved), MediaLibrary.findExisting(com.junkfood.seal.util.VideoInfo(
+                id = id, webpageUrl = url, ext = "png"), preferences))
+            val saved = PluginDatabaseUtil.getDownloadHistory().single { it.videoPath == moved }
+            assertEquals(url, saved.videoUrl)
+            assertEquals("작성자", saved.videoAuthor)
+            assertEquals(moved, MediaLibrary.classify(recognized, preferences))
+            assertTrue(FaceFolders.candidates(context, preferences, false).none())
+            assertTrue(com.plugin.compatibility.enhancement.EnhancementRules.postImages(listOf(moved!!)).isEmpty())
+        } finally {
+            PluginDatabaseUtil.deleteInfoByPath(source.path)
+            moved?.let { PluginDatabaseUtil.deleteInfoByPath(it) }
+            App.videoDownloadDir = oldRoot
+            fixture.walkBottomUp().forEach { it.delete() }
+        }
+    }
+
+    /** 배포 축소 후에도 MediaPipe JNI 초기화와 두 장치 선택의 실제 판독을 검사합니다. */
+    @Test fun mediaPipeCpuAndGpuDetectFaces() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        val portrait = instrumentation.context.assets.open("face-sort/portrait.jpg").use {
+            android.graphics.BitmapFactory.decodeStream(it)
+        } ?: error("검사 얼굴을 읽을 수 없습니다.")
+        val blank = Bitmap.createBitmap(321, 181, Bitmap.Config.ARGB_8888).apply { eraseColor(Color.GRAY) }
+        try {
+            for (backend in listOf("cpu", "gpu")) {
+                FaceDetector(context, "mediapipe", 0.5f, 640, backend).use { detector ->
+                    assertTrue("$backend 얼굴 미검출", detector.hasFace(portrait))
+                    assertFalse("$backend 빈 화면 오검출", detector.hasFace(blank))
+                    assertTrue("$backend 반복 얼굴 미검출", detector.hasFace(portrait))
+                    assertFalse("호출자의 원본 비트맵을 해제했습니다.", portrait.isRecycled)
+                    android.util.Log.i("FaceMediaPipeCheck", "$backend: ${detector.engine}")
+                }
+            }
+        } finally { blank.recycle(); portrait.recycle() }
+    }
+
     /** Android LiteRT API의 입력 이름·버퍼·점수가 검증된 ONNX 기준값과 일치합니다. */
     @Test fun yuNetLiteRtAndroidTensorContract() {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
@@ -112,6 +187,11 @@ class FaceSortTest {
             assertTrue(File(already, "sample.png").exists())
             val saved = PluginDatabaseUtil.getDownloadHistory().single { it.videoPath == moved }
             assertEquals(moved, saved.thumbnailUrl); assertEquals(moved, saved.videoUrl)
+            val recognized = MediaLibrary.listVideos(prefs)
+            assertTrue("NOFACE 파일이 라이브러리에서 사라졌습니다.", recognized.any { it.path == moved })
+            assertEquals(moved, MediaLibrary.classify(recognized.single { it.path == moved }, prefs))
+            assertTrue("NOFACE 파일을 다시 작업 대상으로 선택했습니다.",
+                FaceFolders.candidates(context, prefs, true).none { it.file.path == moved })
             assertFalse(File(hotQuality, "NOFACE").exists())
             val single = FaceFolders.candidates(context, prefs, false).first()
             assertEquals(fixture.path, single.destinationParent)

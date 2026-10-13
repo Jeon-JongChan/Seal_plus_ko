@@ -1,4 +1,4 @@
-package com.plugin.enhancement
+package com.plugin.compatibility.enhancement
 
 import android.content.Context
 import android.graphics.Bitmap

@@ -60,7 +60,7 @@ fun WallpaperPreviewDialog(
     initialIndex: Int = 0,
     onDismissRequest: () -> Unit,
 ) {
-    val pages = pages.filterNot { com.plugin.compatibility.MediaRules.isNoFacePath(it.pathOrUrl) }
+    val pages = pages.filterNot { com.plugin.compatibility.PluginMediaMetadataStore.isProcessingExcluded(it.pathOrUrl) }
     if (pages.isEmpty()) return
     var selectedIndex by remember(pages) { mutableIntStateOf(initialIndex.coerceIn(0, pages.size - 1)) }
     var targetScreen by remember { mutableIntStateOf(WallpaperHelper.TARGET_BOTH) }

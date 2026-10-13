@@ -163,7 +163,8 @@ private fun InputUrlPageImpl(
             onValueChange = { url = it },
             modifier = Modifier.fillMaxWidth().padding(top = 8.dp).padding(horizontal = 32.dp),
             label = { Text(stringResource(R.string.loc_media_link)) },
-            maxLines = 3,
+            minLines = 2,
+            maxLines = 2,
             trailingIcon = {
                 if (url.isNotEmpty()) {
                     ClearButton { url = "" }

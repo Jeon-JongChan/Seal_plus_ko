@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="plugin_face_sort">얼굴 없는 사진 분류</string>
+    <string name="plugin_face_sort_desc">YuNet·MediaPipe로 이미지만 검사하고 얼굴 없는 사진을 NOFACE 폴더로 모읍니다.</string>
+    <string name="plugin_view_log">로그 보기</string>
+    <string name="plugin_share_menu">공유 메뉴</string>
+    <string name="plugin_share_menu_desc">Seal+로 공유할 때 표시할 기능을 선택합니다. 최소 한 개를 선택하며, 하나만 선택하면 해당 기능이 바로 열립니다. 플러그인을 끄면 빠른 다운로드만 표시합니다.</string>
+</resources>

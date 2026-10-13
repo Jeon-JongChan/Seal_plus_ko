@@ -86,6 +86,8 @@ object FaceFolders {
             check(folder.isDirectory || folder.mkdir()) { "NOFACE 폴더를 만들 수 없습니다." }
             folder.absolutePath
         }
-        return MediaLibrary.moveToFolder(candidate.file, target, targetDocument)
+        return MediaLibrary.moveToFolder(candidate.file, target, targetDocument).also {
+            com.plugin.compatibility.PluginMediaMetadataStore.save(it, excludedFromProcessing = true)
+        }
     }
 }

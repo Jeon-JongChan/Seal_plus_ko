@@ -12,6 +12,10 @@
 | 선택 | QUEUE | 대기열 묶음·상세 정보, 5개씩 표시, 선택·삭제, 자체 뷰어 | `queue/` |
 | 선택 | INTERACTION | 통합 입력, 메뉴 즐겨찾기, 빠른 쿠키 선택 | `interaction/` |
 | 선택 | IMAGE_AI | 이미지 보정·업스케일, 모델 관리, 원본·결과 비교와 저장 | `enhancement/` |
+| 선택 | VIDEO_AI | QuickSRNet 영상 해상도 개선·RIFE GPU 프레임 보간 | `videoenhancement/` |
+| 선택 | SHARE_MENU | Android 공유 메뉴의 빠른 다운로드·앱 화면 선택 | `sharemenu/` |
+| 선택 | ACCOUNTS | 자주 방문하는 계정·받은 게시글 수 정렬 | `instagram/` |
+| 선택 | POST_INFO | 게시글 설명·링크·저장 메타데이터 | `instagram/` |
 | 선택 | FOLDERS | 기본 디렉터리 안의 기존 저장폴더 등록·요청별 선택 | `folders/` |
 | 선택 | FACE_SORT | YuNet·MediaPipe 얼굴 판별과 얼굴 없는 이미지의 NOFACE 분류 | `faces/` |
 
@@ -27,14 +31,77 @@
 
 선택 플러그인은 다른 선택 플러그인의 클래스나 함수를 직접 참조하지 않는다. 공통 API는 필수 기반을 사용하고 실행 등록은 `runtime/`이 담당한다. `FeaturePlugin`은 메뉴와 화면 진입 규약이며 목록 등록은 조합을 담당하는 진입점이다.
 
-LIST의 조회·다운로드·선택 구현은 자체 사본을 가지므로 SOCIAL을 켜지 않아도 계정과 이미지 목록을 처리한다. LIBRARY와 QUEUE의 뷰어·상세 UI도 자체 구현을 가진다. 공통 파일 엔진·메타데이터·계산 규칙은 필수 기반에서 제공한다. 중복 구현을 수정할 때 의도적으로 양쪽 동작을 바꾸는 경우에만 각각 수정한다.
+LIST는 SOCIAL을 켜지 않아도 계정과 이미지 목록을 처리한다. LIBRARY와 QUEUE의 게시글 뷰어는 필수 `compatibility/PostMediaViewer`를 공유한다. 공통 파일 엔진·메타데이터·계산 규칙·다운로드 옵션 UI도 필수 기반에서 제공한다.
+
+## 개발자용 공통 계약
+
+| 패턴 | 계약 | 역할 |
+| --- | --- | --- |
+| 파사드 | `FeaturePlugin` | 기능별 메뉴·화면·미디어 작업 진입점 |
+| 팩토리 | `PluginFactory.create(id)` | 등록된 기능의 기존 인스턴스 조회 |
+| 전략 | `PluginFactory.enabled()` | 현재 활성 기능의 처리 전략 선택 |
+| 템플릿 | `FeaturePlugin.Content()` → `RenderContent()` | 공통 활성 검사 후 기능 화면 실행 |
+| 어댑터 | `folderAwareDownloader()` | 원본 형식 선택을 요청별 옵션에 연결 |
+
+필수 공통 영역은 `compatibility/`와 `runtime/`이며 스위치로 비활성화하지 않는다. 새 기능은 `FeaturePlugin()`을 상속하고 `RenderContent()`와 필요한 작업 훅만 구현한 뒤 팩토리 목록에 등록한다.
+
+| 공통 API | 용도 |
+| --- | --- |
+| `createPluginPreferences()` | 저장된 설정의 새 요청 사본 |
+| `copyPreservingPluginOptions()` | 기본 필드를 바꿀 때 확장 옵션 보존 |
+| `copyPluginOptions()` | 요청의 확장 옵션 변경 |
+| `storedPluginOptions()` | 백업할 확장 옵션 조회 |
+| `DownloadFormatButton()` | 한 줄 형식·모두 다운로드 선택 |
+| `AdditionalSettings()` | 쿠키·폴더·미디어 옵션 UI |
+| `PostMediaViewer()` | 사진·영상·제스처·재생 UI |
+| `MediaLibrary.listVideos()` | NOFACE 포함 라이브러리 읽기 |
+| `MediaLibrary.findExisting()` | 게시글의 실제 파일 검색 |
+| `MediaLibrary.resolveDownloadedPath()` | 이동한 파일 경로 복구 |
+| `MediaLibrary.classify()` | NOFACE 제외 화질 폴더 분류 |
+| `PluginDatabaseUtil.updateMediaPath()` | 이력·메타데이터 경로 갱신 |
+| `MediaRules.isNoFacePath()` | 변경 작업의 NOFACE 제외 판단 |
+| `PluginMediaMetadataStore.isProcessingExcluded()` | 불투명 SAF ID를 포함한 NOFACE 작업 제외 |
+| `ImagePluginActions()` | 활성 이미지 전략의 뷰어 작업 |
+| `VideoPluginActions()` | 활성 영상 전략의 뷰어 작업 |
+| `EnhancementModels.scan()` | 이미지·영상 공유 모델 목록 |
+| `ModelSettings(video)` | 공통 모델·장치·다운샘플링 설정 |
+| `EnhancementClient.enhanceVideo()` | 영상 작업 사본·격리 실행 |
+| `EnhancementFiles.save()` | 검증 후 교체·복제·이력 갱신 |
+| `ImageTiles.process()` | LiteRT·ONNX 공통 타일 처리 |
+| `SamplingSettings()` | 기본 양선형·최근접·영역 평균 선택 |
+| `FrameSettings()` | 원본 유지·24/25/30/50/60 FPS 선택 |
+| `ShareMenuSettings.synchronize()` | 공유 전용 별칭의 활성 상태 동기화 |
+| `RifeSession.interpolate()` | 두 원본 프레임 사이 Vulkan GPU 보간 |
+
+NOFACE는 읽기·게시글 연결을 허용하고 파일 변경 작업에서만 제외한다. 요청 옵션은 객체 식별 기준의 약한 키로 보관하므로 같은 값의 요청끼리 쿠키·폴더 옵션을 공유하지 않는다.
+
+공유 메뉴 기본값은 빠른 다운로드 하나다. SHARE_MENU를 켜면 빠른 다운로드·앱 화면 중 최소 하나를 선택한다. 공유 별칭만 변경하므로 실행 아이콘·기존 명시적 진입점은 유지한다. Android가 다른 앱과 함께 표시하는 시스템 공유 창은 OS가 관리한다. 오류 화면의 로그 보기는 로컬 오류 스택을 표시하며 쿠키 재시도는 새 요청의 기본값을 바꾸지 않는다.
+
+QUEUE의 기존 작업 모델·백업 타입은 직렬화 호환 계약이다. 선택 대기열 UI와 공통 실행 모델을 구분하며 타입 이름을 변경하지 않는다.
+
+공통 AI 구현은 `compatibility/enhancement/`에 둔다. 선택 플러그인은 설정·뷰어 작업만 연결한다. QuickSRNet Small은 영상 기본·최소, Medium은 간편 최대이며, 직접 선택에서는 이미지와 같은 Real-ESRGAN 파일을 사용할 수 있다. 프레임 증가만 RIFE Vulkan을 사용하며 소프트웨어 Vulkan을 실제 GPU로 표시하지 않는다. 모델은 첫 보간 시 약 10MB를 받는다. NPU 런타임은 선택 시 약 41MB를 별도 다운로드하며 GPU·CPU 사용에는 필요하지 않다.
+
+```mermaid
+flowchart LR
+    F[PluginFactory] --> T[FeaturePlugin 공통 진입 템플릿]
+    T --> I[이미지 파사드]
+    T --> V[영상 파사드]
+    I --> C[공통 작업·저장 어댑터]
+    V --> C
+    C --> S[LiteRT 또는 ONNX 전략]
+    V --> R[RIFE Vulkan 보간]
+    R --> S
+```
 
 이 구조는 기능별 실행과 직접 코드 참조의 분리다. 독립 Gradle 모듈·별도 APK·외부 파일 동적 로딩이나 독립 업데이트 구조는 아니다. 기능을 소스에서 제거하려면 조합 진입점의 등록과 호출도 함께 정리해야 한다.
 
 ## 검사
 
+새 체크아웃은 `.build/Setup.ps1`로 Android 도구를 준비하고 NDK `29.0.13846066`·CMake `3.22.1` 설치 뒤 `.build/Seal/native/rife/Build.ps1`을 먼저 실행한다. 고정 RIFE/ncnn 소스를 검증하고 네 ABI의 JNI를 `.build/Seal/runtime/rife/jniLibs/`에 만든다. 빌드 캐시·SDK·가중치는 Git과 APK에 포함하지 않는다. APK에는 생성한 JNI·작은 QuickSRNet 모델·라이선스만 넣는다.
+
 ```powershell
 python -X utf8 .build/Seal/Test-PluginIsolation.py
+python -X utf8 .build/Seal/Test-ShareMenu.py
 powershell -NoProfile -ExecutionPolicy Bypass -File .build/Seal/Test-Localization.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .build/Build.ps1 -Offline -Test :app:assembleGenericDebug :app:assembleGenericDebugAndroidTest
 ```

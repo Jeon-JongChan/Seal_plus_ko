@@ -155,7 +155,8 @@ android {
     }
 
 
-    sourceSets.getByName("main").jniLibs.srcDir(rootProject.file(".build/Seal/runtime/qualcomm/jniLibs"))
+    // 큰 Qualcomm SDK 런타임은 NPU를 선택할 때 고정 해시를 확인하여 내려받습니다.
+    sourceSets.getByName("main").jniLibs.srcDir(rootProject.file(".build/Seal/runtime/rife/jniLibs"))
 
     packaging {
         resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }

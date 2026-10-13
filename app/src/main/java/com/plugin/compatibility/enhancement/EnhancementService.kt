@@ -1,4 +1,4 @@
-package com.plugin.enhancement
+package com.plugin.compatibility.enhancement
 
 import android.app.Service
 import android.content.Intent
@@ -15,18 +15,27 @@ open class EnhancementService : Service() {
     private var job: Job? = null
     private val messenger = Messenger(Handler(Looper.getMainLooper()) { message ->
         if (message.what == CANCEL) {
+            VideoEnhancer.stop()
             // 네이티브 추론도 즉시 끝내되 다운로드 프로세스에는 영향을 주지 않습니다.
             Process.killProcess(Process.myPid())
         } else if (message.what == RUN && job?.isActive != true) {
             val data = Bundle(message.data); val reply = message.replyTo
             job = scope.launch {
                 try {
-                    process(data) { percent -> send(reply, PROGRESS, Bundle().apply { putInt("progress", percent); putString("engine", data.getString("engine")) }) }
+                    if (data.getBoolean("video")) foregroundVideo()
+                    var lastProgress = -1; var lastEngine: String? = null
+                    process(data) { percent ->
+                        val engine = data.getString("engine")
+                        if (percent != lastProgress || engine != lastEngine) {
+                            lastProgress = percent; lastEngine = engine
+                            send(reply, PROGRESS, Bundle().apply { putInt("progress", percent); putString("engine", engine) })
+                        }
+                    }
                     send(reply, DONE, data)
                 } catch (failure: Throwable) {
                     send(reply, FAILED, Bundle().apply { putString("error", if (failure is OutOfMemoryError)
                         "보정 메모리가 부족합니다. 더 낮은 해상도를 선택하세요." else failure.message ?: "이미지 보정에 실패했습니다.") })
-                }
+                } finally { if (data.getBoolean("video")) stopForeground(STOP_FOREGROUND_REMOVE) }
             }
         } else if (message.what == RUN) send(message.replyTo, FAILED, Bundle().apply { putString("error", "이미지 보정 작업이 실행 중입니다.") })
         true
@@ -37,6 +46,7 @@ open class EnhancementService : Service() {
 
     /** 화면 취소·종료 시 프로세스를 정리해 네이티브 메모리도 반환합니다. */
     override fun onUnbind(intent: Intent): Boolean {
+        VideoEnhancer.stop()
         scope.cancel()
         Process.killProcess(Process.myPid())
         return false
@@ -47,6 +57,7 @@ open class EnhancementService : Service() {
         val root = File(cacheDir, "image-ai").canonicalFile
         val directory = File(data.getString("directory") ?: error("작업 경로가 없습니다.")).canonicalFile
         require(directory.path.startsWith(root.path + File.separator)) { "잘못된 보정 작업 경로입니다." }
+        if (data.getBoolean("video")) { VideoEnhancer.process(this, directory, data, progress); return }
         val sourceFile = File(directory, "source")
         val decoded = ImageDecoder.decodeDrawable(ImageDecoder.createSource(sourceFile)) { decoder, info, _ ->
             check(info.size.width.toLong() * info.size.height <= EnhancementRules.MAX_PIXELS) { "원본 이미지가 너무 큽니다." }
@@ -56,6 +67,7 @@ open class EnhancementService : Service() {
         val source = (decoded as? BitmapDrawable)?.bitmap ?: error("움직이는 이미지는 보정하지 않습니다.")
         var output: Bitmap? = null
         try {
+            val sampling = EnhancementSampling.normalized(data.getInt("sampling", EnhancementSampling.BILINEAR))
             val target = EnhancementRules.target(source.width, source.height, data.getInt("option"))
             check((source.width.toLong() * source.height + target.first.toLong() * target.second) * 4 + 32 * 1024 * 1024 <=
                 Runtime.getRuntime().maxMemory() * 7 / 10) { "이 기기의 메모리로 처리하기에는 큽니다. 더 낮은 배율을 선택하세요." }
@@ -81,7 +93,7 @@ open class EnhancementService : Service() {
                         }
                         check(current.width >= target.first && current.height >= target.second) { "Google 업스케일 배율을 지원하지 않습니다." }
                         output = if (current.width == target.first && current.height == target.second) current
-                            else Bitmap.createScaledBitmap(current, target.first, target.second, true).also { if (current !== source) current.recycle() }
+                            else EnhancementSampling.resize(current, target.first, target.second, sampling).also { if (current !== source) current.recycle() }
                         data.putString("engine", "Google")
                     } catch (failure: Throwable) { if (current !== source) current.recycle(); throw failure }
                 } catch (failure: Exception) {
@@ -97,7 +109,7 @@ open class EnhancementService : Service() {
                         else if (data.getBoolean("allow_npu", true)) "LiteRT NPU·GPU 초기화 중" else "LiteRT GPU 초기화 중 · NPU 제외")
                     progress(0)
                     output = LiteRtEnhancer.process(this, source, liteModel.path, target, progress,
-                        data.getBoolean("accelerated"), data.getInt("cpu_threads", 2), data.getBoolean("allow_npu", true)) { data.putString("engine", it); progress(0) }
+                        data.getBoolean("accelerated"), data.getInt("cpu_threads", 2), data.getBoolean("allow_npu", true), sampling) { data.putString("engine", it); progress(0) }
                 } catch (cancel: CancellationException) { throw cancel }
                 catch (failure: Exception) { android.util.Log.w("ImageAi", "LiteRT 실행 실패로 ONNX 대체", failure); liteRtFallback = true }
                 catch (failure: LinkageError) { android.util.Log.w("ImageAi", "LiteRT ABI·런타임 미지원으로 ONNX 대체", failure); liteRtFallback = true }
@@ -106,7 +118,7 @@ open class EnhancementService : Service() {
                 check(data.getBoolean("accelerated")) { "LiteRT CPU에서 이 모델을 실행할 수 없습니다." }
                 // 사용자 TFLite에는 ONNX 사본이 없으므로 가속 실패는 동일 모델의 CPU로 복구합니다.
                 output = LiteRtEnhancer.process(this, source, liteModel.path, target, progress,
-                    false, data.getInt("cpu_threads", 2), false) { data.putString("engine", "가속 실패 후 $it"); progress(0) }
+                    false, data.getInt("cpu_threads", 2), false, sampling) { data.putString("engine", "가속 실패 후 $it"); progress(0) }
             }
             if (output == null) {
                 check(model.isFile) { "사용할 모델을 먼저 선택하거나 Google 모듈을 설치하세요." }
@@ -114,7 +126,7 @@ open class EnhancementService : Service() {
                 data.putString("engine", if (onnxAccelerated) "ONNX 가속 초기화 중" else "ONNX CPU 초기화 중")
                 progress(0)
                 output = OnnxEnhancer.process(source, model.absolutePath, target, progress, onnxAccelerated,
-                    { data.putString("engine", if (liteRtFallback) "LiteRT 대체 · $it" else it); progress(0) }, cpuThreads = data.getInt("cpu_threads", 2))
+                    { data.putString("engine", if (liteRtFallback) "LiteRT 대체 · $it" else it); progress(0) }, cpuThreads = data.getInt("cpu_threads", 2), sampling = sampling)
             }
             currentCoroutineContext().ensureActive()
             val image = checkNotNull(output)
@@ -136,6 +148,23 @@ open class EnhancementService : Service() {
             check(bitmap.compress(format, 98, output)) { "보정 결과를 저장할 수 없습니다." }
             output.fd.sync()
         }
+    }
+
+    /** 긴 영상 작업은 OS의 미디어 처리 전경 서비스 시간 제한을 따릅니다. */
+    private fun foregroundVideo() {
+        val manager = getSystemService(android.app.NotificationManager::class.java)
+        manager.createNotificationChannel(android.app.NotificationChannel("video_ai", "AI 동영상 화질개선", android.app.NotificationManager.IMPORTANCE_LOW))
+        val notification = android.app.Notification.Builder(this, "video_ai").setSmallIcon(android.R.drawable.stat_sys_download)
+            .setContentTitle("AI 동영상 화질개선").setContentText("영상 처리 중 · 앱에서 취소할 수 있습니다.").setOngoing(true).build()
+        if (Build.VERSION.SDK_INT >= 35) startForeground(7421, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING)
+        else if (Build.VERSION.SDK_INT >= 29) startForeground(7421, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+        else startForeground(7421, notification)
+    }
+
+    /** 플랫폼 제한 시간에 도달하면 외부 처리와 네이티브 작업을 함께 종료합니다. */
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        VideoEnhancer.stop(); scope.cancel(); stopForeground(STOP_FOREGROUND_REMOVE); stopSelf()
+        Process.killProcess(Process.myPid())
     }
 
     /** 닫힌 화면의 응답 채널 오류는 보정 프로세스 안에서만 처리합니다. */

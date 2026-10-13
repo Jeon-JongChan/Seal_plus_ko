@@ -1,4 +1,4 @@
-package com.plugin.enhancement;
+package com.plugin.compatibility.enhancement;
 
 import android.content.Context;
 import com.google.ai.edge.litert.*;
@@ -22,7 +22,7 @@ public final class LiteRtSession implements AutoCloseable {
     public LiteRtSession(Context context, String path, boolean accelerated, int threads, boolean allowNpu) throws Exception {
         try {
             if (accelerated && allowNpu) {
-                try { environment = Environment.create(context, new BuiltinNpuAcceleratorProvider(context)); }
+                try { environment = Environment.create(context, new OptionalNpuProvider(context)); }
                 // NPU 런타임의 초기화 실패가 사용 가능한 GPU까지 막지 않게 합니다.
                 catch (Exception | LinkageError unavailable) { environment = Environment.create(context); }
             } else environment = Environment.create(context);

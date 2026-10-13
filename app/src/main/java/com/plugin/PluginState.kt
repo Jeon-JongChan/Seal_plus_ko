@@ -9,7 +9,7 @@ import com.plugin.compatibility.*
 
 /** 서로 독립적으로 활성화할 수 있는 내장 확장 기능입니다. */
 enum class PluginId {
-    SOCIAL, LIST, MEDIA, LIBRARY, QUEUE, INTERACTION, IMAGE_AI, ACCOUNTS, POST_INFO, FOLDERS, FACE_SORT;
+    SOCIAL, LIST, MEDIA, LIBRARY, QUEUE, INTERACTION, IMAGE_AI, ACCOUNTS, POST_INFO, FOLDERS, FACE_SORT, VIDEO_AI, SHARE_MENU;
 
     val preferenceKey: String get() = "plugin_enabled_${name.lowercase()}"
 }
@@ -30,6 +30,7 @@ object PluginState {
     fun setEnabled(id: PluginId, value: Boolean) {
         id.preferenceKey.updateBoolean(value)
         enabled[id] = value
+        if (id == PluginId.SHARE_MENU) ShareMenuSettings.synchronize(com.junkfood.seal.App.context)
     }
 
     /** 새 요청에는 현재 켜진 기능의 설정만 적용합니다. */

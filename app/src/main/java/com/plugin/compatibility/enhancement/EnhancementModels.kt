@@ -1,4 +1,4 @@
-package com.plugin.enhancement
+package com.plugin.compatibility.enhancement
 
 import android.content.Context
 import android.net.Uri
@@ -21,6 +21,10 @@ import java.util.concurrent.TimeUnit
 /** 가속 호환 기본 모델을 내장하고 공개 폴더 또는 사용자가 가져온 모델도 지원합니다. */
 object EnhancementModels {
     const val SELECTED = "image_ai_model"
+    const val VIDEO_SELECTED = "video_ai_model"
+    const val VIDEO_FPS = "video_ai_fps"
+    const val SMALL_MODEL = "asset://image-ai/quicksrnet-small.tflite"
+    const val MEDIUM_MODEL = "asset://image-ai/quicksrnet-medium.tflite"
     const val ACCELERATED = "image_ai_accelerated"
     const val NPU_FIRST = "image_ai_npu_first"
     const val BACKEND = "image_ai_backend"
@@ -88,7 +92,9 @@ object EnhancementModels {
             root.listFiles().orEmpty().filter { it.isFile && EnhancementRules.modelFile(it.name) }
                 .map { Model(it.name, it.absolutePath, it.length()) }
         }
-        (listOf(Model("Real-ESRGAN x4v3 · 모바일 4배 · 기본", DEFAULT_MODEL, 4_870_119L)) + external + internal).distinctBy { it.source }.sortedBy { it.name }
+        (listOf(Model("Real-ESRGAN x4v3 · 모바일 4배 · 이미지 기본", DEFAULT_MODEL, 4_870_119L),
+            Model("QuickSRNet Small · 초고속 4배 · 영상 기본", SMALL_MODEL, 136_904L),
+            Model("QuickSRNet Medium · 초고속 4배", MEDIUM_MODEL, 249_452L)) + external + internal).distinctBy { it.source }.sortedBy { it.name }
     }
 
     /** SAF 파일의 표시 이름을 확인하여 URI에서도 실제 모델 형식을 구별합니다. */
@@ -111,11 +117,12 @@ object EnhancementModels {
         }
         // 삭제가 성공한 경우에만 선택을 되돌려 실행 중인 설정을 유실하지 않습니다.
         if (SELECTED.getString() == model.source) SELECTED.updateString(DEFAULT_MODEL)
+        if (VIDEO_SELECTED.getString() == model.source) VIDEO_SELECTED.updateString(SMALL_MODEL)
     }
 
     /** SAF와 일반 경로를 같은 읽기 경로로 처리합니다. */
     fun open(context: Context, source: String): InputStream =
-        if (source == DEFAULT_MODEL || source == LITERT_MODEL) context.assets.open(source.removePrefix("asset://"))
+        if (source in setOf(DEFAULT_MODEL, LITERT_MODEL, SMALL_MODEL, MEDIUM_MODEL)) context.assets.open(source.removePrefix("asset://"))
         else if (source.startsWith("content://")) context.contentResolver.openInputStream(Uri.parse(source))
             ?: error("파일을 열 수 없습니다.")
         else File(if (source.startsWith("file://")) Uri.parse(source).path!! else source).inputStream()
@@ -247,5 +254,20 @@ object EnhancementModels {
         file.inputStream().use { input -> val buffer = ByteArray(64 * 1024)
             while (true) { val count = input.read(buffer); if (count < 0) break; digest.update(buffer, 0, count) } }
         return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    /** 대용량 영상의 저장 직전 검증은 두 번째 전체 사본 없이 스트림으로 계산합니다. */
+    suspend fun hash(context: Context, source: String, limit: Long): String = withContext(Dispatchers.IO) {
+        val digest = MessageDigest.getInstance("SHA-256")
+        open(context, source).use { input ->
+            val buffer = ByteArray(64 * 1024); var total = 0L
+            while (true) {
+                currentCoroutineContext().ensureActive()
+                val count = input.read(buffer); if (count < 0) break
+                total += count; check(total <= limit) { "원본 파일이 너무 큽니다." }
+                digest.update(buffer, 0, count)
+            }
+        }
+        digest.digest().joinToString("") { "%02x".format(it) }
     }
 }

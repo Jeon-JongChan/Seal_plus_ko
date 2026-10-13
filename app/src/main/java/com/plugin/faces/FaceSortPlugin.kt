@@ -34,7 +34,7 @@ import com.plugin.compatibility.createPluginPreferences
 import com.tencent.mmkv.MMKV
 
 /** 실제 YuNet·MediaPipe와 해상도·목적지 규칙을 독립 메뉴에서 설정합니다. */
-object FaceSortPlugin : FeaturePlugin {
+object FaceSortPlugin : FeaturePlugin() {
     override val id = PluginId.FACE_SORT
     override val route = "plugin_face_sort"
     override val titleResource = R.string.plugin_face_sort
@@ -43,7 +43,7 @@ object FaceSortPlugin : FeaturePlugin {
     /** 선택 옵션을 즉시 저장하고 폴더 권한을 확인한 뒤 스캔을 실행합니다. */
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
-    override fun Content(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) {
+    override fun RenderContent(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) {
         val context = LocalContext.current
         val kv = remember { MMKV.defaultMMKV() }
         var model by rememberSaveable { mutableStateOf(kv.decodeString("face_sort_model", "yunet").takeIf { it in setOf("yunet", "mediapipe") } ?: "yunet") }

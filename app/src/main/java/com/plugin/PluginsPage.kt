@@ -65,13 +65,15 @@ fun PluginsPage(onBack: () -> Unit, onNavigate: (String) -> Unit) {
                     PluginId.QUEUE -> R.string.plugin_queue to R.string.plugin_queue_desc
                     PluginId.INTERACTION -> R.string.plugin_interaction to R.string.plugin_interaction_desc
                     PluginId.IMAGE_AI -> R.string.plugin_image_ai to R.string.plugin_image_ai_desc
+                    PluginId.VIDEO_AI -> R.string.plugin_video_ai to R.string.plugin_video_ai_desc
+                    PluginId.SHARE_MENU -> R.string.plugin_share_menu to R.string.plugin_share_menu_desc
                     PluginId.ACCOUNTS -> R.string.loc_frequent_accounts to R.string.loc_frequent_accounts_desc
                     PluginId.FOLDERS -> R.string.plugin_download_folders to R.string.plugin_download_folders_desc
                     PluginId.FACE_SORT -> R.string.plugin_face_sort to R.string.plugin_face_sort_desc
                     PluginId.POST_INFO -> R.string.loc_post_info_plugin to R.string.loc_post_info_plugin_desc
                 }
                 val enabled = PluginState.isEnabled(id)
-                val plugin = featurePlugins.firstOrNull { it.id == id }
+                val plugin = PluginFactory.create(id)
                 OutlinedCard(Modifier.fillMaxWidth()) {
                     PreferenceSwitch(title = stringResource(title), description = stringResource(description),
                         icon = plugin?.icon ?: Icons.Outlined.Checklist,

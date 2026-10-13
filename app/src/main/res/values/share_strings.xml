@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="plugin_view_log">View log</string>
+    <string name="plugin_share_menu">Share menu</string>
+    <string name="plugin_share_menu_desc">Choose the actions shown when sharing to Seal+. Select at least one. A single action opens directly. Turning this plugin off restores Quick download.</string>
+</resources>

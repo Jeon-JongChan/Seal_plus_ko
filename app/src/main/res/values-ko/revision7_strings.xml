@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="plugin_image_ai">이미지 AI 보정</string>
+    <string name="plugin_image_ai">AI 이미지 화질개선</string>
     <string name="plugin_image_ai_desc">온디바이스 이미지 복원·업스케일링과 저장 전 비교를 제공합니다.</string>
+    <string name="plugin_video_ai">AI 동영상 화질개선</string>
+    <string name="plugin_video_ai_desc">QuickSRNet 해상도 개선·RIFE GPU 프레임 보간과 저장 전 비교를 제공합니다.</string>
 </resources>

@@ -75,7 +75,10 @@ object PluginDownloadUtil {
 
 
     /** 원본 설정을 만든 뒤 확장 설정을 읽고 활성 스위치에 맞춰 사본을 구성합니다. */
-    fun configure(base: DownloadPreferences): DownloadPreferences = com.plugin.PluginState.preferences(base.copyPluginOptions(
+    fun configure(base: DownloadPreferences): DownloadPreferences {
+        val classification = MediaRules.parseClassificationJson(CLASSIFICATION_RULES.getString())
+        val explicitCookie = PluginPreferences.EXPLICIT_COOKIE_PROFILE.getInt(Int.MIN_VALUE)
+        return com.plugin.PluginState.preferences(base.copyPluginOptions(
                     videoContainer = MediaRules.videoContainer(VIDEO_CONTAINER.getString()),
                     // 이전 이미지·영상 필터를 새 다운로드에 적용하지 않고 분석 결과로 자동 분기합니다.
                     mediaSelection = 0,
@@ -83,9 +86,9 @@ object PluginDownloadUtil {
                     imageFolderName = MediaRules.optionalFolderName(IMAGE_FOLDER_NAME.getString("Images"), "Images"),
                     videoFolderName = MediaRules.optionalFolderName(VIDEO_FOLDER_NAME.getString("Videos"), "Videos"),
                     platformFolders = false,
-                    imageTiers = MediaRules.withDisabledTiers(MediaRules.parseClassificationJson(CLASSIFICATION_RULES.getString())?.first
+                    imageTiers = MediaRules.withDisabledTiers(classification?.first
                         ?: IMAGE_TIERS.getString(MediaRules.DEFAULT_IMAGE_TIERS), MediaRules.DISABLED_IMAGE_TIERS.getString()),
-                    videoTiers = MediaRules.withDisabledTiers(MediaRules.parseClassificationJson(CLASSIFICATION_RULES.getString())?.second
+                    videoTiers = MediaRules.withDisabledTiers(classification?.second
                         ?.let(MediaRules::currentVideoTiers)
                         ?: MediaRules.currentVideoTiers(VIDEO_TIERS.getString(MediaRules.DEFAULT_VIDEO_TIERS)), MediaRules.DISABLED_VIDEO_TIERS.getString()),
                     codecRatios = MediaRules.DEFAULT_CODEC_RATIOS,
@@ -99,11 +102,10 @@ object PluginDownloadUtil {
                     keepAv1Original = KEEP_AV1_ORIGINAL.getBoolean(),
                     av1Crf = AV1_CRF.getInt(32).coerceIn(20, 50),
                     av1Preset = MediaRules.av1Preset(AV1_PRESET.getInt(8)),
-                    cookieProfileId = PluginPreferences.EXPLICIT_COOKIE_PROFILE.getInt(Int.MIN_VALUE).let {
-                        if (it != Int.MIN_VALUE) it else QUICK_COOKIE_PROFILE.getInt(-1)
-                    },
-                    cookieProfileExplicit = PluginPreferences.EXPLICIT_COOKIE_PROFILE.getInt(Int.MIN_VALUE) != Int.MIN_VALUE,
+                    cookieProfileId = if (explicitCookie != Int.MIN_VALUE) explicitCookie else QUICK_COOKIE_PROFILE.getInt(-1),
+                    cookieProfileExplicit = explicitCookie != Int.MIN_VALUE,
     ))
+    }
 
     /** 쿠키 프로필·미디어 설정은 등록한 작업의 사본을 기준으로 적용합니다. */
     fun handles(preferences: DownloadPreferences): Boolean =

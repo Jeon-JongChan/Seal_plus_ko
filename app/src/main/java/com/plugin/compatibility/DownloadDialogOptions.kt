@@ -165,7 +165,7 @@ private fun DownloadType.label(): String =
 
 /** 기존 영상·음원 형식 편집기를 일반·빠른·목록 다운로드에서 공유합니다. */
 @Composable
-private fun FormatPresetDialog(type: DownloadType?, preferences: DownloadUtil.DownloadPreferences,
+internal fun FormatPresetDialog(type: DownloadType?, preferences: DownloadUtil.DownloadPreferences,
     onPreferencesUpdate: (DownloadUtil.DownloadPreferences) -> Unit, onDismiss: () -> Unit) {
     if (type != Audio) {
         var res by remember(preferences) { mutableIntStateOf(preferences.videoResolution) }
@@ -225,8 +225,8 @@ private fun FormatPresetDialog(type: DownloadType?, preferences: DownloadUtil.Do
 internal fun DownloadFormatButton(type: DownloadType?, preferences: DownloadUtil.DownloadPreferences,
     onPreferencesUpdate: (DownloadUtil.DownloadPreferences) -> Unit) {
     var opened by remember { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
     if (preferences.mediaSelection == 2) {
-        Row(Modifier.horizontalScroll(rememberScrollState())) {
             listOf(0, 1080, 720).forEach { resolution ->
                 FilterChip(selected = preferences.imageResolution == resolution,
                     onClick = {
@@ -234,12 +234,12 @@ internal fun DownloadFormatButton(type: DownloadType?, preferences: DownloadUtil
                         onPreferencesUpdate(preferences.copyPluginOptions(imageResolution = resolution))
                     }, label = { Text(if (resolution == 0) stringResource(R.string.loc_original_resolution) else resolution.toString()) })
             }
-        }
     } else {
         Preset(preference = preferences, downloadType = if (type == Playlist) Video else type,
             selected = true, showEditIcon = true, onEdit = { opened = true }, onClick = { opened = true })
     }
     DownloadAllChip(preferences, onPreferencesUpdate)
+    }
     if (opened) FormatPresetDialog(type, preferences, onPreferencesUpdate, onDismiss = { opened = false })
 }
 
@@ -285,7 +285,7 @@ internal fun AdditionalSettings(
 
 /** 설명은 접근성 읽기에 유지하고 형식 선택지를 한 줄 칩으로 표시합니다. */
 @Composable
-private fun SingleChoiceItem(
+internal fun SingleChoiceItem(
     modifier: Modifier = Modifier,
     title: String,
     desc: String,
@@ -363,7 +363,7 @@ internal fun DownloadTypeSelectionGroup(
 
 @Composable
 /** Preset의 독립 플러그인 처리를 제공합니다. */
-private fun Preset(
+internal fun Preset(
     modifier: Modifier = Modifier,
     preference: DownloadUtil.DownloadPreferences,
     downloadType: DownloadType?,
@@ -431,7 +431,7 @@ private fun Preset(
 
 @Composable
 /** Custom의 독립 플러그인 처리를 제공합니다. */
-private fun Custom(
+internal fun Custom(
     modifier: Modifier = Modifier,
     selected: Boolean,
     enabled: Boolean = true,

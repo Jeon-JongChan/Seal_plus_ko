@@ -1,0 +1,33 @@
+cmake_minimum_required(VERSION 3.22)
+project(seal_rife LANGUAGES C CXX)
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_VISIBILITY_PRESET hidden)
+set(CMAKE_VISIBILITY_INLINES_HIDDEN ON)
+find_package(ncnn REQUIRED)
+find_library(VULKAN_LIBRARY vulkan)
+set(RIFE_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/upstream/src")
+file(GLOB RIFE_SHADERS "${RIFE_SOURCE}/*.comp")
+foreach(SHADER IN LISTS RIFE_SHADERS)
+    get_filename_component(NAME "${SHADER}" NAME_WE)
+    set(HEADER "${CMAKE_CURRENT_BINARY_DIR}/${NAME}.comp.hex.h")
+    add_custom_command(OUTPUT "${HEADER}"
+        COMMAND "${CMAKE_COMMAND}" -DSHADER_SRC=${SHADER} -DSHADER_COMP_HEADER=${HEADER}
+            -P "${RIFE_SOURCE}/generate_shader_comp_header.cmake"
+        DEPENDS "${SHADER}")
+    list(APPEND GENERATED_SHADERS "${HEADER}")
+endforeach()
+# 최신 ncnn Vulkan은 pack4를 사용하며 제거된 pack8 옵션만 빌드 사본에서 비활성화합니다.
+file(READ "${RIFE_SOURCE}/warp.cpp" WARP_SOURCE)
+string(REPLACE "if (opt.use_shader_pack8)" "if (false)" WARP_SOURCE "${WARP_SOURCE}")
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/warp_compat.cpp" "${WARP_SOURCE}")
+# 새 ncnn API는 null Vulkan 장치를 받지 않으므로 CPU 기준 검사에서만 장치 지정 호출을 건너뜁니다.
+file(READ "${RIFE_SOURCE}/rife.cpp" MODEL_SOURCE)
+foreach(NET IN ITEMS flownet contextnet fusionnet)
+    string(REPLACE "${NET}.set_vulkan_device(vkdev);" "if (vkdev) ${NET}.set_vulkan_device(vkdev);" MODEL_SOURCE "${MODEL_SOURCE}")
+endforeach()
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/rife_compat.cpp" "${MODEL_SOURCE}")
+add_library(seal_rife SHARED RifeBridge.cpp "${CMAKE_CURRENT_BINARY_DIR}/rife_compat.cpp" "${CMAKE_CURRENT_BINARY_DIR}/warp_compat.cpp" ${GENERATED_SHADERS})
+target_include_directories(seal_rife PRIVATE "${RIFE_SOURCE}" "${CMAKE_CURRENT_BINARY_DIR}")
+target_compile_options(seal_rife PRIVATE -Os -ffunction-sections -fdata-sections)
+target_link_options(seal_rife PRIVATE -Wl,--gc-sections -Wl,-z,max-page-size=16384)
+target_link_libraries(seal_rife PRIVATE ncnn ${VULKAN_LIBRARY})

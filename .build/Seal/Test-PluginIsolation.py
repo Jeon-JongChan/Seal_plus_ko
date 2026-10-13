@@ -8,9 +8,10 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[2]
 BASE = "7677f61a20fda4210e84215fef9e9b51d25daa47"
 GROUPS = {
+    "sharemenu": "SHARE_MENU",
     "image": "SOCIAL", "instagram": "SOCIAL", "tiktok": "SOCIAL",
     "listdownload": "LIST", "media": "MEDIA", "library": "LIBRARY",
-    "queue": "QUEUE", "interaction": "INTERACTION", "enhancement": "IMAGE_AI", "folders": "FOLDERS", "faces": "FACE_SORT",
+    "queue": "QUEUE", "interaction": "INTERACTION", "enhancement": "IMAGE_AI", "videoenhancement": "VIDEO_AI", "folders": "FOLDERS", "faces": "FACE_SORT",
 }
 SHARED_QUEUE_TYPES = r"com\.plugin\.queue\.(?:PluginTaskFactory|PluginTaskDownloader|PluginTaskAdapter|PluginTaskBackup|PluginTask)(?!\w)"
 
@@ -91,8 +92,8 @@ def main():
     ]
     plugins = ROOT / "app/src/main/java/com/plugin"
     checked = 0
-    for path in plugins.rglob("*.kt"):
-        own = GROUPS.get(path.parent.name)
+    for path in list(plugins.rglob("*.kt")) + list(plugins.rglob("*.java")):
+        own = GROUPS.get(path.relative_to(plugins).parts[0])
         if own is None:
             continue
         text = path.read_text(encoding="utf-8")
@@ -102,7 +103,7 @@ def main():
                 f"선택 기능 간 직접 참조: {path.name} → {package}"
             )
         checked += 1
-    for path in (plugins / "compatibility").glob("*.kt"):
+    for path in list((plugins / "compatibility").rglob("*.kt")) + list((plugins / "compatibility").rglob("*.java")):
         text = path.read_text(encoding="utf-8")
         # 과거 JSON 형식의 직렬화 이름은 코드 참조가 아닙니다.
         text = re.sub(r'@SerialName\("[^"]*"\)', "", text)

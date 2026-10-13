@@ -22,7 +22,7 @@ fun PluginNavigationItems(currentRoute: String?, onNavigate: (String) -> Unit,
     NavigationDrawerItem(label = { Text(stringResource(R.string.plugin_manage)) },
         icon = { Icon(Icons.Outlined.Settings, null) }, selected = currentRoute == PLUGINS_ROUTE,
         onClick = { scope.launch { onDismiss() }.invokeOnCompletion { onNavigate(PLUGINS_ROUTE) } })
-    featurePlugins.filter { PluginState.isEnabled(it.id) }.forEach { plugin ->
+    com.plugin.PluginFactory.enabled().forEach { plugin ->
         NavigationDrawerItem(label = { Text(stringResource(plugin.titleResource)) },
             icon = { Icon(plugin.icon, null) }, selected = currentRoute == plugin.route,
             onClick = { scope.launch { onDismiss() }.invokeOnCompletion { onNavigate(plugin.route) } })

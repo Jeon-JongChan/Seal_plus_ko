@@ -1,4 +1,4 @@
-package com.plugin.enhancement
+package com.plugin.compatibility.enhancement
 
 import java.net.URI
 import kotlin.math.roundToInt
@@ -12,7 +12,7 @@ object EnhancementRules {
 
     /** 게시글의 중복·동영상·얼굴 미검출 폴더를 제외하고 이미지 순서를 유지합니다. */
     fun postImages(paths: List<String>): List<String> = paths.distinct().filter {
-        !com.plugin.compatibility.MediaRules.isNoFacePath(it) && com.plugin.compatibility.MediaRules.mediaKind(it) == 2
+        !com.plugin.compatibility.PluginMediaMetadataStore.isProcessingExcluded(it) && com.plugin.compatibility.MediaRules.mediaKind(it) == 2
     }
 
     /** 지원하는 단일 파일 형식을 경로와 다운로드 검증에서 공유합니다. */
@@ -72,9 +72,10 @@ object EnhancementRules {
     }
 
     /** 원본 미디어 ID를 파일 끝에 유지하면서 복제임을 표시합니다. */
-    fun duplicateName(name: String, suffix: String): String {
+    fun duplicateName(name: String, suffix: String, extension: String = "png"): String {
+        require(extension in listOf("png", "mp4"))
         val stem = name.substringBeforeLast('.', name)
         val id = Regex(" \\[[A-Za-z0-9_-]+]$").find(stem)?.value.orEmpty()
-        return stem.removeSuffix(id) + "-AI-$suffix" + id + ".png"
+        return stem.removeSuffix(id) + "-AI-$suffix" + id + ".$extension"
     }
 }

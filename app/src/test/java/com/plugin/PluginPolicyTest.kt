@@ -8,6 +8,25 @@ import org.junit.Test
 
 /** 비활성화·개별 활성화 시 저장 설정과 요청 설정의 분리를 검증합니다. */
 class PluginPolicyTest {
+    /** 공유 메뉴는 기본 빠른 다운로드·단독·복수 선택을 유지하고 빈 선택을 복구합니다. */
+    @Test fun shareMenuKeepsAnEntry() {
+        assertEquals(1, ShareMenuSettings.normalize(0))
+        assertEquals(1, ShareMenuSettings.normalize(1))
+        assertEquals(2, ShareMenuSettings.normalize(2))
+        assertEquals(3, ShareMenuSettings.normalize(3))
+        assertEquals(1, ShareMenuSettings.normalize(4))
+        assertEquals(2, ShareMenuSettings.aliases.distinct().size)
+    }
+    /** 값이 같은 요청 객체도 서로 다른 인증·폴더 옵션을 공유하지 않습니다. */
+    @Test fun equalRequestsKeepSeparateOptions() {
+        val first = DownloadPreferences.EMPTY.copyPluginOptions(cookieProfileId = 7, cookieProfileExplicit = true)
+        val second = DownloadPreferences.EMPTY.copyPluginOptions(cookieProfileId = 9, cookieProfileExplicit = true)
+        assertEquals(first, second)
+        assertEquals(7, first.cookieProfileId)
+        assertEquals(9, second.cookieProfileId)
+        assertNull(DownloadPreferences.EMPTY.copy().storedPluginOptions())
+    }
+
     /** 대기열 표시 기능과 다운로드 창 확장을 독립적으로 선택합니다. */
     @Test
     fun dialogRoutingUsesEnabledInputFeatures() {
@@ -15,10 +34,12 @@ class PluginPolicyTest {
         assertFalse(com.plugin.runtime.usePluginDialog(state, emptySet()))
         assertFalse(com.plugin.runtime.usePluginDialog(state, setOf(PluginId.QUEUE)))
         assertFalse(com.plugin.runtime.usePluginDialog(state, setOf(PluginId.IMAGE_AI)))
+        assertFalse(com.plugin.runtime.usePluginDialog(state, setOf(PluginId.VIDEO_AI)))
+        assertFalse(com.plugin.runtime.usePluginDialog(state, setOf(PluginId.SHARE_MENU)))
         assertFalse(com.plugin.runtime.usePluginDialog(state, setOf(PluginId.ACCOUNTS)))
         assertFalse(com.plugin.runtime.usePluginDialog(state, setOf(PluginId.POST_INFO)))
         assertFalse(com.plugin.runtime.usePluginDialog(state, setOf(PluginId.FACE_SORT)))
-        (PluginId.entries - setOf(PluginId.QUEUE, PluginId.IMAGE_AI, PluginId.ACCOUNTS, PluginId.POST_INFO, PluginId.FACE_SORT)).forEach {
+        (PluginId.entries - setOf(PluginId.QUEUE, PluginId.IMAGE_AI, PluginId.VIDEO_AI, PluginId.SHARE_MENU, PluginId.ACCOUNTS, PluginId.POST_INFO, PluginId.FACE_SORT)).forEach {
             assertTrue(com.plugin.runtime.usePluginDialog(state, setOf(it)))
         }
     }

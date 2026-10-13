@@ -37,6 +37,7 @@ object MediaLibrary {
         val quality: VideoQuality? = null,
         val sourceQuality: VideoQuality? = null,
         val external: Boolean = false,
+        val excludedFromProcessing: Boolean = false,
     )
 
     /** Seal과 지정한 다운로드 폴더의 모든 하위 폴더에서 영상을 읽습니다. */
@@ -54,7 +55,7 @@ object MediaLibrary {
                         .walkTopDown()
                         .onFail { directory, cause -> throw SecurityException(
                             context.getString(R.string.revision6_folder_access_error, directory.path), cause) }
-                        .onEnter { !MediaRules.isNoFacePath(it.path) && !java.nio.file.Files.isSymbolicLink(it.toPath()) && it.name != "tmp" &&
+                        .onEnter { !java.nio.file.Files.isSymbolicLink(it.toPath()) && it.name != "tmp" &&
                             (includeClassified || !it.name.matches(Regex("[0-9]+(p|x[0-9]+)"))) }
                         .filter {
                             it.isFile && !it.isHidden && !java.nio.file.Files.isSymbolicLink(it.toPath()) &&
@@ -79,6 +80,8 @@ object MediaLibrary {
             }
         val history = runBlocking { PluginDatabaseUtil.getDownloadHistory() }.associateBy { it.videoPath }
         return files.map { file ->
+            if (file.path.startsWith("content://") && (PluginMediaMetadataStore.get(file.path)?.excludedFromProcessing ?: false) != file.excludedFromProcessing)
+                PluginMediaMetadataStore.save(file.path, excludedFromProcessing = file.excludedFromProcessing)
             val saved = history[file.path]
             val quality = saved?.quality ?: readMediaQuality(file.path)
             // 이전 버전 이력은 파일 관리자에서 처음 읽을 때만 화질 정보를 보충합니다.
@@ -138,13 +141,14 @@ object MediaLibrary {
     }
 
     /** SAF 폴더에서도 이동에 필요한 부모 URI를 함께 보관합니다. */
-    private fun listTreeVideos(parent: DocumentFile, extensions: Set<String>, includeClassified: Boolean): List<MediaFile> {
-        if (MediaRules.isNoFacePath(parent.name.orEmpty()) || MediaRules.isNoFacePath(parent.uri.toString())) return emptyList()
+    private fun listTreeVideos(parent: DocumentFile, extensions: Set<String>, includeClassified: Boolean, excluded: Boolean = false): List<MediaFile> {
+        // NOFACE도 게시글과 경로를 연결해야 하므로 읽기 목록에는 포함합니다.
+        val skipProcessing = excluded || MediaRules.isNoFacePath(parent.name.orEmpty())
         if (!parent.canRead()) throw SecurityException(context.getString(R.string.revision6_folder_access_error, parent.uri.toString()))
         return parent.listFiles().flatMap { file ->
             if (file.isDirectory) {
                 if (file.name == "tmp" || (!includeClassified && file.name.orEmpty().matches(Regex("[0-9]+(p|x[0-9]+)")))) emptyList()
-                else listTreeVideos(file, extensions, includeClassified)
+                else listTreeVideos(file, extensions, includeClassified, skipProcessing)
             }
             else if (file.name.orEmpty().substringAfterLast('.').lowercase() in extensions)
                 listOf(
@@ -154,6 +158,7 @@ object MediaLibrary {
                         file.length(),
                         0.0,
                         parent.uri.toString(),
+                        excludedFromProcessing = skipProcessing,
                     )
                 )
             else emptyList()
@@ -162,7 +167,7 @@ object MediaLibrary {
 
     /** 기존 파일을 덮어쓰지 않고 화질 폴더로 이동하며 이력도 갱신합니다. */
     suspend fun classify(file: MediaFile, preferences: DownloadUtil.DownloadPreferences, replaceDuplicates: Boolean = false): String {
-        if (MediaRules.isNoFacePath(file.path) || MediaRules.isNoFacePath(file.parentUri.orEmpty())) return file.path
+        if (file.excludedFromProcessing || PluginMediaMetadataStore.isProcessingExcluded(file.path) || MediaRules.isNoFacePath(file.parentUri.orEmpty())) return file.path
         val classificationQuality = file.sourceQuality ?: file.quality
         val group = if (preferences.classifyMedia) MediaRules.classificationFolder(classificationQuality,
             preferences.imageTiers, preferences.videoTiers, preferences.codecRatios, preferences.classificationTarget, preferences.classificationUpperFirst) else null
@@ -345,7 +350,7 @@ object MediaLibrary {
             recorded
                 .map { it.videoPath }
                 .filter { path ->
-                    !MediaRules.isNoFacePath(path) && exists(path) && (selected == null || DownloadFolders.contains(selected, path, preferences)) &&
+                    exists(path) && (selected == null || DownloadFolders.contains(selected, path, preferences)) &&
                         (if (path.startsWith("content://"))
                                 DocumentFile.fromSingleUri(context, Uri.parse(path))?.name.orEmpty()
                             else File(path).name)
@@ -368,7 +373,7 @@ object MediaLibrary {
                 .flatMap { root ->
                     root
                         .walkTopDown()
-                        .onEnter { !MediaRules.isNoFacePath(it.path) && it.name != "tmp" && !java.nio.file.Files.isSymbolicLink(it.toPath()) }
+                        .onEnter { it.name != "tmp" && !java.nio.file.Files.isSymbolicLink(it.toPath()) }
                         .filter { file ->
                             file.isFile &&
                                 !file.isHidden &&
@@ -398,8 +403,7 @@ object MediaLibrary {
     ): List<String> =
         directory.listFiles().flatMap { item ->
             if (item.isDirectory) {
-                if (MediaRules.isNoFacePath(item.name.orEmpty()) || MediaRules.isNoFacePath(item.uri.toString())) emptyList()
-                else findInTree(item, names, id, extensions)
+                findInTree(item, names, id, extensions)
             }
             else {
                 val name = item.name.orEmpty()
@@ -538,7 +542,7 @@ object MediaLibrary {
         collisionReplace: Boolean? = null,
     ): List<String> =
         if (!preferences.mediaProcessing) paths else paths.flatMap { original ->
-            if (MediaRules.isNoFacePath(original)) return@flatMap listOf(original)
+            if (PluginMediaMetadataStore.isProcessingExcluded(original)) return@flatMap listOf(original)
             val source = File(original)
             val video = source.extension.lowercase() in setOf("mp4", "mkv", "webm", "mov", "m4v")
             val actualQuality = readMediaQuality(original)

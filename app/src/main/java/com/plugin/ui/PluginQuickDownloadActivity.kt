@@ -18,6 +18,11 @@ import com.junkfood.seal.util.setLanguage
 import com.plugin.runtime.PluginAppHelper
 import com.plugin.runtime.PluginDownloadDialogViewModel
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.combine
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.koin.compose.KoinContext
 
@@ -37,6 +42,15 @@ class PluginQuickDownloadActivity : AppCompatActivity() {
         if (savedInstanceState == null && !showSharedLink(intent)) {
             finish()
             return
+        }
+        // 닫기 요청은 Compose 재구성·시트 애니메이션 완료를 기다리지 않고 Activity에서 처리합니다.
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                dialogViewModel.sheetValueFlow.combine(dialogViewModel.selectionStateFlow) { sheet, selection ->
+                    sheet == com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel.SheetValue.Hidden &&
+                        selection == com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel.SelectionState.Idle
+                }.collect { closed -> if (closed && !isFinishing) finish() }
+            }
         }
         setContent {
             KoinContext {

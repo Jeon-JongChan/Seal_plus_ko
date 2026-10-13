@@ -6,3 +6,10 @@
 /plugin-isolation-before/
 /relocation-check/
 /gradle-output/
+/native/rife/build-*/
+/native/rife/ncnn/
+/native/rife/upstream/
+/native/rife/models/
+/native/rife/*.zip
+/runtime/rife/
+__pycache__/

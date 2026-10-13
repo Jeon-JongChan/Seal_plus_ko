@@ -1,4 +1,4 @@
-package com.plugin.enhancement
+package com.plugin.compatibility.enhancement
 
 import android.content.Context
 import android.net.Uri
@@ -16,28 +16,32 @@ import java.io.File
 /** 확정 버튼을 누른 경우에만 파일을 저장하고 원본의 변경 여부를 다시 확인합니다. */
 object EnhancementFiles {
     /** 원래 인코딩을 유지할 수 없는 형식은 PNG 복제만 제공합니다. */
-    fun canReplace(preview: EnhancementClient.Preview): Boolean = preview.format in listOf("jpg", "jpeg", "png", "webp")
+    fun canReplace(preview: EnhancementClient.Preview): Boolean = if (preview.video) preview.format == "mp4"
+        else preview.format in listOf("jpg", "jpeg", "png", "webp")
 
     /** 저장 중 실패하면 원본을 보존하고, 이력과 완료 대기열에 새 경로를 반영합니다. */
     suspend fun save(context: Context, preview: EnhancementClient.Preview, replace: Boolean): String = withContext(Dispatchers.IO) {
-        check(!replace || canReplace(preview)) { "이 형식은 PNG 복제로 저장하세요." }
-        val verification = File(preview.directory, "verification")
-        EnhancementModels.stage(context, preview.source, verification, 64 * 1024 * 1024)
-        check(EnhancementModels.hash(verification) == preview.hash) { "원본이 변경되었습니다. 다시 보정한 뒤 저장하세요." }
-        val input = if (replace) File(preview.directory, "replacement") else preview.image
+        check(!replace || canReplace(preview)) { "이 형식은 ${if (preview.video) "MP4" else "PNG"} 복제로 저장하세요." }
+        check(EnhancementModels.hash(context, preview.source, if (preview.video) VideoEnhancer.MAX_SOURCE_BYTES else 64L * 1024 * 1024) == preview.hash) {
+            "원본이 변경되었습니다. 다시 보정한 뒤 저장하세요."
+        }
+        val input = if (replace && !preview.video) File(preview.directory, "replacement") else preview.image
         check(input.isFile && input.length() > 0) { "보정 결과가 없습니다." }
-        val result = if (preview.source.startsWith("content://")) saveDocument(context, preview.source, input, replace)
+        // 파일 확정부터 이력·완료 대기열 갱신까지는 함께 끝내 경로 불일치를 방지합니다.
+        withContext(kotlinx.coroutines.NonCancellable) {
+        val extension = if (preview.video) "mp4" else "png"
+        val result = if (preview.source.startsWith("content://")) saveDocument(context, preview.source, input, replace, extension)
             else {
                 val original = if (preview.source.startsWith("file://")) File(Uri.parse(preview.source).path!!) else File(preview.source)
-                val output = if (replace) original else original.resolveSibling(EnhancementRules.duplicateName(original.name, java.util.UUID.randomUUID().toString().take(8)))
+                val output = if (replace) original else original.resolveSibling(EnhancementRules.duplicateName(original.name, java.util.UUID.randomUUID().toString().take(8), extension))
                 check(replace || !output.exists()) { "복제 대상에 이미 파일이 있습니다." }
                 copyAtomic(input, output)
                 android.media.MediaScannerConnection.scanFile(context, arrayOf(output.absolutePath), null, null)
                 output.absolutePath
             }
         val saved = PluginDatabaseUtil.getDownloadHistory().firstOrNull { it.videoPath == preview.source }
-        val codec = if (!replace) "image/png" else when (preview.format) { "jpg", "jpeg" -> "image/jpeg"; "webp" -> "image/webp"; else -> "image/png" }
-        val quality = VideoQuality(preview.width, preview.height, 0.0, 0.0, input.length(), codec)
+        val codec = if (preview.video) "video/avc" else if (!replace) "image/png" else when (preview.format) { "jpg", "jpeg" -> "image/jpeg"; "webp" -> "image/webp"; else -> "image/png" }
+        val quality = VideoQuality(preview.width, preview.height, preview.frameRate, preview.duration, input.length(), codec)
         PluginMediaMetadataStore.save(result, quality = quality, sourceQuality = saved?.sourceQuality ?: saved?.quality,
             postPageIndex = saved?.postPageIndex ?: 0, postPageCount = saved?.postPageCount ?: 1)
         if (replace && result != preview.source) PluginDatabaseUtil.updateMediaPath(preview.source, result)
@@ -54,6 +58,7 @@ object EnhancementFiles {
             }
         }
         result
+        }
     }
 
     /** 로컬 파일은 Android의 원자적 파일 교체를 사용합니다. */
@@ -65,7 +70,7 @@ object EnhancementFiles {
     }
 
     /** SAF는 완성 사본을 만든 뒤 이름을 교환하며 실패하면 원본 이름을 복구합니다. */
-    private fun saveDocument(context: Context, source: String, input: File, replace: Boolean): String {
+    private fun saveDocument(context: Context, source: String, input: File, replace: Boolean, extension: String): String {
         val resolver = context.contentResolver
         val uri = Uri.parse(source)
         require(DocumentsContract.isDocumentUri(context, uri)) { "이 저장소는 직접 저장을 지원하지 않습니다. 파일을 다운로드 폴더로 옮겨 보정하세요." }
@@ -75,7 +80,7 @@ object EnhancementFiles {
         val original = DocumentFile.fromSingleUri(context, uri) ?: error("원본 파일을 열 수 없습니다.")
         val name = original.name ?: error("원본 이름을 확인할 수 없습니다.")
         val token = java.util.UUID.randomUUID().toString().take(8)
-        val mime = if (replace) original.type ?: error("원본 파일 형식을 확인할 수 없습니다.") else "image/png"
+        val mime = if (replace) original.type ?: error("원본 파일 형식을 확인할 수 없습니다.") else if (extension == "mp4") "video/mp4" else "image/png"
         val staged = DocumentsContract.createDocument(resolver, parent, mime, ".seal-ai-$token.part") ?: error("폴더에 파일을 만들 권한이 필요합니다.")
         var keep = false
         try {
@@ -85,7 +90,7 @@ object EnhancementFiles {
                 }
             }
             check(DocumentFile.fromSingleUri(context, staged)?.length() == input.length()) { "결과 파일 크기 검증에 실패했습니다." }
-            if (!replace) return (DocumentsContract.renameDocument(resolver, staged, EnhancementRules.duplicateName(name, token))
+            if (!replace) return (DocumentsContract.renameDocument(resolver, staged, EnhancementRules.duplicateName(name, token, extension))
                 ?: error("복제 이름을 저장할 수 없습니다.")).toString().also { keep = true }
             // 원본은 삭제하지 않고 복구용 이름으로 보관한 뒤 완성 사본을 교체합니다.
             val backup = DocumentsContract.renameDocument(resolver, uri, ".seal-ai-original-$token.backup")

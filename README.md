@@ -243,4 +243,4 @@ Some of the UI designs and codes are borrowed from [Read You](https://github.com
 
 기존 지원 언어를 유지하면서 영어·한국어·스페인어의 미디어 설정, 인스타그램 목록, 즐겨찾기와 오류 안내를 번역했습니다. 기능별 문구는 각 `values*`의 `media_strings.xml`, `instagram_strings.xml`, `navigation_strings.xml`에서 관리합니다.
 
-추가 기능은 `app/src/main/java/com/plugin/`의 내장 플러그인으로 분리하며 **플러그인 관리**에서 6개 기능을 각각 켜고 끕니다. 기존 설치와 신규 설치 모두 처음에는 꺼져 있고, 꺼도 기존 파일·작업·세부 설정은 유지됩니다. 원본의 번역·버그 수정·DB 호환성은 유지합니다. [기능 코드·번역 추가 안내](app/src/main/java/com/plugin/README.md)를 참고하세요. 번역 검사: `powershell -NoProfile -ExecutionPolicy Bypass -File .build/Seal/Test-Localization.ps1`.
+추가 기능은 `app/src/main/java/com/plugin/`의 내장 플러그인으로 분리하며 **플러그인 관리**에서 13개 기능을 각각 켜고 끕니다. 기존 설치와 신규 설치 모두 처음에는 꺼져 있고, 꺼도 기존 파일·작업·세부 설정은 유지됩니다. AI 이미지·동영상 화질개선은 모델을 공유하며 영상 기본은 QuickSRNet Small, 간편 최대는 Medium입니다. 공유 메뉴는 기본 빠른 다운로드 하나이며 공유 메뉴 플러그인에서 변경합니다. 원본 소스·DB 호환성은 유지합니다. [기능 코드·번역 추가 안내](app/src/main/java/com/plugin/README.md)를 참고하세요. 번역 검사: `powershell -NoProfile -ExecutionPolicy Bypass -File .build/Seal/Test-Localization.ps1`.

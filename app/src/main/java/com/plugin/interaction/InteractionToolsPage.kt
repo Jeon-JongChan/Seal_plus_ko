@@ -84,7 +84,7 @@ fun InteractionToolsPage(onBack: () -> Unit) {
 }
 
 /** 편의 기능의 세부 설정을 내장 플러그인 메뉴에 등록합니다. */
-object InteractionPlugin : FeaturePlugin {
+object InteractionPlugin : FeaturePlugin() {
     override val id = PluginId.INTERACTION
     override val route = "plugin_interaction"
     override val titleResource = R.string.plugin_interaction
@@ -92,7 +92,7 @@ object InteractionPlugin : FeaturePlugin {
 
     /** 저장된 메뉴·쿠키 설정을 표시합니다. */
     @Composable
-    override fun Content(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) {
+    override fun RenderContent(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) {
         InteractionToolsPage(onBack)
     }
 }

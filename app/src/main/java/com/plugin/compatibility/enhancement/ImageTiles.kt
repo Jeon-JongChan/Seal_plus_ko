@@ -1,4 +1,4 @@
-package com.plugin.enhancement
+package com.plugin.compatibility.enhancement
 
 import android.graphics.*
 import kotlinx.coroutines.currentCoroutineContext
@@ -9,12 +9,12 @@ import kotlin.math.roundToInt
 object ImageTiles {
     /** 목표 해상도에 필요한 추론 패스를 실행하고 중간 비트맵의 소유권을 관리합니다. */
     suspend fun process(source: Bitmap, target: Pair<Int, Int>, width: Int, height: Int,
-        channelsFirst: Boolean, progress: (Int) -> Unit, inspect: () -> Unit,
+        channelsFirst: Boolean, progress: (Int) -> Unit, inspect: () -> Unit, sampling: Int = EnhancementSampling.BILINEAR,
         infer: (FloatArray, (FloatArray, Int, Int) -> Unit) -> Unit): Bitmap {
         var current = source
         try {
             repeat(4) {
-                val next = render(current, target, width, height, channelsFirst, progress, inspect, infer)
+                val next = render(current, target, width, height, channelsFirst, progress, inspect, sampling, infer)
                 if (current !== source) current.recycle()
                 current = next
                 if (current.width == target.first && current.height == target.second) return current
@@ -25,7 +25,7 @@ object ImageTiles {
 
     /** 겹침 경계를 잘라 이어 붙이며 RGB 텐서 배치만 실행 엔진에 맞게 바꿉니다. */
     private suspend fun render(input: Bitmap, target: Pair<Int, Int>, tw: Int, th: Int,
-        channelsFirst: Boolean, progress: (Int) -> Unit, inspect: () -> Unit,
+        channelsFirst: Boolean, progress: (Int) -> Unit, inspect: () -> Unit, sampling: Int,
         infer: (FloatArray, (FloatArray, Int, Int) -> Unit) -> Unit): Bitmap {
         require(tw in 48..256 && th in 48..256) { "모델 타일 크기는 48~256픽셀이어야 합니다." }
         // ponytail: 경계 문맥은 16픽셀입니다. 이음매가 보이면 패딩 확대 또는 가중치 블렌딩으로 보완합니다.
@@ -68,9 +68,9 @@ object ImageTiles {
                     tile!!.setPixels(colors, 0, width, 0, 0, width, height)
                     val right = minOf(left + sx, input.width); val bottom = minOf(top + sy, input.height)
                     val destination = checkNotNull(output)
-                    Canvas(destination).drawBitmap(tile!!, Rect(padding * scale, padding * scale, (padding + right - left) * scale, (padding + bottom - top) * scale),
+                    EnhancementSampling.draw(Canvas(destination), tile!!, colors, Rect(padding * scale, padding * scale, (padding + right - left) * scale, (padding + bottom - top) * scale),
                         Rect((left.toLong() * destination.width / input.width).toInt(), (top.toLong() * destination.height / input.height).toInt(),
-                            (right.toLong() * destination.width / input.width).toInt(), (bottom.toLong() * destination.height / input.height).toInt()), paint)
+                            (right.toLong() * destination.width / input.width).toInt(), (bottom.toLong() * destination.height / input.height).toInt()), sampling)
                 }
                 inspect(); progress(++done * 100 / count)
             }

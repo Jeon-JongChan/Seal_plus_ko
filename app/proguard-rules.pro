@@ -75,3 +75,23 @@
 -keepclassmembers class * extends com.google.protobuf.GeneratedMessageLite {
     <fields>;
 }
+
+# 호출 스택을 읽는 Flogger 내부의 인라인·클래스 병합을 막습니다.
+# 제거된 스택 프레임은 Graph 초기화 실패와 뒤따르는 NoClassDefFoundError를 유발합니다.
+-keep class com.google.common.flogger.** { *; }
+# JNI가 문자열로 조회하는 protobuf 포장 객체의 typeName·value 필드를 보존합니다.
+-keep class com.google.mediapipe.framework.ProtoUtil$SerializedMessage { *; }
+# 네이티브 그래프가 패킷 생성자와 Java 콜백·오류 생성자를 문자열로 조회합니다.
+# 전체 framework 보존은 미포함 GraphTemplate/Profile 타입까지 요구하므로 JNI 계약만 유지합니다.
+-keep class com.google.mediapipe.framework.Packet { *; }
+-keep class com.google.mediapipe.framework.MediaPipeException { *; }
+-keep interface com.google.mediapipe.framework.PacketCallback { *; }
+-keep interface com.google.mediapipe.framework.PacketListCallback { *; }
+-keepclassmembers class * implements com.google.mediapipe.framework.PacketCallback {
+    public void process(com.google.mediapipe.framework.Packet);
+}
+-keepclassmembers class * implements com.google.mediapipe.framework.PacketListCallback {
+    public void process(java.util.List);
+}
+# ncnn JNI 진입점의 클래스와 네이티브 이름을 보존합니다.
+-keep class com.plugin.compatibility.enhancement.RifeSession { *; }

@@ -8,6 +8,8 @@
         android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING" />
     <uses-permission
         android:name="android.permission.POST_NOTIFICATIONS"
         android:minSdkVersion="33" />
@@ -49,17 +51,16 @@
         <uses-native-library android:name="libcdsprpc.so" android:required="false" />
         <uses-native-library android:name="libadsprpc.so" android:required="false" />
 
-        <uses-native-library android:name="libOpenCL.so" android:required="false" />
         <uses-native-library android:name="libOpenCL-car.so" android:required="false" />
         <uses-native-library android:name="libOpenCL-pixel.so" android:required="false" />
         <uses-native-library android:name="libGLESv2.so" android:required="false" />
         <uses-native-library android:name="libGLESv3.so" android:required="false" />
-        <service android:name="com.plugin.enhancement.EnhancementService"
-            android:exported="false" android:process=":image_ai" />
-        <service android:name="com.plugin.enhancement.EnhancementGpuService"
-            android:exported="false" android:process=":image_ai_gpu" />
-        <service android:name="com.plugin.enhancement.EnhancementCpuService"
-            android:exported="false" android:process=":image_ai_cpu" />
+        <service android:name="com.plugin.compatibility.enhancement.EnhancementService"
+            android:exported="false" android:process=":image_ai" android:foregroundServiceType="dataSync|mediaProcessing" />
+        <service android:name="com.plugin.compatibility.enhancement.EnhancementGpuService"
+            android:exported="false" android:process=":image_ai_gpu" android:foregroundServiceType="dataSync|mediaProcessing" />
+        <service android:name="com.plugin.compatibility.enhancement.EnhancementCpuService"
+            android:exported="false" android:process=":image_ai_cpu" android:foregroundServiceType="dataSync|mediaProcessing" />
         <activity
             android:name=".CrashReportActivity"
             android:exported="false"
@@ -72,24 +73,8 @@
             android:label="@string/title_activity_share"
             android:launchMode="singleInstance"
             android:theme="@style/Theme.Seal.Dialog">
-            <intent-filter>
-                <action android:name="android.intent.action.SEND" />
 
-                <category android:name="android.intent.category.DEFAULT" />
 
-                <data android:mimeType="text/plain" />
-            </intent-filter>
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-
-                <data android:scheme="http" />
-                <data android:scheme="https" />
-                <data android:mimeType="video/*" />
-                <data android:mimeType="audio/*" />
-            </intent-filter>
         </activity>
 
         <activity-alias
@@ -134,6 +119,15 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+
+        </activity>
+
+
+        <!-- 공유 메뉴의 선택 항목은 실행 액티비티와 독립적으로 켜고 끕니다. -->
+        <activity-alias android:name="com.plugin.ui.QuickShareAlias"
+            android:targetActivity="com.plugin.ui.PluginQuickDownloadActivity"
+            android:enabled="true" android:exported="true" android:label="@string/title_activity_share">
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
 
@@ -152,7 +146,31 @@
                 <data android:mimeType="video/*" />
                 <data android:mimeType="audio/*" />
             </intent-filter>
-        </activity>
+        </activity-alias>
+
+        <!-- 공유 메뉴의 선택 항목은 실행 액티비티와 독립적으로 켜고 끕니다. -->
+        <activity-alias android:name="com.plugin.ui.MainShareAlias"
+            android:targetActivity="com.plugin.ui.PluginMainActivity"
+            android:enabled="false" android:exported="true" android:label="@string/app_name">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+                <data android:mimeType="video/*" />
+                <data android:mimeType="audio/*" />
+            </intent-filter>
+        </activity-alias>
 
         <service
             android:name="androidx.appcompat.app.AppLocalesMetadataHolderService"

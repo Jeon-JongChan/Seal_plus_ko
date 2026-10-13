@@ -27,7 +27,7 @@ object HistoryCleanup {
 
     /** 검사 결과를 명시적 삭제 승인에 사용할 고정 목록으로 만듭니다. */
     suspend fun inspect(history: List<DownloadedVideoInfo>): Plan = withContext(Dispatchers.IO) {
-        val checked = history.filterNot { MediaRules.isNoFacePath(it.videoPath) }.map { it to presence(it.videoPath) }
+        val checked = history.filterNot { PluginMediaMetadataStore.isProcessingExcluded(it.videoPath) }.map { it to presence(it.videoPath) }
         Plan(checked.filter { it.second == Presence.MISSING }.map { it.first }, checked.count { it.second == Presence.UNKNOWN })
     }
 
@@ -35,7 +35,7 @@ object HistoryCleanup {
     suspend fun remove(plan: Plan): Int = withContext(Dispatchers.IO) {
         val current = PluginDatabaseUtil.getDownloadHistory().associateBy { it.id }
         val removable = plan.missing.filter { info ->
-            !MediaRules.isNoFacePath(info.videoPath) &&
+            !PluginMediaMetadataStore.isProcessingExcluded(info.videoPath) &&
             current[info.id]?.let { it.videoPath == info.videoPath && it.videoUrl == info.videoUrl } == true &&
                 presence(info.videoPath) == Presence.MISSING
         }

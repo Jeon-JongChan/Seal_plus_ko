@@ -41,11 +41,13 @@ import kotlinx.coroutines.withContext
 fun DownloadFolderSelector(preferences: DownloadPreferences, onUpdate: (DownloadPreferences) -> Unit) {
     if (!PluginState.isEnabled(PluginId.FOLDERS)) return
     var opened by remember { mutableStateOf(false) }
-    val configuredQuick = runCatching { DownloadFolders.quick() }.getOrNull()
+    val configuredQuick = remember { runCatching { DownloadFolders.quick() }.getOrNull() }
     // 쿠키·형식 토글 때마다 SAF 폴더를 다시 조회하지 않고 저장 루트가 바뀔 때 갱신합니다.
     val roots = DownloadFolders.roots(preferences)
     val result by produceState<Result<List<DownloadFolder>>?>(null, roots, opened, configuredQuick) {
-        value = withContext(Dispatchers.IO) { runCatching { DownloadFolders.registered().filter {
+        value = withContext(Dispatchers.IO) { runCatching {
+            // 닫힌 메뉴는 퀵 폴더만 확인하며 전체 SAF 목록은 사용자가 메뉴를 열 때 조회합니다.
+            (if (opened) DownloadFolders.registered() else listOfNotNull(configuredQuick)).filter {
             runCatching { DownloadFolders.validate(it, preferences) }.isSuccess
         } } }
     }

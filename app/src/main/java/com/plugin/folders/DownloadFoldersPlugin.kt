@@ -19,7 +19,7 @@ import com.plugin.compatibility.*
 import com.plugin.ui.DownloadFolderPicker
 
 /** 기본 디렉터리 안의 기존 폴더를 다운로드창의 선택 목록에 등록합니다. */
-object DownloadFoldersPlugin : FeaturePlugin {
+object DownloadFoldersPlugin : FeaturePlugin() {
     override val id = PluginId.FOLDERS
     override val route = "download_folders"
     override val titleResource = R.string.plugin_download_folders
@@ -28,7 +28,7 @@ object DownloadFoldersPlugin : FeaturePlugin {
     /** 등록 목록만 관리하고 실제 폴더·파일은 생성하거나 삭제하지 않습니다. */
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
-    override fun Content(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) {
+    override fun RenderContent(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) {
         val loaded = remember { runCatching { DownloadFolders.registered() } }
         var folders by remember { mutableStateOf(loaded.getOrDefault(emptyList())) }
         var error by remember { mutableStateOf(loaded.exceptionOrNull()?.message.orEmpty()) }

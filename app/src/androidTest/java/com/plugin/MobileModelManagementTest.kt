@@ -1,9 +1,9 @@
 package com.plugin
 
 import androidx.test.platform.app.InstrumentationRegistry
-import com.plugin.enhancement.EnhancementModels
-import com.plugin.enhancement.LiteRtSession
-import com.plugin.enhancement.EnhancementClient
+import com.plugin.compatibility.enhancement.EnhancementModels
+import com.plugin.compatibility.enhancement.LiteRtSession
+import com.plugin.compatibility.enhancement.EnhancementClient
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.*
 import org.junit.Test

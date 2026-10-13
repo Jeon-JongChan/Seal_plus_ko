@@ -71,7 +71,7 @@ fun ListDownloadPage(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Acti
 }
 
 /** 일반 재생목록과 분리된 인스타그램 프로필 전용 내장 플러그인입니다. */
-object ListDownloadPlugin : FeaturePlugin {
+object ListDownloadPlugin : FeaturePlugin() {
     // 기존 계정 화면 경로를 재사용해 저장된 탐색 경로와의 호환성을 유지합니다.
     override val id = com.plugin.PluginId.LIST
     override val route = PluginRoutes.INSTAGRAM
@@ -80,7 +80,7 @@ object ListDownloadPlugin : FeaturePlugin {
 
     /** 선택한 목록 조회 요청을 호스트의 다운로드 흐름으로 전달합니다. */
     @Composable
-    override fun Content(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) {
+    override fun RenderContent(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) {
         ListDownloadPage(onBack, onAction)
     }
 }

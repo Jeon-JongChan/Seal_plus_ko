@@ -15,7 +15,8 @@ import com.junkfood.seal.util.PreferenceUtil.getBoolean
 import com.junkfood.seal.util.PreferenceUtil.updateString
 import com.junkfood.seal.util.PreferenceUtil.updateBoolean
 import com.plugin.compatibility.*
-import com.plugin.enhancement.*
+import com.plugin.compatibility.enhancement.*
+import com.plugin.enhancement.ImageEnhancementPlugin
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.async
 import org.junit.Assert.*
@@ -140,7 +141,7 @@ class ImageEnhancementTest {
         try {
             repeat(4) { pass ->
                 val start = android.os.SystemClock.elapsedRealtime()
-                val result = com.plugin.enhancement.OnnxEnhancer.process(source, model, 256 to 256, {}, false, {})
+                val result = com.plugin.compatibility.enhancement.OnnxEnhancer.process(source, model, 256 to 256, {}, false, {})
                 try {
                     if (pass > 0) times += android.os.SystemClock.elapsedRealtime() - start
                     assertEquals(256, result.width); assertEquals(256, result.height)

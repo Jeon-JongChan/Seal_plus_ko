@@ -19,7 +19,7 @@ import com.plugin.PluginId
 import com.plugin.compatibility.MediaDirectoryOptions
 
 /** 미디어 폴더·해상도 분류와 파일 관리·내장 뷰어를 함께 활성화합니다. */
-object LibraryPlugin : FeaturePlugin {
+object LibraryPlugin : FeaturePlugin() {
     override val id = PluginId.LIBRARY
     override val route = "plugin_library"
     override val titleResource = R.string.plugin_library
@@ -28,7 +28,7 @@ object LibraryPlugin : FeaturePlugin {
     /** 인코딩 기능 없이 폴더 설정과 기존 파일 관리를 제공합니다. */
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
-    override fun Content(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) {
+    override fun RenderContent(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) {
         var opened by remember { mutableStateOf(false) }
         var preferences by remember { com.plugin.compatibility.pluginPreferencesState(com.plugin.compatibility.createPluginPreferences()) }
         Scaffold(topBar = {

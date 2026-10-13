@@ -20,6 +20,7 @@ object PluginAppHelper {
         if (initialized) return
         // Compose 탐색 화면이 서로 다른 스냅샷에서 처음 생성된 상태를 읽지 않도록 준비합니다.
         com.plugin.PluginState.initialize()
+        com.plugin.compatibility.ShareMenuSettings.synchronize(context.applicationContext)
         val appContext = context.applicationContext
         val downloader = PluginDownloaderV2(appContext)
         loadKoinModules(

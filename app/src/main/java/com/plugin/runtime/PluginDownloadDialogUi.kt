@@ -29,6 +29,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -219,68 +220,14 @@ fun PluginDownloadDialog(
 @Composable
 private fun FormatPresetDialog(type: DownloadType?, preferences: DownloadUtil.DownloadPreferences,
     onPreferencesUpdate: (DownloadUtil.DownloadPreferences) -> Unit, onDismiss: () -> Unit) {
-    if (type != Audio) {
-        var res by remember(preferences) { mutableIntStateOf(preferences.videoResolution) }
-        var format by remember(preferences) { mutableIntStateOf(preferences.videoFormat) }
-
-        VideoQuickSettingsDialog(
-            videoResolution = res,
-            videoFormatPreference = format,
-            onResolutionSelect = { res = it },
-            onFormatSelect = { format = it },
-            onDismissRequest = { onDismiss() },
-            onSave = {
-                VIDEO_FORMAT.updateInt(format)
-                VIDEO_QUALITY.updateInt(res)
-                onPreferencesUpdate(com.plugin.compatibility.createPluginPreferences().copyPluginOptions(selectedFolder = preferences.selectedFolder))
-            },
-        )
-    }
-
-    if (type == Audio) {
-        var quality by remember(preferences) { mutableIntStateOf(preferences.audioQuality) }
-        var customPreset by
-            remember(preferences) { mutableStateOf(preferences.useCustomAudioPreset) }
-        var conversionFmt by
-            remember(preferences) { mutableIntStateOf(preferences.audioConvertFormat) }
-        var convertAudio by remember(preferences) { mutableStateOf(preferences.convertAudio) }
-        var preferredFormat by remember(preferences) { mutableIntStateOf(preferences.audioFormat) }
-
-        AudioQuickSettingsDialog(
-            modifier = Modifier,
-            preferences = preferences,
-            audioQuality = quality,
-            onQualitySelect = { quality = it },
-            useCustomAudioPreset = customPreset,
-            onCustomPresetToggle = { customPreset = it },
-            convertAudio = convertAudio,
-            onConvertToggled = { convertAudio = it },
-            conversionFormat = conversionFmt,
-            onConversionSelect = { conversionFmt = it },
-            preferredFormat = preferredFormat,
-            onPreferredSelect = { preferredFormat = it },
-            onDismissRequest = { onDismiss() },
-            onSave = {
-                AUDIO_QUALITY.updateInt(quality)
-                USE_CUSTOM_AUDIO_PRESET.updateBoolean(customPreset)
-                AUDIO_CONVERSION_FORMAT.updateInt(conversionFmt)
-                AUDIO_CONVERT.updateBoolean(convertAudio)
-                AUDIO_FORMAT.updateInt(preferredFormat)
-                onPreferencesUpdate(com.plugin.compatibility.createPluginPreferences().copyPluginOptions(selectedFolder = preferences.selectedFolder))
-            },
-        )
-    }
+    com.plugin.compatibility.FormatPresetDialog(type, preferences, onPreferencesUpdate, onDismiss)
 }
 
 /** 형식 요약을 표시하고 기존 형식 편집기를 엽니다. */
 @Composable
 internal fun DownloadFormatButton(type: DownloadType?, preferences: DownloadUtil.DownloadPreferences,
     onPreferencesUpdate: (DownloadUtil.DownloadPreferences) -> Unit) {
-    var opened by remember { mutableStateOf(false) }
-    Preset(preference = preferences, downloadType = if (type == Playlist) Video else type,
-        selected = true, showEditIcon = true, onEdit = { opened = true }, onClick = { opened = true })
-    DownloadAllChip(preferences, onPreferencesUpdate)
-    if (opened) FormatPresetDialog(type, preferences, onPreferencesUpdate, onDismiss = { opened = false })
+    com.plugin.compatibility.DownloadFormatButton(type, preferences, onPreferencesUpdate)
 }
 
 /** 오류를 발생시킨 요청의 설정을 읽어 모든 조회·등록 실패에서 쿠키 편집을 제공합니다. */
@@ -314,6 +261,7 @@ internal fun ErrorPage(modifier: Modifier = Modifier, state: Error, onActionPost
     var retryPreferences by remember(state) {
         mutableStateOf(preferencesForRetry(state.action), referentialEqualityPolicy())
     }
+    var logOpened by remember(state) { mutableStateOf(false) }
     val url =
         state.action.run {
             when (this) {
@@ -343,36 +291,44 @@ internal fun ErrorPage(modifier: Modifier = Modifier, state: Error, onActionPost
                 Modifier.padding(vertical = 16.dp, horizontal = 20.dp)
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState()),
-            maxLines = 20,
+            maxLines = 4,
             overflow = TextOverflow.Clip,
         )
 
-        retryPreferences?.let { preference ->
-            Row(Modifier.padding(horizontal = 20.dp)) {
-                CookieOptions(preference, persistDefaults = false, onUpdate = { retryPreferences = it })
-            }
-        }
-        androidx.compose.foundation.layout.FlowRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             FilledTonalButton(onClick = {
                 val action = state.action
                 onActionPost(actionForRetry(action, retryPreferences))
             }) { Text(stringResource(R.string.loc_retry_action)) }
-            Spacer(Modifier.width(8.dp))
-            Button(
-                onClick = {
+            retryPreferences?.let { preference ->
+                CookieOptions(preference, persistDefaults = false, compactLabel = true, onUpdate = { retryPreferences = it })
+            }
+            FilledTonalButton(onClick = { logOpened = true }) { Text(stringResource(R.string.plugin_view_log)) }
+        }
+    }
+    if (logOpened) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { logOpened = false },
+        title = { Text(stringResource(R.string.plugin_view_log)) },
+        text = {
+            androidx.compose.foundation.text.selection.SelectionContainer {
+                Text(App.getVersionReport() + "\nURL: $url\n" + state.throwable.stackTraceToString(),
+                    modifier = Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()),
+                    style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace))
+            }
+        },
+        confirmButton = { androidx.compose.material3.TextButton(onClick = { logOpened = false }) { Text(stringResource(R.string.confirm)) } },
+        dismissButton = { androidx.compose.material3.TextButton(onClick = {
                     view.longPressHapticFeedback()
                     clipboardManager.setText(
                         AnnotatedString(
-                            App.getVersionReport() + "\nURL: ${url}\n${state.throwable.message}"
+                            App.getVersionReport() + "\nURL: $url\n" + state.throwable.stackTraceToString()
                         )
                     )
                     ToastUtil.makeToast(R.string.error_copied)
-                }
-            ) {
-                Text(stringResource(R.string.copy_error_report))
-            }
-        }
-    }
+                }) {
+                Text(stringResource(android.R.string.copy))
+            } })
 }
 
 /** 다운로드 상태에 맞는 URL 입력·설정·목록·오류 화면을 표시합니다. */
@@ -386,14 +342,8 @@ private fun DownloadDialogContent(
     onPresetEdit: (DownloadType?) -> Unit,
     onActionPost: (Any) -> Unit,
 ) {
-    AnimatedContent(
-        modifier = modifier,
-        targetState = state,
-        label = "",
-        transitionSpec = {
-            materialSharedAxisX(initialOffsetX = { it / 4 }, targetOffsetX = { -it / 4 })
-        },
-    ) { state ->
+    // 입력·조회 상태 전환에서 이전 화면과 새 화면을 동시에 구성하지 않습니다.
+    Box(modifier) {
         when (state) {
             is Configure -> {
                 if ((com.plugin.PluginState.isEnabled(com.plugin.PluginId.INTERACTION) ||
@@ -582,12 +532,13 @@ private fun ConfigurePage(
                 selectedType = selectedType,
                 onSelect = { selectedType = it },
             )
-            Column(modifier = Modifier.animateContentSize()) {
+            Column {
                 if (selectedType != Command) {
                     DrawerSheetSubtitle(
                         text = stringResource(id = R.string.format_selection),
                         modifier = Modifier,
                     )
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Preset(
                         modifier = Modifier,
                         preference = preferences,
@@ -603,6 +554,7 @@ private fun ConfigurePage(
                         onClick = { useFormatSelection = true },
                     )
                     DownloadAllChip(preferences, onPreferencesUpdate)
+                    }
                 } else {
                     if (showTemplateSelectionDialog) {
                         TemplatePickerDialog { showTemplateSelectionDialog = false }
@@ -738,6 +690,7 @@ fun ConfigurePagePlaylistVariant(
                 text = stringResource(id = R.string.format_selection),
                 modifier = Modifier,
             )
+            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Preset(
                 modifier = Modifier,
                 preference = preferences,
@@ -747,8 +700,9 @@ fun ConfigurePagePlaylistVariant(
                 showEditIcon = true,
                 onEdit = { onPresetEdit(selectedType) },
             )
+            DownloadAllChip(preferences, onPreferencesUpdate)
+            }
         }
-        DownloadAllChip(preferences, onPreferencesUpdate)
         DrawerSheetSubtitle(text = stringResource(R.string.additional_settings), modifier = Modifier.padding(horizontal = 20.dp))
         AdditionalSettings(
             modifier = Modifier.padding(horizontal = 16.dp),
@@ -783,33 +737,7 @@ internal fun AdditionalSettings(
     instagram: Boolean = false,
     showSubtitles: Boolean = true,
 ) {
-    with(preference) {
-        Row(modifier = modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (selectedType != Command) com.plugin.ui.DownloadFolderSelector(preference, onPreferenceUpdate)
-            CookieOptions(preference, onUpdate = onPreferenceUpdate)
-            if (showSubtitles) VideoFilterChip(
-                selected = downloadSubtitle,
-                enabled = selectedType != Command,
-                onClick = {
-                    SUBTITLE.updateBoolean(!downloadSubtitle)
-                    onPreferenceUpdate(com.plugin.compatibility.createPluginPreferences().copyPluginOptions(selectedFolder = preference.selectedFolder))
-                },
-                label = stringResource(id = R.string.download_subtitles),
-            )
-            VideoFilterChip(
-                selected = createThumbnail,
-                enabled = selectedType != Command,
-                onClick = {
-                    THUMBNAIL.updateBoolean(!createThumbnail)
-                    onPreferenceUpdate(com.plugin.compatibility.createPluginPreferences().copyPluginOptions(selectedFolder = preference.selectedFolder))
-                },
-                label = stringResource(R.string.create_thumbnail),
-            )
-
-            MediaSettingsButton(preference, onPreferenceUpdate, imageOnly = preference.mediaSelection == 2)
-        }
-    }
+    com.plugin.compatibility.AdditionalSettings(modifier, selectedType, preference, onPreferenceUpdate, instagram, showSubtitles)
 }
 
 /** 설명은 접근성 읽기에 유지하고 형식 선택지를 한 줄 칩으로 표시합니다. */
@@ -824,36 +752,13 @@ private fun SingleChoiceItem(
     enabled: Boolean = true,
     onClick: () -> Unit = {},
 ) {
-    FilterChip(
-        modifier = modifier.padding(horizontal = 4.dp).semantics { contentDescription = if (title == desc) title else "$title, $desc" },
-        selected = selected,
-        onClick = onClick,
-        enabled = enabled,
-        label = { Text(title, maxLines = 1) },
-        leadingIcon = icon,
-        trailingIcon = action,
-    )
+    com.plugin.compatibility.SingleChoiceItem(modifier, title, desc, selected, icon, action, enabled, onClick)
 }
 
 @Composable
 /** Header의 독립 플러그인 처리를 제공합니다. */
 internal fun Header(modifier: Modifier = Modifier, icon: ImageVector, title: String) {
-    Column(modifier = modifier) {
-        Icon(
-            modifier = Modifier.align(Alignment.CenterHorizontally),
-            imageVector = icon,
-            contentDescription = null,
-        )
-        Text(
-            text = title,
-            style = MaterialTheme.typography.headlineSmall,
-            modifier =
-                Modifier.align(Alignment.CenterHorizontally).padding(top = 16.dp, bottom = 8.dp),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-        )
-    }
+    com.plugin.compatibility.Header(modifier, icon, title)
 }
 
 @Composable
@@ -864,30 +769,7 @@ internal fun DownloadTypeSelectionGroup(
     selectedType: DownloadType?,
     onSelect: (DownloadType) -> Unit,
 ) {
-    val typeCount = typeEntries.size
-    if (typeCount >= 4) {
-        LazyRow(modifier = modifier) {
-            items(typeEntries) { type ->
-                SingleChoiceChip(
-                    selected = selectedType == type,
-                    label = type.label(),
-                    onClick = { onSelect(type) },
-                )
-            }
-        }
-    } else {
-        SingleChoiceSegmentedButtonRow(modifier = modifier.fillMaxWidth()) {
-            typeEntries.forEachIndexed { index, type ->
-                SingleChoiceSegmentedButton(
-                    selected = selectedType == type,
-                    onClick = { onSelect(type) },
-                    shape = SegmentedButtonDefaults.itemShape(index, typeCount),
-                ) {
-                    Text(text = type.label())
-                }
-            }
-        }
-    }
+    com.plugin.compatibility.DownloadTypeSelectionGroup(modifier, typeEntries, selectedType, onSelect)
 }
 
 @Composable
@@ -901,61 +783,7 @@ private fun Preset(
     onEdit: () -> Unit,
     onClick: () -> Unit,
 ) {
-    val description =
-        when (downloadType) {
-            Audio -> {
-                PreferenceStrings.getAudioPresetText(preference)
-            }
-
-            Video -> {
-                PreferenceStrings.getVideoPresetText(preference)
-            }
-
-            Playlist -> stringResource(R.string.preset_format_selection_desc)
-            else -> ""
-        }
-
-    SingleChoiceItem(
-        modifier = modifier,
-        title = description.ifBlank { stringResource(R.string.preset) },
-        desc = description,
-        icon = {
-            Crossfade(selected, animationSpec = spring(stiffness = Spring.StiffnessMedium)) {
-                if (it) {
-                    Icon(
-                        imageVector = Icons.Filled.SettingsSuggest,
-                        null,
-                        modifier = Modifier.size(20.dp),
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Outlined.SettingsSuggest,
-                        null,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-            }
-        },
-        selected = selected,
-        action = {
-            Crossfade(showEditIcon, animationSpec = spring(stiffness = Spring.StiffnessMedium)) {
-                if (it) {
-                    Icon(
-                        imageVector = Icons.Outlined.MoreVert,
-                        contentDescription = stringResource(R.string.edit),
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-            }
-        },
-        onClick = {
-            if (showEditIcon) {
-                onEdit()
-            } else {
-                onClick()
-            }
-        },
-    )
+    com.plugin.compatibility.Preset(modifier, preference, downloadType, selected, showEditIcon, onEdit, onClick)
 }
 
 @Composable
@@ -966,31 +794,7 @@ private fun Custom(
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
-    SingleChoiceItem(
-        modifier = modifier,
-        title = stringResource(R.string.loc_quality_pick),
-        desc = stringResource(R.string.custom_format_selection_desc),
-        icon = {
-            Crossfade(selected, animationSpec = spring(stiffness = Spring.StiffnessMedium)) {
-                if (it) {
-                    Icon(
-                        imageVector = Icons.Filled.VideoFile,
-                        null,
-                        modifier = Modifier.size(20.dp),
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Outlined.VideoFile,
-                        null,
-                        modifier = Modifier.size(20.dp),
-                    )
-                }
-            }
-        },
-        selected = selected,
-        enabled = enabled,
-        onClick = onClick,
-    )
+    com.plugin.compatibility.Custom(modifier, selected, enabled, onClick)
 }
 
 private enum class ActionButton {

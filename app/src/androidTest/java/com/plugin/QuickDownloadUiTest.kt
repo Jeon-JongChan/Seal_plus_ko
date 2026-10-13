@@ -22,6 +22,7 @@ class QuickDownloadUiTest {
         val intent = Intent(instrumentation.targetContext, PluginQuickDownloadActivity::class.java)
             .setAction(Intent.ACTION_SEND).setType("text/plain")
             .putExtra(Intent.EXTRA_TEXT, "https://example.invalid/ui-check")
+        repeat(5) {
         ActivityScenario.launch<PluginQuickDownloadActivity>(intent).use { scenario ->
             instrumentation.waitForIdleSync()
             val activity = AtomicReference<PluginQuickDownloadActivity>()
@@ -39,6 +40,7 @@ class QuickDownloadUiTest {
             val elapsed = SystemClock.uptimeMillis() - started.get()
             android.util.Log.i("QuickDownloadClose", "종료 시작까지 ${elapsed}ms")
             assertTrue("빠른 창 종료가 ${elapsed}ms 지연됐습니다.", finishing.get() && elapsed < 250)
+        }
         }
     }
 }

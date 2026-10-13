@@ -1,0 +1,27 @@
+package com.plugin
+
+import com.plugin.compatibility.enhancement.VideoRules
+import org.junit.Assert.*
+import org.junit.Test
+
+/** 영상의 실제 시각 보존과 프레임 증가·색 변환 경계를 검사합니다. */
+class VideoRulesTest {
+    /** 프레임 하나를 복제해 AI 보간으로 표시하지 않습니다. */
+    @Test fun singleFrameKeepsOriginal() {
+        assertFalse(VideoRules.increases(60, 30.0, 1))
+        assertTrue(VideoRules.increases(60, 30.0, 2))
+    }
+    /** 장시간 시각 계산·원본보다 낮은 선택·기본 YUV 색을 함께 확인합니다. */
+    @Test fun frameClockAndColorBounds() {
+        assertEquals(3_600_000_123L, VideoRules.timestamp(123, 216_000, 60))
+        assertFalse(VideoRules.increases(0, 23.976)); assertTrue(VideoRules.increases(30, 23.976))
+        assertFalse(VideoRules.increases(30, 60.0)); assertFalse(VideoRules.increases(60, 60.0))
+        assertEquals(0xff000000.toInt(), VideoRules.rgb(16, 128, 128, false, true))
+        assertEquals(0xffffffff.toInt(), VideoRules.rgb(235, 128, 128, false, true))
+        assertEquals(0xff808080.toInt(), VideoRules.rgb(128, 128, 128, true, false))
+        val red = VideoRules.rgb(81, 90, 240, false, false)
+        assertTrue(red ushr 16 and 255 >= 250); assertTrue(red and 255 <= 5)
+        val red709 = VideoRules.rgb(63, 102, 240, false, true)
+        assertTrue(red709 ushr 16 and 255 >= 250); assertTrue(red709 ushr 8 and 255 <= 5)
+    }
+}

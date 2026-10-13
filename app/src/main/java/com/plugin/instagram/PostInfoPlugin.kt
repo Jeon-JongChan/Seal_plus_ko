@@ -25,7 +25,7 @@ import com.plugin.compatibility.SocialPostMetadataPreferences
  * 계정주 프로필, 계정명, 해당 게시글의 텍스트와 해시태그를 수집하여 대기열이나 목록에서 보여주는 플러그인입니다.
  * - 옵션 설정에서 표시할 항목(프로필, 계정명, 텍스트, 해시태그)을 개별 선택할 수 있습니다. (기본값: 전체 활성화)
  */
-object PostInfoPlugin : FeaturePlugin {
+object PostInfoPlugin : FeaturePlugin() {
     override val id = PluginId.POST_INFO
     override val route = PluginRoutes.POST_INFO
     override val titleResource = R.string.loc_post_info_plugin
@@ -34,7 +34,7 @@ object PostInfoPlugin : FeaturePlugin {
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     /** 프로필·계정명·본문·해시태그 표시 여부를 개별 설정합니다. */
-    override fun Content(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) {
+    override fun RenderContent(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) {
         var showProfile by remember { mutableStateOf(SocialPostMetadataPreferences.showProfile) }
         var showAuthor by remember { mutableStateOf(SocialPostMetadataPreferences.showAuthor) }
         var showText by remember { mutableStateOf(SocialPostMetadataPreferences.showText) }

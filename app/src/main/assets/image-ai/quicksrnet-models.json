@@ -1,0 +1,26 @@
+[
+  {
+    "model": "Small",
+    "file": "quicksrnet-small.tflite",
+    "bytes": 136904,
+    "sha256": "244df05bf44edfef802db7195ef9f072384b8ee35afadb9a7ed22c4a311edc44",
+    "archive_sha256": "6b60eb69d166286fc2350add4f5df5697647b08bf668624d38542658c0929417",
+    "url": "https://qaihub-public-assets.s3.us-west-2.amazonaws.com/qai-hub-models/models/quicksrnetsmall/releases/v0.64.0/quicksrnetsmall-tflite-float.zip",
+    "input": "image",
+    "output": "upscaled_image",
+    "mean": 0.4996943175792694,
+    "scale": 4
+  },
+  {
+    "model": "Medium",
+    "file": "quicksrnet-medium.tflite",
+    "bytes": 249452,
+    "sha256": "9310ebbad930378d24b560cd25705c1b57b778fcbcd9d2a17406ff5c1378bf1c",
+    "archive_sha256": "07a980b345858b361e96de643799dc6dac2b9e3e5c48188964f27469c3978860",
+    "url": "https://qaihub-public-assets.s3.us-west-2.amazonaws.com/qai-hub-models/models/quicksrnetmedium/releases/v0.64.0/quicksrnetmedium-tflite-float.zip",
+    "input": "image",
+    "output": "upscaled_image",
+    "mean": 0.4992457628250122,
+    "scale": 4
+  }
+]

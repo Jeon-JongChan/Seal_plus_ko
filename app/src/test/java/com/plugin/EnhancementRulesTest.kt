@@ -1,6 +1,6 @@
 package com.plugin
 
-import com.plugin.enhancement.EnhancementRules
+import com.plugin.compatibility.enhancement.EnhancementRules
 import org.junit.Assert.*
 import org.junit.Test
 

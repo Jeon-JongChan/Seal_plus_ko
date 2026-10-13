@@ -1,5 +1,7 @@
 package com.plugin.enhancement
 
+import com.plugin.compatibility.enhancement.*
+
 import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -36,7 +38,7 @@ import java.io.File
 import kotlin.math.roundToInt
 
 /** 이미지 뷰어 동작과 모델 설정만 제공하며 다운로드 엔진에는 참여하지 않습니다. */
-object ImageEnhancementPlugin : FeaturePlugin {
+object ImageEnhancementPlugin : FeaturePlugin() {
     override val id = PluginId.IMAGE_AI
     override val route = "plugin_image_ai"
     override val titleResource = R.string.plugin_image_ai
@@ -44,7 +46,7 @@ object ImageEnhancementPlugin : FeaturePlugin {
 
     /** 모델 관리 메뉴는 다른 선택 플러그인을 켜지 않아도 사용할 수 있습니다. */
     @Composable
-    override fun Content(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) = ModelSettings(onBack)
+    override fun RenderContent(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) = ModelSettings(onBack)
 
     /** 현재 이미지 위에 플랫폼 기본 마법봉 아이콘을 표시합니다. */
     @Composable
@@ -59,176 +61,12 @@ object ImageEnhancementPlugin : FeaturePlugin {
     }
 }
 
-/** 공개 폴더 검색·파일 가져오기·추천 다운로드와 Google 지원 검사를 제공합니다. */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
-@Composable
-private fun ModelSettings(onBack: () -> Unit) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    var models by remember { mutableStateOf(listOf(EnhancementModels.Model("Real-ESRGAN x4v3 · 모바일 4배 · 기본", EnhancementModels.DEFAULT_MODEL, 4_870_119L))) }
-    var selected by remember { mutableStateOf(EnhancementModels.SELECTED.getString().ifBlank { EnhancementModels.DEFAULT_MODEL }) }
-    var backend by remember { mutableStateOf(EnhancementModels.BACKEND.getString("litert")) }
-    var accelerated by remember { mutableStateOf(EnhancementModels.ACCELERATED.getBoolean(true)) }
-    var npuFirst by remember { mutableStateOf(EnhancementModels.NPU_FIRST.getBoolean(false)) }
-    val threadLimit = EnhancementRules.cpuThreadLimit(Runtime.getRuntime().availableProcessors())
-    var cpuThreads by remember { mutableIntStateOf(EnhancementRules.cpuThreads(EnhancementModels.CPU_THREADS.getInt(2), Runtime.getRuntime().availableProcessors())) }
-    var googleFirst by remember { mutableStateOf(EnhancementModels.GOOGLE_FIRST.getBoolean()) }
-    var google by remember { mutableStateOf<Pair<Boolean, Boolean>?>(null) }
-    var busy by remember { mutableStateOf(false) }
-    var status by remember { mutableStateOf("") }
-    var link by remember { mutableStateOf("") }
-    var deleting by remember { mutableStateOf<EnhancementModels.Model?>(null) }
-
-    /** 저장소 오류를 표시하고 기존 선택과 목록은 유지합니다. */
-    fun refresh() { scope.launch { runCatching { EnhancementModels.scan(context) }.onSuccess { models = it }.onFailure { status = it.message.orEmpty() } } }
-    /** 내려받기·가져오기는 화면의 작업 하나로 제한합니다. */
-    fun acquire(action: suspend () -> EnhancementModels.Model) {
-        if (busy) return
-        busy = true
-        scope.launch {
-            try {
-                val model = action()
-                models = (models + model).distinctBy { it.source }
-                selected = model.source; EnhancementModels.SELECTED.updateString(selected)
-                status = "모델 준비 완료: ${model.name}"
-            } catch (cancel: CancellationException) { throw cancel }
-            catch (failure: Exception) { status = failure.message.orEmpty() }
-            finally { busy = false }
-        }
-    }
-    val importer = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) acquire { EnhancementModels.import(context, uri) }
-    }
-    val permissionSettings = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { refresh() }
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { refresh() }
-    LaunchedEffect(Unit) {
-        selected = EnhancementModels.selectedSource(context)
-        runCatching { EnhancementModels.scan(context) }.onSuccess { models = it }.onFailure { status = it.message.orEmpty() }
-        google = runCatching { GoogleEnhancer.availability(context) }.getOrDefault(false to false)
-    }
-    deleting?.let { model ->
-        AlertDialog(onDismissRequest = { if (!busy) deleting = null },
-            title = { Text("모델 삭제") },
-            text = { Text("${model.name}\n${model.source}\n\n이 모델 파일을 삭제합니다. 사용 중이면 기본 모델로 전환합니다.") },
-            dismissButton = { TextButton(enabled = !busy, onClick = { deleting = null }) { Text("취소") } },
-            confirmButton = { TextButton(enabled = !busy, onClick = {
-                busy = true
-                scope.launch {
-                    try {
-                        EnhancementModels.delete(context, model)
-                        if (selected == model.source) selected = EnhancementModels.DEFAULT_MODEL
-                        models = models.filterNot { it.source == model.source }
-                        status = "모델 삭제 완료: ${model.name}"; deleting = null
-                    } catch (cancel: CancellationException) { throw cancel }
-                    catch (failure: Exception) { status = failure.message.orEmpty(); deleting = null }
-                    finally { busy = false }
-                }
-            }) { Text("삭제", color = MaterialTheme.colorScheme.error) } })
-    }
-    Scaffold(topBar = { TopAppBar(title = { Text("이미지 AI 보정") }, navigationIcon = { BackButton(onBack) }) }) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("이미지만 처리합니다. Android 9 이상에서 별도 프로세스로 실행하며 결과를 확인한 뒤 저장합니다.")
-            Text(if (selected.isBlank()) "모델을 먼저 준비하세요" else "사용 중: ${models.firstOrNull { it.source == selected }?.name ?: File(selected).name}", style = MaterialTheme.typography.titleSmall)
-            if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodySmall)
-            if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-            Text("기본 모델: 사진 복원용 4배 모델 · LiteRT·ONNX 지원 · 약 4.9 MB", style = MaterialTheme.typography.bodySmall)
-            Text("모델 폴더", style = MaterialTheme.typography.titleMedium)
-            Text("${EnhancementModels.publicRoot()}\nSD 카드 다운로드를 사용하면 선택한 폴더의 models를 검색합니다.", style = MaterialTheme.typography.bodySmall)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(enabled = !busy, onClick = { refresh() }) { Text("새로고침") }
-                TextButton(enabled = !busy, onClick = { importer.launch(arrayOf("*/*")) }) { Text("파일 가져오기") }
-                TextButton(enabled = !busy, onClick = {
-                    if (Build.VERSION.SDK_INT >= 30) permissionSettings.launch(android.content.Intent(
-                        android.provider.Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:${context.packageName}")))
-                    else permission.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                }) { Text("폴더 권한") }
-            }
-            Text("단일 파일 ONNX 또는 기본·추천 모델과 호환되는 정적 RGB FP32 TFLite를 지원합니다. .pth·NCNN·별도 가중치 파일은 변환이 필요합니다.", style = MaterialTheme.typography.bodySmall)
-            models.forEach { model ->
-                OutlinedCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text(model.name)
-                        Text("${model.bytes / 1024} KB", style = MaterialTheme.typography.bodySmall)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TextButton(enabled = !busy && selected != model.source, onClick = { selected = model.source; EnhancementModels.SELECTED.updateString(selected) }) {
-                                Text(if (selected == model.source) "사용 중" else "사용")
-                            }
-                            if (!model.source.startsWith("asset://")) TextButton(enabled = !busy, onClick = { deleting = model }) {
-                                Text("삭제", color = MaterialTheme.colorScheme.error)
-                            }
-                        }
-                    }
-                }
-            }
-            Text("추천 모델", style = MaterialTheme.typography.titleMedium)
-            // 첫 추천의 같은 가중치는 기본 내장 모델로 제공하므로 중복 다운로드를 표시하지 않습니다.
-            EnhancementModels.recommendations.drop(1).forEach { recommendation ->
-                OutlinedCard(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(12.dp)) {
-                        Text(if (recommendation.name.endsWith("x4plus.tflite")) "Real-ESRGAN x4plus · 모바일 4배" else recommendation.name)
-                        Text(recommendation.description, style = MaterialTheme.typography.bodySmall)
-                        val existing = models.firstOrNull { it.name == recommendation.name }
-                        TextButton(enabled = !busy, onClick = {
-                            if (existing != null) { selected = existing.source; EnhancementModels.SELECTED.updateString(selected) }
-                            else acquire { EnhancementModels.download(context, recommendation.url, recommendation) { status = it } }
-                        }) { Text(if (existing == null) "다운로드" else if (selected == existing.source) "사용 중" else "사용") }
-                    }
-                }
-            }
-            OutlinedTextField(link, onValueChange = { link = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Hugging Face 모델 파일 링크") }, singleLine = true)
-            TextButton(enabled = !busy && link.isNotBlank(), onClick = { acquire { EnhancementModels.download(context, link) { status = it } } }) { Text("링크에서 다운로드") }
-            HorizontalDivider()
-            Text("실행 엔진", style = MaterialTheme.typography.titleMedium)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(backend == "litert", enabled = !busy, onClick = { backend = "litert"; EnhancementModels.BACKEND.updateString(backend) }, label = { Text("LiteRT v2 · 기본") })
-                FilterChip(backend == "onnx", enabled = !busy, onClick = { backend = "onnx"; EnhancementModels.BACKEND.updateString(backend) }, label = { Text("ONNX") })
-            }
-            Text("TFLite 모델은 LiteRT로 GPU·NPU를 시도하고 실패하면 CPU로 실행합니다. 사용자 ONNX 모델은 ONNX로 실행합니다. 4배 모델도 목표 2배 크기로 저장할 수 있습니다.", style = MaterialTheme.typography.bodySmall)
-            Text("처리 장치", style = MaterialTheme.typography.titleMedium)
-            Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("하드웨어 가속", Modifier.weight(1f))
-                Switch(accelerated, enabled = !busy, onCheckedChange = {
-                    accelerated = it; EnhancementModels.ACCELERATED.updateBoolean(it)
-                })
-            }
-            if (backend == "litert" && accelerated) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(!npuFirst, enabled = !busy, onClick = { npuFirst = false; EnhancementModels.NPU_FIRST.updateBoolean(false) }, label = { Text("GPU · 기본") })
-                FilterChip(npuFirst, enabled = !busy, onClick = { npuFirst = true; EnhancementModels.NPU_FIRST.updateBoolean(true) }, label = { Text("NPU·GPU 자동") })
-            }
-            Text("LiteRT는 준비 시간이 짧은 GPU를 기본으로 사용하며 NPU·GPU 자동 경로도 선택할 수 있습니다. ONNX의 NNAPI는 별도 옵션입니다. 가속을 끄면 CPU로 처리합니다.", style = MaterialTheme.typography.bodySmall)
-            Text("CPU 스레드 · $cpuThreads / $threadLimit", style = MaterialTheme.typography.titleSmall)
-            if (threadLimit > 1) Slider(value = cpuThreads.toFloat(), valueRange = 1f..threadLimit.toFloat(), steps = (threadLimit - 2).coerceAtLeast(0),
-                enabled = !busy, onValueChange = { cpuThreads = it.roundToInt().coerceIn(1, threadLimit) },
-                onValueChangeFinished = { EnhancementModels.CPU_THREADS.updateInt(cpuThreads) })
-            Text("CPU 처리와 가속되지 않는 연산에 적용합니다. 기기 CPU 수의 절반까지 선택하며, 높이면 발열과 다운로드 부하가 늘 수 있습니다.", style = MaterialTheme.typography.bodySmall)
-            Text("Google Media Enhancement", style = MaterialTheme.typography.titleMedium)
-            Text(when { google == null -> "기기 지원 여부 확인 중"; google?.first != true -> "이 기기에서는 사용할 수 없습니다.";
-                google?.second == true -> "지원 기기 · 모듈 준비 완료"; else -> "지원 기기 · 모듈 다운로드 필요" })
-            if (google?.first == true && google?.second != true) TextButton(enabled = !busy, onClick = {
-                busy = true
-                scope.launch {
-                    try { check(GoogleEnhancer.install(context)) { "Google 모듈 설치에 실패했습니다." }; google = GoogleEnhancer.availability(context) }
-                    catch (cancel: CancellationException) { throw cancel }
-                    catch (failure: Exception) { status = failure.message.orEmpty() }
-                    finally { busy = false }
-                }
-            }) { Text("Google 모듈 다운로드") }
-            Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                Text("Google 보정 우선 사용", Modifier.weight(1f))
-                Switch(googleFirst, enabled = !busy && accelerated && (googleFirst || google?.second == true), onCheckedChange = { googleFirst = it; EnhancementModels.GOOGLE_FIRST.updateBoolean(it) })
-            }
-            Text("자동 가속 모드에서 우선 사용합니다. 실패하면 선택한 실행 엔진으로 전환하고, CPU 모드에서는 적용하지 않습니다.", style = MaterialTheme.typography.bodySmall)
-        }
-    }
-}
-
 /** 보정 선택·진행·전후 비교·명시적 저장을 한 화면에서 제공합니다. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ImageAiAction(paths: List<String>, batch: Boolean, onSaved: (String, String, Boolean) -> Unit) {
     val path = paths.firstOrNull() ?: return
-    if (com.plugin.compatibility.MediaRules.isNoFacePath(path)) return
+    if (com.plugin.compatibility.PluginMediaMetadataStore.isProcessingExcluded(path)) return
     // 전체 저장 도중 SAF 경로가 바뀌어도 게시글 작업 상태와 취소 핸들을 유지합니다.
     val stateKey = if (batch) "post" else path
     val latestSaved by rememberUpdatedState(onSaved)
@@ -341,6 +179,7 @@ private fun ImageAiAction(paths: List<String>, batch: Boolean, onSaved: (String,
                     Text("최소: 2배 · 최대: 4K에 가깝게. 원본 비율과 출력 제한을 유지하며 이미 큰 사진은 확대하지 않습니다.", style = MaterialTheme.typography.bodySmall)
                     TextButton(onClick = { advanced = !advanced }) { Text(if (advanced) "직접 설정 접기" else "직접 설정") }
                     if (advanced) {
+                        SamplingSettings()
                         OutlinedButton(onClick = { start(1) }, modifier = Modifier.fillMaxWidth()) { Text("크기 유지 · 화질 개선") }
                         OutlinedButton(onClick = { upscale = true }, modifier = Modifier.fillMaxWidth()) { Text("해상도·배율 선택") }
                     }

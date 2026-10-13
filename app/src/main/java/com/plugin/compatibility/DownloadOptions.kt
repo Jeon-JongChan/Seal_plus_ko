@@ -343,7 +343,7 @@ fun MediaDirectoryOptions(preferences: DownloadUtil.DownloadPreferences,
 
 /** 기존 쿠키 칩과 대화상자를 재사용하고 활성화할 때 전체 로그인 쿠키를 갱신합니다. */
 @Composable
-fun CookieOptions(preferences: DownloadUtil.DownloadPreferences, persistDefaults: Boolean = true, onUpdate: (DownloadUtil.DownloadPreferences) -> Unit) {
+fun CookieOptions(preferences: DownloadUtil.DownloadPreferences, persistDefaults: Boolean = true, compactLabel: Boolean = false, onUpdate: (DownloadUtil.DownloadPreferences) -> Unit) {
     var opened by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
@@ -377,7 +377,7 @@ fun CookieOptions(preferences: DownloadUtil.DownloadPreferences, persistDefaults
         val quick = if (preferences.cookieProfileExplicit) preferences.cookieProfileId else if (com.plugin.PluginState.isEnabled(com.plugin.PluginId.INTERACTION))
             com.junkfood.seal.util.PreferenceUtil.run { QUICK_COOKIE_PROFILE.getInt(-1) } else -1
         if (!preferences.cookieProfileExplicit && profiles.any { it.id == quick }) toggleCookies(!preferences.cookies, quick) else opened = true
-    }, label = if (selectedHost == null) stringResource(R.string.cookies) else "${stringResource(R.string.cookies)} · $selectedHost")
+    }, label = if (compactLabel || selectedHost == null) stringResource(R.string.cookies) else "${stringResource(R.string.cookies)} · $selectedHost")
     if (opened) CookiesQuickSettingsDialog(
         isCookiesEnabled = preferences.cookies,
         cookieProfiles = listOf(com.junkfood.seal.database.objects.CookieProfile(-1, stringResource(R.string.cookies_all_sources), "")) + profiles,

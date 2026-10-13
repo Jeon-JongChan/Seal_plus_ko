@@ -38,7 +38,10 @@ class MediaScanService : Service() {
         started = true
         scope.launch {
             try {
+                // 라이브러리 인식은 유지하되 자동 분류 작업에서만 NOFACE를 제외합니다.
                 val files = MediaLibrary.listVideos(preferences, includeClassified = intent?.getBooleanExtra("all", false) == true)
+                    .filterNot { it.excludedFromProcessing || com.plugin.compatibility.PluginMediaMetadataStore.isProcessingExcluded(it.path) ||
+                        com.plugin.compatibility.MediaRules.isNoFacePath(it.parentUri.orEmpty()) }
                 progress.value = ScanProgress(running = true, total = files.size)
                 val processedPaths = mutableSetOf<String>()
                 for (file in files) {

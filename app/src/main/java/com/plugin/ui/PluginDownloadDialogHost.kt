@@ -28,8 +28,9 @@ fun PluginDownloadDialogHost(viewModel: PluginDownloadDialogViewModel, onFinishe
     val sheetValue by viewModel.sheetValueFlow.collectAsStateWithLifecycle()
     val state by viewModel.sheetStateFlow.collectAsStateWithLifecycle()
     val selection by viewModel.selectionStateFlow.collectAsStateWithLifecycle()
-    var preferences by remember(PluginId.entries.map(PluginState::isEnabled)) {
-        pluginPreferencesState(createPluginPreferences())
+    var preferences by remember {
+        // 닫힌 창을 구성할 때 설정을 읽지 않고 실제로 열 때 한 번만 읽습니다.
+        pluginPreferencesState(com.junkfood.seal.util.DownloadUtil.DownloadPreferences.EMPTY)
     }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var showDialog by remember { mutableStateOf(false) }
@@ -43,8 +44,8 @@ fun PluginDownloadDialogHost(viewModel: PluginDownloadDialogViewModel, onFinishe
         } else {
             // 빠른 Activity 종료는 바텀 시트의 닫기 애니메이션을 기다리지 않습니다.
             if (selection == SelectionState.Idle) latestFinished()
-            sheetState.hide()
             showDialog = false
+            // 시트를 즉시 제거하므로 닫기 애니메이션과 중복 레이아웃 계산이 필요 없습니다.
         }
     }
     if (showDialog) {
@@ -59,6 +60,8 @@ fun PluginDownloadDialogHost(viewModel: PluginDownloadDialogViewModel, onFinishe
                 onActionPost = viewModel::postAction)
         }
     }
+    // 형식·재생목록 선택이 없으면 등록 어댑터와 DI 조회도 생성하지 않습니다.
+    if (selection != SelectionState.Idle) {
     val originalDownloader: com.junkfood.seal.download.DownloaderV2 = org.koin.compose.koinInject()
     val requestPreferences = viewModel.selectionPreferences
     val selectedFolder = if (requestPreferences != null) requestPreferences.selectedFolder else preferences.selectedFolder
@@ -70,6 +73,7 @@ fun PluginDownloadDialogHost(viewModel: PluginDownloadDialogViewModel, onFinishe
         is SelectionState.PlaylistSelection -> PlaylistSelectionPage(state = current, downloader = selectionDownloader,
             onDismissRequest = { viewModel.postAction(Action.Reset) })
         SelectionState.Idle -> {}
+    }
     }
 }
 

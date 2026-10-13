@@ -1,4 +1,4 @@
-package com.plugin.enhancement
+package com.plugin.compatibility.enhancement
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -7,7 +7,7 @@ import android.graphics.Bitmap
 object LiteRtEnhancer {
     /** GPU 환경 생성과 추론을 같은 코루틴 구간·스레드에서 수행합니다. */
     suspend fun process(context: Context, source: Bitmap, model: String, target: Pair<Int, Int>,
-        progress: (Int) -> Unit, accelerated: Boolean, threads: Int, allowNpu: Boolean = true, engine: (String) -> Unit): Bitmap {
+        progress: (Int) -> Unit, accelerated: Boolean, threads: Int, allowNpu: Boolean = true, sampling: Int = EnhancementSampling.BILINEAR, engine: (String) -> Unit): Bitmap {
         LiteRtSession(context, model, accelerated, EnhancementRules.cpuThreads(threads, Runtime.getRuntime().availableProcessors()), allowNpu).use { session ->
             engine("LiteRT v2 · ${session.route()} · 첫 타일 확인 중")
             var measured = false
@@ -19,7 +19,7 @@ object LiteRtEnhancer {
                 }
             }
             // 타일 루프에는 스레드를 바꾸는 중단 지점이 없어 GPU 핸들을 같은 스레드에서 사용합니다.
-            return ImageTiles.process(source, target, session.inputWidth(), session.inputHeight(), false, progress, inspect) { floats, consume ->
+            return ImageTiles.process(source, target, session.inputWidth(), session.inputHeight(), false, progress, inspect, sampling) { floats, consume ->
                 consume(session.infer(floats), session.outputWidth(), session.outputHeight())
             }
         }

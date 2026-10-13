@@ -45,7 +45,7 @@ fun ImageDownloadPage(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Act
 }
 
 /** 통합 미디어 다운로드 진입점을 기존 플러그인 메뉴와 탐색 그래프에 등록합니다. */
-object ImageDownloadPlugin : FeaturePlugin {
+object ImageDownloadPlugin : FeaturePlugin() {
     override val id = com.plugin.PluginId.SOCIAL
     override val route = PluginRoutes.IMAGE_DOWNLOAD
     override val titleResource = R.string.loc_unified_download
@@ -53,7 +53,7 @@ object ImageDownloadPlugin : FeaturePlugin {
 
     /** 호스트의 기존 다운로드 동작을 통합 미디어 화면으로 전달합니다. */
     @Composable
-    override fun Content(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) {
+    override fun RenderContent(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) {
         ImageDownloadPage(onBack, onAction)
     }
 }

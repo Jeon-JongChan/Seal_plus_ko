@@ -19,6 +19,7 @@ data class MediaMetadataRecord(
     val sourceQuality: VideoQuality? = null,
     val postPageIndex: Int = 0,
     val postPageCount: Int = 1,
+    val excludedFromProcessing: Boolean = false,
 )
 
 /**
@@ -46,6 +47,7 @@ object PluginMediaMetadataStore {
         sourceQuality: VideoQuality? = null,
         postPageIndex: Int = 0,
         postPageCount: Int = 1,
+        excludedFromProcessing: Boolean? = null,
     ) {
         if (videoPath.isBlank()) return
         val existing = get(videoPath)
@@ -54,6 +56,7 @@ object PluginMediaMetadataStore {
             sourceQuality = sourceQuality ?: existing?.sourceQuality,
             postPageIndex = if (postPageIndex != 0) postPageIndex else existing?.postPageIndex ?: 0,
             postPageCount = maxOf(postPageCount, existing?.postPageCount ?: 1),
+            excludedFromProcessing = excludedFromProcessing ?: existing?.excludedFromProcessing ?: false,
         )
         memoryCache[videoPath] = record
         mmkv?.encode(videoPath, json.encodeToString(record))
@@ -75,6 +78,10 @@ object PluginMediaMetadataStore {
         memoryCache.remove(videoPath)
         mmkv?.removeValueForKey(videoPath)
     }
+
+    /** 불투명 SAF ID는 실제 부모 이름을 읽을 때 저장한 표지를 사용하고 일반 경로는 현재 이름을 따릅니다. */
+    fun isProcessingExcluded(path: String): Boolean = MediaRules.isNoFacePath(path) ||
+        (path.startsWith("content://") && get(path)?.excludedFromProcessing == true)
 }
 
 /** DownloadedVideoInfo의 품질 정보 확장 프로퍼티 */

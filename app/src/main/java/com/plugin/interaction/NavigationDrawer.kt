@@ -245,7 +245,7 @@ fun InteractionNavigationDrawerContent(
             NavigationDrawerItem(label = { Text(stringResource(R.string.plugin_manage)) },
                 icon = { Icon(Icons.Outlined.Settings, null) }, selected = currentRoute == com.plugin.PLUGINS_ROUTE,
                 onClick = { scope.launch { onDismissRequest() }.invokeOnCompletion { onNavigateToRoute(com.plugin.PLUGINS_ROUTE) } })
-            featurePlugins.filter { com.plugin.PluginState.isEnabled(it.id) }.forEach { plugin ->
+            com.plugin.PluginFactory.enabled().forEach { plugin ->
                 NavigationDrawerItem(label = { Text(stringResource(plugin.titleResource)) },
                     icon = { Icon(plugin.icon, null) },
                     selected = currentRoute == plugin.route,

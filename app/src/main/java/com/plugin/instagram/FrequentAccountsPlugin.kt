@@ -28,7 +28,7 @@ import com.plugin.PluginRoutes
 import com.plugin.compatibility.*
 
 /** 다운로드 DB의 게시글 작성자를 자동 집계하며 수동 계정 목록을 표시하지 않습니다. */
-object FrequentAccountsPlugin : FeaturePlugin {
+object FrequentAccountsPlugin : FeaturePlugin() {
     override val id = PluginId.ACCOUNTS
     override val route = PluginRoutes.FREQUENT_ACCOUNTS
     override val titleResource = R.string.loc_frequent_accounts
@@ -37,7 +37,7 @@ object FrequentAccountsPlugin : FeaturePlugin {
     /** 새 다운로드·백업 이력과 저장된 프로필 정보를 읽어 계정 목록을 갱신합니다. */
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
-    override fun Content(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) {
+    override fun RenderContent(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) {
         val history by com.junkfood.seal.util.DatabaseUtil.getDownloadHistoryFlow().collectAsStateWithLifecycle(emptyList())
         val accounts by remember { derivedStateOf { FrequentAccountStore.fromHistory(history) } }
         val context = LocalContext.current
