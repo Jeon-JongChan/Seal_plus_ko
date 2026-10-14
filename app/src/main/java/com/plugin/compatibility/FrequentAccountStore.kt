@@ -18,10 +18,13 @@ data class FrequentAccount(
 
 /** 자주 방문하는 계정을 MMKV 저장소에 보관하고 조회하는 싱글톤 객체입니다. */
 object FrequentAccountStore {
-    private val mmkv by lazy { runCatching { MMKV.mmkvWithID("frequent_accounts") }.getOrNull() }
+    private val mmkv get() = runCatching { TemporarySession.storage("frequent_accounts") }.getOrNull()
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private const val KEY = "accounts_list"
     private val memoryCache = androidx.compose.runtime.mutableStateMapOf<String, FrequentAccount>()
+
+    /** 세션 전환 시 계정 캐시도 선택 저장소에서 다시 읽습니다. */
+    fun reload() { androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot { memoryCache.clear(); loadAll() } }
 
     init {
         loadAll()

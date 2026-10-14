@@ -53,7 +53,9 @@ class PluginMainActivity : AppCompatActivity() {
                         darkTheme = LocalDarkTheme.current.isDarkTheme(),
                         isHighContrastModeEnabled = LocalDarkTheme.current.isHighContrastModeEnabled,
                     ) {
-                        PluginAppEntry(dialogViewModel = dialogViewModel)
+                        androidx.compose.runtime.key(com.plugin.compatibility.TemporarySession.root) {
+                            PluginAppEntry(dialogViewModel = dialogViewModel)
+                        }
                     }
                 }
             }

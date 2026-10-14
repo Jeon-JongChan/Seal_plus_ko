@@ -49,5 +49,12 @@
     <string name="loc_video_wallpaper">Video wallpaper</string>
     <string name="loc_video_wallpaper_description">Loop the selected video without sound.</string>
     <string name="loc_video_wallpaper_next">Choose where to apply the video on the next screen.</string>
+    <string name="plugin_temporary">Temporary hide</string>
+    <string name="plugin_temporary_desc">Separate downloads and history inside tmp. Internal storage folders only.</string>
+    <string name="temporary_enter">Enter temporary hide</string>
+    <string name="temporary_exit">Exit temporary hide</string>
+    <string name="temporary_warning">Temporary files and history will be deleted. Merge them into your normal library first?</string>
+    <string name="temporary_merge">Merge</string>
+    <string name="temporary_discard">Discard</string>
 </resources>
 

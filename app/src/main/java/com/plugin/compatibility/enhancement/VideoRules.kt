@@ -6,6 +6,16 @@ import kotlin.math.roundToLong
 object VideoRules {
     val frameRates = listOf(0, 24, 25, 30, 50, 60)
 
+    /** 기본은 AV1 우선이며 원본 유지 선택과 플랫폼 지원 범위에 따라 대체 순서를 정합니다. */
+    fun encoderMimes(source: String, sdk: Int, preserveOriginal: Boolean = false): List<String> = buildList {
+        val original = source in listOf("video/avc", "video/hevc", "video/mp4v-es", "video/3gpp", "video/x-vnd.on2.vp9") ||
+            source == "video/av01" && sdk >= 34
+        if (preserveOriginal && original) add(source)
+        // 플랫폼 MP4 기록기의 AV1 지원은 Android 14부터입니다.
+        if (sdk >= 34 && "video/av01" !in this) add("video/av01")
+        if (original && source !in this) add(source)
+    }
+
     /** 프레임 증가 선택은 원본보다 낮은 프레임률로 줄이지 않습니다. */
     fun increases(requested: Int, original: Double, frames: Long = Long.MAX_VALUE): Boolean {
         require(requested in frameRates && original.isFinite() && original >= 0 && frames > 0)

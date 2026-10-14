@@ -31,7 +31,7 @@ object ImageTiles {
         // ponytail: 경계 문맥은 16픽셀입니다. 이음매가 보이면 패딩 확대 또는 가중치 블렌딩으로 보완합니다.
         val padding = 16; val sx = tw - padding * 2; val sy = th - padding * 2
         val pixels = IntArray(tw * th); val floats = FloatArray(pixels.size * 3)
-        var output: Bitmap? = null; var tile: Bitmap? = null; var colors = IntArray(0)
+        var output: Bitmap? = null; var canvas: Canvas? = null; var tile: Bitmap? = null; var colors = IntArray(0)
         val count = ((input.width + sx - 1) / sx) * ((input.height + sy - 1) / sy)
         val paint = Paint(Paint.FILTER_BITMAP_FLAG); var done = 0
         try {
@@ -54,21 +54,27 @@ object ImageTiles {
                     require(width % tw == 0 && height % th == 0 && width / tw == height / th && width / tw in 1..4) { "1~4배 정수 배율 모델만 지원합니다." }
                     val scale = width / tw
                     require(scale > 1 || target == (input.width to input.height)) { "선택 모델은 업스케일 모델이 아닙니다." }
-                    if (output == null) output = Bitmap.createBitmap(minOf(target.first, input.width * scale), minOf(target.second, input.height * scale), Bitmap.Config.ARGB_8888)
+                    if (output == null) {
+                        output = Bitmap.createBitmap(minOf(target.first, input.width * scale), minOf(target.second, input.height * scale), Bitmap.Config.ARGB_8888)
+                        canvas = Canvas(checkNotNull(output))
+                    }
                     val plane = width * height; require(values.size == plane * 3) { "RGB 결과 크기가 올바르지 않습니다." }
                     if (colors.size != plane) {
                         tile?.recycle(); tile = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888); colors = IntArray(plane)
                     }
-                    for (i in colors.indices) {
+                    val right = minOf(left + sx, input.width); val bottom = minOf(top + sy, input.height)
+                    // 버리는 모델 패딩은 RGB로 변환하지 않습니다. 보간 필터가 읽을 한 픽셀 경계는 남깁니다.
+                    for (y in (padding * scale - 1).coerceAtLeast(0)..minOf(height - 1, (padding + bottom - top) * scale))
+                    for (x in (padding * scale - 1).coerceAtLeast(0)..minOf(width - 1, (padding + right - left) * scale)) {
+                        val i = y * width + x
                         val base = if (channelsFirst) i else i * 3
                         val stride = if (channelsFirst) plane else 1
                         colors[i] = Color.rgb((values[base] * 255).roundToInt().coerceIn(0, 255),
                             (values[base + stride] * 255).roundToInt().coerceIn(0, 255), (values[base + stride * 2] * 255).roundToInt().coerceIn(0, 255))
                     }
                     tile!!.setPixels(colors, 0, width, 0, 0, width, height)
-                    val right = minOf(left + sx, input.width); val bottom = minOf(top + sy, input.height)
                     val destination = checkNotNull(output)
-                    EnhancementSampling.draw(Canvas(destination), tile!!, colors, Rect(padding * scale, padding * scale, (padding + right - left) * scale, (padding + bottom - top) * scale),
+                    EnhancementSampling.draw(checkNotNull(canvas), tile!!, colors, Rect(padding * scale, padding * scale, (padding + right - left) * scale, (padding + bottom - top) * scale),
                         Rect((left.toLong() * destination.width / input.width).toInt(), (top.toLong() * destination.height / input.height).toInt(),
                             (right.toLong() * destination.width / input.width).toInt(), (bottom.toLong() * destination.height / input.height).toInt()), sampling)
                 }
@@ -77,7 +83,7 @@ object ImageTiles {
             val result = checkNotNull(output)
             if (input.hasAlpha()) {
                 paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
-                Canvas(result).drawBitmap(input, null, Rect(0, 0, result.width, result.height), paint)
+                checkNotNull(canvas).drawBitmap(input, null, Rect(0, 0, result.width, result.height), paint)
             }
             return result
         } catch (failure: Throwable) { output?.recycle(); throw failure }

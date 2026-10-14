@@ -26,9 +26,12 @@ data class MediaMetadataRecord(
  * MMKV 기반의 메타데이터 저장소입니다.
  */
 object PluginMediaMetadataStore {
-    private val mmkv by lazy { runCatching { MMKV.mmkvWithID("plugin_media_metadata") }.getOrNull() }
+    private val mmkv get() = runCatching { TemporarySession.storage("plugin_media_metadata") }.getOrNull()
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val memoryCache = ConcurrentHashMap<String, MediaMetadataRecord>()
+
+    /** 저장소 전환 후 이전 세션의 메모리 자료를 표시하지 않습니다. */
+    fun clearMemory() { memoryCache.clear() }
 
     /** 경로에 해당하는 메타데이터를 조회합니다. */
     fun get(videoPath: String): MediaMetadataRecord? {

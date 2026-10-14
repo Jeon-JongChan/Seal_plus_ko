@@ -20,7 +20,7 @@ object PluginDatabaseUtil {
     /** 원본 SQLite 데이터베이스를 열어 직접 쿼리를 실행할 때 사용합니다. */
     private fun getWritableDatabase(): SQLiteDatabase {
         return SQLiteDatabase.openDatabase(
-            App.context.getDatabasePath(DATABASE_NAME).absolutePath,
+            TemporarySession.databasePath(),
             null,
             SQLiteDatabase.OPEN_READWRITE
         )

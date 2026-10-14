@@ -6,6 +6,9 @@ import android.view.SurfaceView
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.ui.Alignment
 import com.plugin.compatibility.VideoWallpaperSource
 
 /** 이미지 프레임 대신 실제 영상을 무음·반복·중앙 채우기로 미리 재생합니다. */
@@ -16,6 +19,7 @@ fun VideoWallpaperPreview(source: String, modifier: Modifier = Modifier, onReady
     val failed by rememberUpdatedState(onError)
     val context = androidx.compose.ui.platform.LocalContext.current
     var player by remember(source) { mutableStateOf<MediaPlayer?>(null) }
+    var aspect by remember(source) { mutableFloatStateOf(16f / 9f) }
     val view = remember(source, muted, crop) { SurfaceView(context).apply {
         /** 표면의 수명 안에서만 디코더를 소유합니다. */
         holder.addCallback(object : SurfaceHolder.Callback {
@@ -25,6 +29,9 @@ fun VideoWallpaperPreview(source: String, modifier: Modifier = Modifier, onReady
                 try {
                     next.setDataSource(context, VideoWallpaperSource.uri(source)); next.setDisplay(holder)
                     next.isLooping = true; next.setVolume(if (muted) 0f else 1f, if (muted) 0f else 1f)
+                    next.setOnVideoSizeChangedListener { current, width, height ->
+                        if (player === current && width > 0 && height > 0) aspect = width.toFloat() / height
+                    }
                     next.setOnPreparedListener { prepared ->
                         if (player === prepared && holder.surface.isValid) runCatching {
                             prepared.setVideoScalingMode(if (crop) MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING else MediaPlayer.VIDEO_SCALING_MODE_SCALE_TO_FIT); prepared.start()
@@ -41,5 +48,8 @@ fun VideoWallpaperPreview(source: String, modifier: Modifier = Modifier, onReady
         })
     } }
     DisposableEffect(view) { onDispose { player?.let { runCatching { it.release() } }; player = null } }
-    AndroidView(factory = { view }, modifier = modifier)
+    Box(modifier, contentAlignment = Alignment.Center) {
+        AndroidView(factory = { view }, modifier = if (crop) Modifier.matchParentSize()
+            else Modifier.aspectRatio(aspect, matchHeightConstraintsFirst = true))
+    }
 }

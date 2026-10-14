@@ -5,7 +5,12 @@
 param([switch]$Offline, [switch]$Test, [switch]$TestApk, [Parameter(ValueFromRemainingArguments=$true)][string[]]$Tasks)
 . "$PSScriptRoot/Environment.ps1"
 if (-not (Test-Path "$env:JAVA_HOME/bin/javac.exe") -or -not (Test-Path "$env:ANDROID_HOME/platforms/android-$($PortableProject.ApiLevel)/android.jar")) {
-    throw '.build/Setup.ps1을 먼저 실행하세요.'
+    if ($Offline) { throw '오프라인 환경에 도구가 없습니다. .build/Setup.ps1을 먼저 실행하세요.' }
+    & "$PSScriptRoot/Setup.ps1"
+}
+if ((Test-Path "$PSScriptRoot/native/rife/Build.ps1") -and -not (Test-Path "$PSScriptRoot/runtime/rife/jniLibs/arm64-v8a/libseal_rife.so")) {
+    if ($Offline) { throw 'RIFE JNI가 없습니다. .build/native/rife/Build.ps1을 먼저 실행하세요.' }
+    & "$PSScriptRoot/native/rife/Build.ps1"
 }
 if (-not $Tasks) { $Tasks = @($PortableProject.BuildTask) }
 # 테스트 옵션은 직접 지정한 작업에도 적용하며 같은 테스트 작업을 중복 추가하지 않습니다.

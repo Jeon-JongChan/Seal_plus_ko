@@ -9,7 +9,7 @@ import com.plugin.compatibility.*
 
 /** 서로 독립적으로 활성화할 수 있는 내장 확장 기능입니다. */
 enum class PluginId {
-    SOCIAL, LIST, MEDIA, LIBRARY, QUEUE, INTERACTION, IMAGE_AI, ACCOUNTS, POST_INFO, FOLDERS, FACE_SORT, VIDEO_AI, SHARE_MENU;
+    SOCIAL, LIST, MEDIA, LIBRARY, QUEUE, INTERACTION, IMAGE_AI, ACCOUNTS, POST_INFO, FOLDERS, FACE_SORT, VIDEO_AI, SHARE_MENU, HIDDEN;
 
     val preferenceKey: String get() = "plugin_enabled_${name.lowercase()}"
 }
@@ -35,7 +35,7 @@ object PluginState {
 
     /** 새 요청에는 현재 켜진 기능의 설정만 적용합니다. */
     fun preferences(value: DownloadPreferences): DownloadPreferences =
-        PluginPolicy.preferences(value, PluginId.entries.filter(::isEnabled).toSet())
+        TemporarySession.preferences(PluginPolicy.preferences(value, PluginId.entries.filter(::isEnabled).toSet()))
 
     /** 사용 가능한 유형 목록은 기존 사용자 명령 설정도 존중합니다. */
     fun downloadTypes(command: Boolean): List<DownloadType> =

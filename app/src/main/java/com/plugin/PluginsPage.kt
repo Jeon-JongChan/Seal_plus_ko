@@ -19,6 +19,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -33,6 +35,11 @@ const val PLUGINS_ROUTE = "plugins"
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PluginsPage(onBack: () -> Unit, onNavigate: (String) -> Unit) {
+    var closeTemporary by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    if (closeTemporary) com.plugin.temporary.TemporaryExitDialog(onDismiss = { closeTemporary = false }, onFinished = {
+        PluginState.setEnabled(PluginId.HIDDEN, false)
+        closeTemporary = false
+    })
     Scaffold(topBar = {
         TopAppBar(title = { Text(stringResource(R.string.loc_plugins)) }, navigationIcon = { BackButton(onBack) })
     }) { padding ->
@@ -67,6 +74,7 @@ fun PluginsPage(onBack: () -> Unit, onNavigate: (String) -> Unit) {
                     PluginId.IMAGE_AI -> R.string.plugin_image_ai to R.string.plugin_image_ai_desc
                     PluginId.VIDEO_AI -> R.string.plugin_video_ai to R.string.plugin_video_ai_desc
                     PluginId.SHARE_MENU -> R.string.plugin_share_menu to R.string.plugin_share_menu_desc
+                    PluginId.HIDDEN -> R.string.plugin_temporary to R.string.plugin_temporary_desc
                     PluginId.ACCOUNTS -> R.string.loc_frequent_accounts to R.string.loc_frequent_accounts_desc
                     PluginId.FOLDERS -> R.string.plugin_download_folders to R.string.plugin_download_folders_desc
                     PluginId.FACE_SORT -> R.string.plugin_face_sort to R.string.plugin_face_sort_desc
@@ -77,7 +85,10 @@ fun PluginsPage(onBack: () -> Unit, onNavigate: (String) -> Unit) {
                 OutlinedCard(Modifier.fillMaxWidth()) {
                     PreferenceSwitch(title = stringResource(title), description = stringResource(description),
                         icon = plugin?.icon ?: Icons.Outlined.Checklist,
-                        isChecked = enabled, onClick = { PluginState.setEnabled(id, !enabled) })
+                        isChecked = enabled, onClick = {
+                            if (id == PluginId.HIDDEN && enabled && com.plugin.compatibility.TemporarySession.root != null) closeTemporary = true
+                            else PluginState.setEnabled(id, !enabled)
+                        })
                     if (enabled && plugin != null) {
                         HorizontalDivider()
                         SettingItem(title = stringResource(R.string.plugin_open), description = "", icon = plugin.icon) {

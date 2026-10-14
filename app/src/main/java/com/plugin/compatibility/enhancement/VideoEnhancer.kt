@@ -25,7 +25,7 @@ object VideoEnhancer {
         val first: Long, val duration: Long, val fps: Double, val rotation: Int, val audioTracks: Int, val frames: Long)
 
     /** 시각을 스캔해 VFR도 원본 프레임 수 기준으로 비교합니다. */
-    fun inspect(file: File): Info {
+    fun inspect(file: File, checkCancelled: () -> Unit = {}): Info {
         MediaExtractor().useExtractor { extractor ->
             extractor.setDataSource(file.path)
             val track = (0 until extractor.trackCount).firstOrNull {
@@ -42,6 +42,8 @@ object VideoEnhancer {
             extractor.selectTrack(track)
             var count = 0L; var first = Long.MAX_VALUE; var last = 0L
             while (extractor.sampleTime >= 0) {
+                // 긴 영상의 전체 시각 검사도 작업 취소에 응답합니다.
+                if (count % 1024 == 0L) checkCancelled()
                 check(extractor.sampleFlags and MediaExtractor.SAMPLE_FLAG_ENCRYPTED == 0) { "암호화된 영상은 처리하지 않습니다." }
                 val time = extractor.sampleTime; first = minOf(first, time); last = maxOf(last, time); count++
                 if (!extractor.advance()) break
@@ -62,7 +64,8 @@ object VideoEnhancer {
 
     /** 원본·보간 프레임을 순차 처리하며 전체 프레임을 디스크나 메모리에 쌓지 않습니다. */
     suspend fun process(context: Context, directory: File, data: Bundle, progress: (Int) -> Unit) {
-        val source = File(directory, "source"); val info = inspect(source)
+        val jobContext = currentCoroutineContext()
+        val source = File(directory, "source"); val info = inspect(source) { jobContext.ensureActive() }
         val target = VideoRules.size(info.width, info.height, data.getInt("option"))
         check((info.width.toLong() * info.height * 3 + target.first.toLong() * target.second * 2) * 4 + 48 * 1024 * 1024 <=
             Runtime.getRuntime().maxMemory() * 7 / 10) { "영상 처리 메모리가 부족합니다. 더 낮은 해상도를 선택하세요." }
@@ -76,6 +79,10 @@ object VideoEnhancer {
         var previous: Bitmap? = null; var previousTime = -1L; var grid = 0L; var frames = 0
         val video = File(directory, "video-only.mp4")
         val extractor = MediaExtractor(); var decoder: MediaCodec? = null; var encoder: Encoder? = null
+        val decodedPixels = IntArray(info.width * info.height)
+        val started = SystemClock.elapsedRealtime()
+        var readMs = 0L; var upscaleMs = 0L; var writeMs = 0L
+        var inferenceMs = 0L; var interpolationMs = 0L
         /** 같은 스레드에서 만든 LiteRT 세션은 영상 전체에 재사용합니다. */
         fun newLite(accelerated: Boolean): LiteRtSession = LiteRtSession(context, model.path, accelerated,
             EnhancementRules.cpuThreads(data.getInt("cpu_threads", 2), Runtime.getRuntime().availableProcessors()),
@@ -89,7 +96,9 @@ object VideoEnhancer {
             suspend fun run(): Bitmap {
                 val session = checkNotNull(lite)
                 return ImageTiles.process(frame, target, session.inputWidth(), session.inputHeight(), false, {}, {}, sampling) { input, consume ->
-                    consume(session.infer(input), session.outputWidth(), session.outputHeight())
+                    val begin = SystemClock.elapsedRealtime(); val values = session.infer(input)
+                    inferenceMs += SystemClock.elapsedRealtime() - begin
+                    consume(values, session.outputWidth(), session.outputHeight())
                 }
             }
             return try { run() } catch (failure: Exception) {
@@ -103,9 +112,13 @@ object VideoEnhancer {
         /** 결과 하나를 인코더에 전달한 뒤 프레임 메모리를 즉시 반환합니다. */
         suspend fun emit(frame: Bitmap, time: Long) {
             currentCoroutineContext().ensureActive()
+            val begin = SystemClock.elapsedRealtime()
             val output = upscale(frame)
+            upscaleMs += SystemClock.elapsedRealtime() - begin
+            val writing = SystemClock.elapsedRealtime()
             try { checkNotNull(encoder).write(output, time); frames++ }
             finally { if (output !== frame) output.recycle() }
+            writeMs += SystemClock.elapsedRealtime() - writing
             progress(((time - info.first).toDouble() / info.duration * 95).toInt().coerceIn(0, 95))
         }
         try {
@@ -116,10 +129,17 @@ object VideoEnhancer {
             } else check(File(directory, "model.onnx").isFile) { "영상 보정 모델이 없습니다." }
             if (increase) rife = RifeSession(context, File(directory, "rife").path, reference)
             data.putString("engine", "${lite?.let { "LiteRT ${it.route()}" } ?: "ONNX"}${if (increase) " · $rifeEngine" else " · 프레임 유지"}")
-            encoder = Encoder(video, target.first, target.second, fps, info.rotation)
+            val sourceMime = info.format.getString(MediaFormat.KEY_MIME)!!
+            var encoderFailure: Exception? = null
+            for (mime in VideoRules.encoderMimes(sourceMime, android.os.Build.VERSION.SDK_INT, data.getBoolean("original_codec"))) {
+                try { encoder = Encoder(video, target.first, target.second, fps, info.rotation, mime); break }
+                catch (failure: Exception) { encoderFailure = failure }
+            }
+            check(encoder != null) { "원본 코덱과 AV1 인코더를 사용할 수 없습니다. ${encoderFailure?.message ?: "AV1 MP4 저장은 Android 14 이상이 필요합니다."}" }
+            data.putString("encoder", encoder.name)
             extractor.setDataSource(source.path); extractor.selectTrack(info.track)
             info.format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible)
-            decoder = MediaCodec.createDecoderByType(info.format.getString(MediaFormat.KEY_MIME)!!)
+            decoder = mediaCodec(info.format.getString(MediaFormat.KEY_MIME)!!, info.width, info.height, false)
             decoder.configure(info.format, null, null, 0); decoder.start()
             val bufferInfo = MediaCodec.BufferInfo(); var inputDone = false; var outputDone = false
             var lastActivity = SystemClock.elapsedRealtime()
@@ -141,7 +161,9 @@ object VideoEnhancer {
                     try {
                         if (bufferInfo.size > 0) {
                             val image = decoder.getOutputImage(slot) ?: error("이 디코더는 CPU에서 읽을 수 있는 SDR 프레임을 지원하지 않습니다.")
-                            val frame = image.use { read(it, decoder.outputFormat) }
+                            val reading = SystemClock.elapsedRealtime()
+                            val frame = image.use { read(it, decoder.outputFormat, decodedPixels) }
+                            readMs += SystemClock.elapsedRealtime() - reading
                             val time = bufferInfo.presentationTimeUs
                             try {
                                 check(time >= info.first && (previousTime < 0 || time > previousTime)) { "영상 프레임 시각이 올바르지 않습니다." }
@@ -154,7 +176,12 @@ object VideoEnhancer {
                                     while (next <= time) {
                                         val old = checkNotNull(previous)
                                         val middle = if (next <= previousTime) old else if (next == time) frame
-                                            else checkNotNull(rife).interpolate(old, frame, ((next - previousTime).toDouble() / (time - previousTime)).toFloat())
+                                            else {
+                                                val begin = SystemClock.elapsedRealtime()
+                                                val interpolated = checkNotNull(rife).interpolate(old, frame, ((next - previousTime).toDouble() / (time - previousTime)).toFloat())
+                                                interpolationMs += SystemClock.elapsedRealtime() - begin
+                                                interpolated
+                                            }
                                         try { emit(middle, next) } finally { if (middle !== old && middle !== frame) middle.recycle() }
                                         next = VideoRules.timestamp(info.first, ++grid, requested)
                                     }
@@ -177,11 +204,16 @@ object VideoEnhancer {
             check(frames > 0) { "보정할 프레임이 없습니다." }
             encoder.finish(info.first + info.duration)
             muxAudio(context, source, video, File(directory, "preview.mp4"), info.audioTracks)
-            val result = inspect(File(directory, "preview.mp4"))
+            val result = inspect(File(directory, "preview.mp4")) { jobContext.ensureActive() }
             check(result.width == target.first && result.height == target.second && result.audioTracks == info.audioTracks &&
                 kotlin.math.abs(result.duration - info.duration) <= maxOf(150_000L, (2_000_000 / fps).toLong())) { "보정 영상의 트랙·길이 검증에 실패했습니다." }
             data.putInt("width", result.width); data.putInt("height", result.height)
             data.putDouble("frame_rate", result.fps); data.putDouble("duration", result.duration / 1_000_000.0)
+            data.putString("codec", result.format.getString(MediaFormat.KEY_MIME))
+            data.putLong("total_ms", SystemClock.elapsedRealtime() - started)
+            data.putLong("read_ms", readMs); data.putLong("upscale_ms", upscaleMs); data.putLong("write_ms", writeMs)
+            data.putLong("inference_ms", inferenceMs); data.putLong("interpolation_ms", interpolationMs)
+            android.util.Log.i("VideoTiming", "${info.width}x${info.height} → ${result.width}x${result.height}, $frames 프레임, ${data.getString("engine")}, 코덱=${data.getString("codec")}, 총=${SystemClock.elapsedRealtime() - started}ms, 읽기=${readMs}ms, 보정=${upscaleMs}ms, 쓰기=${writeMs}ms")
             data.putInt("worker_pid", android.os.Process.myPid()); progress(100)
         } finally {
             stop(); previous?.recycle(); rife?.close(); lite?.close()
@@ -216,16 +248,20 @@ object VideoEnhancer {
     fun stop() { child?.destroyForcibly(); child = null }
 
     /** YUV420 평면의 행·픽셀 간격과 크롭을 적용해 원본 SDR RGB로 읽습니다. */
-    private fun read(image: Image, format: MediaFormat): Bitmap {
+    private fun read(image: Image, format: MediaFormat, pixels: IntArray): Bitmap {
         check(image.format == android.graphics.ImageFormat.YUV_420_888 && image.planes.size == 3) { "SDR YUV420 영상만 지원합니다." }
-        val crop = image.cropRect; val width = crop.width(); val height = crop.height(); val pixels = IntArray(width * height)
+        val crop = image.cropRect; val width = crop.width(); val height = crop.height()
+        check(width > 0 && height > 0 && width.toLong() * height <= pixels.size) { "영상 도중 해상도가 변경되어 처리할 수 없습니다." }
         val full = format.integer(MediaFormat.KEY_COLOR_RANGE, 2) == 1
         val standard = format.integer(MediaFormat.KEY_COLOR_STANDARD, if (width >= 1280 || height >= 720) 1 else 2)
         val planes = image.planes
+        // 픽셀마다 평면·버퍼 속성을 반복 조회하지 않고 프레임마다 한 번만 가져옵니다.
+        val buffers = planes.map { it.buffer }; val positions = buffers.map { it.position() }
+        val rows = planes.map { it.rowStride }; val strides = planes.map { it.pixelStride }
         /** 평면의 버퍼 시작 위치를 포함하며 프레임 픽셀마다 배열을 만들지 않습니다. */
         fun value(index: Int, x: Int, y: Int): Int {
-            val plane = planes[index]; val divisor = if (index == 0) 1 else 2
-            return plane.buffer.get(plane.buffer.position() + ((y + crop.top) / divisor) * plane.rowStride + ((x + crop.left) / divisor) * plane.pixelStride).toInt() and 255
+            val divisor = if (index == 0) 1 else 2
+            return buffers[index].get(positions[index] + ((y + crop.top) / divisor) * rows[index] + ((x + crop.left) / divisor) * strides[index]).toInt() and 255
         }
         for (y in 0 until height) for (x in 0 until width) {
             pixels[y * width + x] = VideoRules.rgb(value(0, x, y), value(1, x, y), value(2, x, y), full, standard == 1)
@@ -239,19 +275,44 @@ object VideoEnhancer {
     /** 메타데이터 검사 실패에도 추출기를 해제합니다. */
     private inline fun <T> MediaExtractor.useExtractor(block: (MediaExtractor) -> T): T = try { block(this) } finally { release() }
 
-    /** 플랫폼 AVC 인코더와 MP4 기록기를 한 요청 동안 소유합니다. */
-    private class Encoder(file: File, private val width: Int, private val height: Int, fps: Double, rotation: Int) : AutoCloseable {
-        private val codec = MediaCodec.createEncoderByType("video/avc")
-        private val muxer = MediaMuxer(file.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+    /** 해상도·YUV 접근을 지원하는 코덱 중 하드웨어를 우선하고 소프트웨어는 대체로 사용합니다. */
+    private fun mediaCodec(mime: String, width: Int, height: Int, encoding: Boolean, fps: Double = 0.0): MediaCodec {
+        val selected = android.media.MediaCodecList(android.media.MediaCodecList.REGULAR_CODECS).codecInfos.filter { candidate ->
+            candidate.isEncoder == encoding && mime in candidate.supportedTypes && runCatching {
+                val capabilities = candidate.getCapabilitiesForType(mime)
+                MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible in capabilities.colorFormats &&
+                    capabilities.videoCapabilities.isSizeSupported(width, height) &&
+                    (!encoding || capabilities.videoCapabilities.areSizeAndRateSupported(width, height, fps))
+            }.getOrDefault(false)
+        }.sortedBy { candidate ->
+            // Android 10부터는 플랫폼의 실제 분류를 사용하고 이전 버전은 표준 소프트웨어 이름을 구분합니다.
+            if (android.os.Build.VERSION.SDK_INT >= 29) !candidate.isHardwareAccelerated
+            else candidate.name.startsWith("OMX.google.", true) || candidate.name.startsWith("c2.android.", true)
+        }.firstOrNull() ?: error("이 기기의 영상 코덱이 해상도·프레임률·YUV 접근을 지원하지 않습니다.")
+        return MediaCodec.createByCodecName(selected.name)
+    }
+
+    /** 선택한 원본 또는 AV1 인코더와 MP4 기록기를 한 요청 동안 소유합니다. */
+    private class Encoder(file: File, private val width: Int, private val height: Int, fps: Double, rotation: Int, mime: String) : AutoCloseable {
+        private val codec = mediaCodec(mime, width, height, true, fps)
+        /** 실제 선택된 플랫폼 인코더를 성능 검사에서 구분합니다. */
+        val name: String get() = codec.name
+        private val muxer = try { MediaMuxer(file.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4) }
+            catch (failure: Throwable) { codec.release(); throw failure }
         private val info = MediaCodec.BufferInfo()
+        // 프레임마다 큰 픽셀 배열을 재할당하지 않고 같은 영상에서 재사용합니다.
+        private val pixels = IntArray(width * height)
         private var track = -1; private var started = false; private var ended = false
         init {
             try {
-                val capabilities = codec.codecInfo.getCapabilitiesForType("video/avc")
+                val capabilities = codec.codecInfo.getCapabilitiesForType(mime)
                 check(capabilities.videoCapabilities.isSizeSupported(width, height)) { "이 기기의 영상 인코더가 목표 해상도를 지원하지 않습니다." }
-                val format = MediaFormat.createVideoFormat("video/avc", width, height).apply {
+                val format = MediaFormat.createVideoFormat(mime, width, height).apply {
                     setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible)
                     setInteger(MediaFormat.KEY_BIT_RATE, capabilities.videoCapabilities.bitrateRange.clamp((width * height * fps * 0.2).toInt().coerceIn(1_000_000, 50_000_000)))
+                    // 장면별로 필요한 비트만 사용하며 고정 비트레이트로 용량을 채우지 않습니다.
+                    if (capabilities.encoderCapabilities.isBitrateModeSupported(MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR))
+                        setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_VBR)
                     setFloat(MediaFormat.KEY_FRAME_RATE, fps.toFloat()); setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 2)
                     setInteger(MediaFormat.KEY_COLOR_STANDARD, 1); setInteger(MediaFormat.KEY_COLOR_RANGE, 2); setInteger(MediaFormat.KEY_COLOR_TRANSFER, 3)
                 }
@@ -275,12 +336,14 @@ object VideoEnhancer {
             // 같은 슬롯의 getInputBuffer는 이전 Image를 무효화하므로 크기를 먼저 읽습니다.
             val capacity = checkNotNull(codec.getInputBuffer(slot)).capacity()
             val image = codec.getInputImage(slot) ?: error("이 인코더는 YUV 프레임 입력을 지원하지 않습니다.")
-            val pixels = IntArray(width * height); bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+            bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
             image.use {
+                val planes = image.planes
+                val buffers = planes.map { it.buffer }; val positions = buffers.map { it.position() }
+                val rows = planes.map { it.rowStride }; val strides = planes.map { it.pixelStride }
                 /** 평면 간격은 기기 코덱이 제공한 값을 따릅니다. */
                 fun put(index: Int, x: Int, y: Int, value: Int) {
-                    val plane = image.planes[index]
-                    plane.buffer.put(plane.buffer.position() + y * plane.rowStride + x * plane.pixelStride, value.toByte())
+                    buffers[index].put(positions[index] + y * rows[index] + x * strides[index], value.toByte())
                 }
                 for (y in 0 until height) for (x in 0 until width) {
                     val color = pixels[y * width + x]; val r = color ushr 16 and 255; val g = color ushr 8 and 255; val b = color and 255

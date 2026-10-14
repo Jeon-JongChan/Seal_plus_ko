@@ -10,6 +10,7 @@ public final class RifeSession implements AutoCloseable {
     private long handle;
     private ByteBuffer first, second, output;
     private int[] pixels;
+    private Bitmap cachedFirst, cachedSecond;
 
     /** 실제 장치에서는 소프트웨어 Vulkan을 GPU로 표시하거나 사용하지 않습니다. */
     public RifeSession(Context context, String modelPath) { this(context, modelPath, false); }
@@ -34,8 +35,15 @@ public final class RifeSession implements AutoCloseable {
         if (first == null || first.capacity() != bytes) {
             first = ByteBuffer.allocateDirect((int)bytes); second = ByteBuffer.allocateDirect((int)bytes);
             output = ByteBuffer.allocateDirect((int)bytes); pixels = new int[width * height];
+            cachedFirst = cachedSecond = null;
         }
-        pack(a, first); pack(b, second);
+        // 디코더의 불변 프레임은 다음 쌍에서도 그대로 재사용합니다. 수정 가능한 비트맵은 항상 다시 읽습니다.
+        if (a == cachedSecond && !a.isMutable()) {
+            ByteBuffer swap = first; first = second; second = swap;
+            Bitmap image = cachedFirst; cachedFirst = cachedSecond; cachedSecond = image;
+        }
+        if (a != cachedFirst || a.isMutable()) { pack(a, first); cachedFirst = a; }
+        if (b != cachedSecond || b.isMutable()) { pack(b, second); cachedSecond = b; }
         nativeRun(handle, first, second, output, width, height, position);
         output.rewind();
         for (int i = 0; i < pixels.length; ++i) {
@@ -54,7 +62,7 @@ public final class RifeSession implements AutoCloseable {
     }
 
     /** 네이티브 모델을 먼저 닫고 CPU 프레임 버퍼 참조를 반환합니다. */
-    @Override public void close() { if (handle != 0) { nativeClose(handle); handle = 0; } first = second = output = null; pixels = null; }
+    @Override public void close() { if (handle != 0) { nativeClose(handle); handle = 0; } first = second = output = null; pixels = null; cachedFirst = cachedSecond = null; }
 
     /** 검증된 모델 폴더에서 GPU 세션을 생성합니다. */
     private static native long nativeCreate(String path, boolean referenceTest);

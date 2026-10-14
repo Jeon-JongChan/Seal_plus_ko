@@ -27,7 +27,8 @@ local.properties
 !.build/Environment.ps1
 !.build/Project.psd1
 !.build/Setup-Portable.ps1
-!.build/Seal/
+!.build/test/
+!.build/native/
 !.build/Setup.ps1
 !.build/Build.ps1
 !.build/Emulator.ps1

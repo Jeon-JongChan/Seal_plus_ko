@@ -20,4 +20,11 @@
     <string name="plugin_list_disabled">Activa el complemento de listas y vuelve a intentarlo.</string>
     <string name="plugin_library">Carpetas multimedia y archivos</string>
     <string name="loc_disabled_tier_hint">Los niveles desactivados se guardan en la carpeta base de imágenes o vídeos, sin sustituirlos por niveles inferiores.</string>
+    <string name="plugin_temporary">Ocultar temporalmente</string>
+    <string name="plugin_temporary_desc">Descargas e historial separados en tmp. Solo carpetas del almacenamiento interno.</string>
+    <string name="temporary_enter">Iniciar sesión temporal</string>
+    <string name="temporary_exit">Salir de la sesión temporal</string>
+    <string name="temporary_warning">Se eliminarán los archivos y el historial temporales. ¿Quieres integrarlos en tu biblioteca?</string>
+    <string name="temporary_merge">Integrar</string>
+    <string name="temporary_discard">Descartar</string>
 </resources>

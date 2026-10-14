@@ -115,10 +115,14 @@ class FaceScanService : Service() {
         /** 중복 시작을 차단하고 사용자 스캔 버튼으로만 파일 이동을 시작합니다. */
         @Synchronized
         fun start(context: Context, preferences: DownloadPreferences, options: Options) {
+            check(!com.plugin.compatibility.TemporarySession.changing) { "저장소 전환이 진행 중입니다." }
             if (progress.value.running) return
             pending = Request(preferences, options)
             progress.value = Progress(running = true, message = "${if (options.model == "yunet") "YuNet" else "MediaPipe BlazeFace"} · 초기화 중")
-            try { ContextCompat.startForegroundService(context, Intent(context, FaceScanService::class.java)) }
+            try {
+                check(!com.plugin.compatibility.TemporarySession.changing) { "저장소 전환이 진행 중입니다." }
+                ContextCompat.startForegroundService(context, Intent(context, FaceScanService::class.java))
+            }
             catch (failure: Exception) {
                 pending = null
                 progress.value = Progress(failures = 1, error = failure.message.orEmpty())

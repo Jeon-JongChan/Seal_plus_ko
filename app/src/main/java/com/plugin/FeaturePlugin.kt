@@ -49,7 +49,7 @@ object PluginFactory {
     com.plugin.videoenhancement.VideoEnhancementPlugin,
     com.plugin.instagram.FrequentAccountsPlugin,
     com.plugin.instagram.PostInfoPlugin, com.plugin.folders.DownloadFoldersPlugin,
-    com.plugin.faces.FaceSortPlugin, com.plugin.sharemenu.ShareMenuPlugin) }
+    com.plugin.faces.FaceSortPlugin, com.plugin.sharemenu.ShareMenuPlugin, com.plugin.temporary.TemporaryPlugin) }
 
     /** 설정 화면도 같은 등록 목록에서 기능의 파사드를 찾습니다. */
     fun create(id: PluginId): FeaturePlugin? = all.firstOrNull { it.id == id }

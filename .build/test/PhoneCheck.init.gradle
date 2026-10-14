@@ -1,0 +1,19 @@
+// 사용자 앱과 분리한 ARM64 검사 APK는 자체 캐시에만 자료를 저장합니다.
+gradle.beforeProject { project ->
+    if (project.path == ':app') {
+        project.plugins.withId('com.android.application') {
+            project.androidComponents.finalizeDsl { android ->
+                def variant = android.buildTypes.create('phoneCheck')
+                variant.initWith(android.buildTypes.getByName('debug'))
+                variant.applicationIdSuffix = '.devicecheck'
+                variant.matchingFallbacks = ['debug']
+                android.testBuildType = 'phoneCheck'
+                android.defaultConfig.testApplicationId = 'com.junkfood.seal.devicecheck.reviewtest'
+                android.defaultConfig.testInstrumentationRunner = 'com.plugin.SafeDeviceRunner'
+                android.splits.abi.reset()
+                android.splits.abi.include(project.findProperty('checkAbi') ?: 'arm64-v8a')
+                android.splits.abi.universalApk = false
+            }
+        }
+    }
+}

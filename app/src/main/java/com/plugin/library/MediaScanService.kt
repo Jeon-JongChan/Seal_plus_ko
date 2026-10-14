@@ -100,10 +100,12 @@ class MediaScanService : Service() {
         /** 사용자 버튼 요청으로만 스캔을 시작하며 원본 설정·폴더는 삭제하지 않습니다. */
         @Synchronized
         fun start(context: Context, preferences: DownloadPreferences, all: Boolean, cleanupEmpty: Boolean = false) {
+            check(!com.plugin.compatibility.TemporarySession.changing) { "저장소 전환이 진행 중입니다." }
             if (progress.value.running) return
             pending = preferences
             progress.value = ScanProgress(running = true)
             try {
+                check(!com.plugin.compatibility.TemporarySession.changing) { "저장소 전환이 진행 중입니다." }
                 ContextCompat.startForegroundService(context, Intent(context, MediaScanService::class.java)
                     .putExtra("all", all).putExtra("cleanup", cleanupEmpty && !preferences.sdcard)
                     .putExtra("replaceDuplicates", com.plugin.compatibility.PluginPreferences.mediaReplaceDuplicates))

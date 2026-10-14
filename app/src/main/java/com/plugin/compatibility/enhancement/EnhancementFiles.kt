@@ -15,12 +15,22 @@ import java.io.File
 
 /** 확정 버튼을 누른 경우에만 파일을 저장하고 원본의 변경 여부를 다시 확인합니다. */
 object EnhancementFiles {
+    private val saves = java.util.concurrent.atomic.AtomicInteger()
+    /** 파일 확정이 끝나기 전 저장소 전환을 막습니다. */
+    val busy: Boolean get() = saves.get() > 0
     /** 원래 인코딩을 유지할 수 없는 형식은 PNG 복제만 제공합니다. */
     fun canReplace(preview: EnhancementClient.Preview): Boolean = if (preview.video) preview.format == "mp4"
         else preview.format in listOf("jpg", "jpeg", "png", "webp")
 
     /** 저장 중 실패하면 원본을 보존하고, 이력과 완료 대기열에 새 경로를 반영합니다. */
     suspend fun save(context: Context, preview: EnhancementClient.Preview, replace: Boolean): String = withContext(Dispatchers.IO) {
+        preview.retain()
+        saves.incrementAndGet()
+        try {
+        check(!TemporarySession.changing && (TemporarySession.root == null ||
+            File(preview.source).canonicalPath.startsWith(TemporarySession.root + File.separator))) {
+            "저장소가 변경되었습니다. 현재 라이브러리에서 다시 보정하세요."
+        }
         check(!replace || canReplace(preview)) { "이 형식은 ${if (preview.video) "MP4" else "PNG"} 복제로 저장하세요." }
         check(EnhancementModels.hash(context, preview.source, if (preview.video) VideoEnhancer.MAX_SOURCE_BYTES else 64L * 1024 * 1024) == preview.hash) {
             "원본이 변경되었습니다. 다시 보정한 뒤 저장하세요."
@@ -40,7 +50,8 @@ object EnhancementFiles {
                 output.absolutePath
             }
         val saved = PluginDatabaseUtil.getDownloadHistory().firstOrNull { it.videoPath == preview.source }
-        val codec = if (preview.video) "video/avc" else if (!replace) "image/png" else when (preview.format) { "jpg", "jpeg" -> "image/jpeg"; "webp" -> "image/webp"; else -> "image/png" }
+        val codec = if (preview.video) preview.codec.ifBlank { VideoEnhancer.inspect(preview.image).format.getString(android.media.MediaFormat.KEY_MIME).orEmpty() }
+            else if (!replace) "image/png" else when (preview.format) { "jpg", "jpeg" -> "image/jpeg"; "webp" -> "image/webp"; else -> "image/png" }
         val quality = VideoQuality(preview.width, preview.height, preview.frameRate, preview.duration, input.length(), codec)
         PluginMediaMetadataStore.save(result, quality = quality, sourceQuality = saved?.sourceQuality ?: saved?.quality,
             postPageIndex = saved?.postPageIndex ?: 0, postPageCount = saved?.postPageCount ?: 1)
@@ -59,6 +70,7 @@ object EnhancementFiles {
         }
         result
         }
+        } finally { saves.decrementAndGet(); preview.release() }
     }
 
     /** 로컬 파일은 Android의 원자적 파일 교체를 사용합니다. */

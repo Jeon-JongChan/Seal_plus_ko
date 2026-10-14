@@ -39,7 +39,8 @@ class PluginPolicyTest {
         assertFalse(com.plugin.runtime.usePluginDialog(state, setOf(PluginId.ACCOUNTS)))
         assertFalse(com.plugin.runtime.usePluginDialog(state, setOf(PluginId.POST_INFO)))
         assertFalse(com.plugin.runtime.usePluginDialog(state, setOf(PluginId.FACE_SORT)))
-        (PluginId.entries - setOf(PluginId.QUEUE, PluginId.IMAGE_AI, PluginId.VIDEO_AI, PluginId.SHARE_MENU, PluginId.ACCOUNTS, PluginId.POST_INFO, PluginId.FACE_SORT)).forEach {
+        assertFalse(com.plugin.runtime.usePluginDialog(state, setOf(PluginId.HIDDEN)))
+        (PluginId.entries - setOf(PluginId.QUEUE, PluginId.IMAGE_AI, PluginId.VIDEO_AI, PluginId.SHARE_MENU, PluginId.HIDDEN, PluginId.ACCOUNTS, PluginId.POST_INFO, PluginId.FACE_SORT)).forEach {
             assertTrue(com.plugin.runtime.usePluginDialog(state, setOf(it)))
         }
     }

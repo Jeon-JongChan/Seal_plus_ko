@@ -51,9 +51,12 @@ object SocialPostMetadataPreferences {
 
 /** MMKV 기반의 소셜 게시글 메타데이터 저장소입니다. */
 object SocialPostMetadataStore {
-    private val mmkv by lazy { runCatching { MMKV.mmkvWithID("social_post_metadata") }.getOrNull() }
+    private val mmkv get() = runCatching { TemporarySession.storage("social_post_metadata") }.getOrNull()
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val memoryCache = mutableStateMapOf<String, SocialPostMetadata>()
+
+    /** 저장소 전환 시 열린 게시글도 이전 세션 자료를 재사용하지 않습니다. */
+    fun clearMemory() { Snapshot.withMutableSnapshot { memoryCache.clear() } }
 
     /** 기존 플랫폼 식별자를 재사용하며 게시글 페이지 해시만 제외합니다. */
     private fun normalizeKey(urlOrKey: String): String {

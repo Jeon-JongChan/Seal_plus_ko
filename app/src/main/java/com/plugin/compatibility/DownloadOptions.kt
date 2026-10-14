@@ -130,6 +130,8 @@ fun MediaDownloadOptions(
                         Text(if (preferences.keepAv1Original) stringResource(R.string.loc_keep_original_hint)
                             else stringResource(R.string.loc_replace_original_hint), style = MaterialTheme.typography.bodySmall)
                         Text(stringResource(R.string.loc_av1_quality, crf.toInt()), style = MaterialTheme.typography.titleSmall)
+                        Text("지원 기기는 하드웨어를 우선 사용합니다. 하드웨어 CQ 품질은 선택한 CRF의 상대 수준으로 적용하며, 지원되지 않으면 소프트웨어를 사용합니다.",
+                            style = MaterialTheme.typography.bodySmall)
                         Slider(
                             crf,
                             onValueChange = { crf = it },

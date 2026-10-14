@@ -5,6 +5,7 @@ import com.junkfood.seal.util.*
 import java.io.File
 import java.math.BigInteger
 import java.net.URI
+import kotlin.math.roundToInt
 import kotlinx.serialization.json.*
 
 /** 파일 관리와 게시물 선택에 공통으로 사용하는 순수 계산 규칙입니다. */
@@ -142,6 +143,13 @@ object MediaRules {
     }.getOrNull()
     /** 백업·대기열의 잘못된 속도 값은 기존 균형 설정으로 복구합니다. */
     fun av1Preset(value: Int): Int = value.takeIf { it in 0..12 } ?: 8
+
+    /** CRF의 상대 품질을 제조사가 제공한 CQ 범위 안으로 환산합니다. */
+    fun hardwareQuality(crf: Int, minimum: Int, maximum: Int): Int {
+        require(minimum >= 0 && maximum >= minimum)
+        // ponytail: CRF와 CQ는 같은 척도가 아닙니다. 기기별 품질 실측이 필요하면 매핑을 보정합니다.
+        return (minimum + (maximum.toDouble() - minimum) * (63 - crf.coerceIn(20, 50)) / 63).roundToInt().coerceIn(minimum, maximum)
+    }
 
     const val DISABLED_IMAGE_TIERS = "disabled_image_tiers"
     const val DISABLED_VIDEO_TIERS = "disabled_video_tiers"

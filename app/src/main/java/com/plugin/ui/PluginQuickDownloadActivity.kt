@@ -39,7 +39,10 @@ class PluginQuickDownloadActivity : AppCompatActivity() {
             runBlocking { setLanguage(PreferenceUtil.getLocaleFromPreference()) }
         }
         enableEdgeToEdge()
-        if (savedInstanceState == null && !showSharedLink(intent)) {
+        // 프로세스 복구로 ViewModel도 새로 생성되면 보존한 Intent에서 입력을 복구합니다.
+        val freshState = dialogViewModel.sheetValueFlow.value == com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel.SheetValue.Hidden &&
+            dialogViewModel.selectionStateFlow.value == com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel.SelectionState.Idle
+        if ((savedInstanceState == null || freshState) && !showSharedLink(intent)) {
             finish()
             return
         }

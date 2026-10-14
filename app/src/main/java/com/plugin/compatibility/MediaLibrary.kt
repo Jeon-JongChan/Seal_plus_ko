@@ -23,9 +23,15 @@ import kotlinx.coroutines.sync.withLock
 /** 다운로드 중복 확인, 비트레이트 폴더 분류와 AV1 후처리를 담당합니다. */
 object MediaLibrary {
     private val downloadLocks = ConcurrentHashMap<String, ReentrantLock>()
-    private val processes = ConcurrentHashMap<String, Process>()
-    private val canceled = ConcurrentHashMap.newKeySet<String>()
+    /** 준비·재시도 사이의 취소도 같은 작업에 묶고 다음 작업의 프로세스를 종료하지 않습니다. */
+    private class Operation {
+        @Volatile var canceled = false
+        @Volatile var process: Process? = null
+    }
+    private val operations = ConcurrentHashMap<String, Operation>()
     private val registrationLock = Mutex()
+    // ponytail: 독립 FFmpeg의 전역 MediaCodec 초기화 실패는 앱 재시작까지 기억합니다. 런타임 교체 후 재시작하면 재검사합니다.
+    @Volatile private var ffmpegHardwareAvailable = true
 
     /** 파일 관리자에 표시할 실제 영상과 부모 폴더 정보입니다. */
     data class MediaFile(
@@ -521,11 +527,10 @@ object MediaLibrary {
         return image ?: readVideoQuality(path)
     }
 
-    /** FFmpeg가 실행 중인 후처리를 취소합니다. */
+    /** 준비 중이거나 재시도 대기 중인 작업도 취소하고 해당 작업의 프로세스만 종료합니다. */
     fun cancel(taskId: String): Boolean =
-        processes[taskId]?.let {
-            canceled.add(taskId)
-            it.destroy()
+        operations[taskId]?.let {
+            synchronized(it) { it.canceled = true; it.process?.destroy() }
             true
         } ?: false
 
@@ -540,8 +545,12 @@ object MediaLibrary {
         preserveParent: Boolean = false,
         mediaRoot: File? = null,
         collisionReplace: Boolean? = null,
-    ): List<String> =
-        if (!preferences.mediaProcessing) paths else paths.flatMap { original ->
+    ): List<String> {
+        if (!preferences.mediaProcessing) return paths
+        val operation = Operation()
+        check(operations.putIfAbsent(taskId, operation) == null) { "같은 미디어 작업이 이미 진행 중입니다." }
+        return try { paths.flatMap { original ->
+            if (operation.canceled) throw kotlinx.coroutines.CancellationException("미디어 작업이 취소되었습니다.")
             if (PluginMediaMetadataStore.isProcessingExcluded(original)) return@flatMap listOf(original)
             val source = File(original)
             val video = source.extension.lowercase() in setOf("mp4", "mkv", "webm", "mov", "m4v")
@@ -601,9 +610,53 @@ object MediaLibrary {
                 onOutput(file.absolutePath, originalQuality.takeIf { output != source })
                 file.absolutePath
             }
-        }.distinct()
+        }.distinct() } finally { operations.remove(taskId, operation); operation.process?.destroy() }
+    }
 
-    /** AV1 결과 검증 후 원본 보존 선택을 적용하며 실패 시 원본을 유지합니다. */
+    /** 원본 SDR 크기를 지원하는 하드웨어 디코더·CQ 인코더의 기존 FFmpeg 인수를 준비합니다. */
+    private fun hardwareArguments(source: File, crf: Int): Pair<List<String>, List<String>?> {
+        if (android.os.Build.VERSION.SDK_INT < 29 || !ffmpegHardwareAvailable) return emptyList<String>() to null
+        val extractor = MediaExtractor()
+        return try {
+            extractor.setDataSource(source.path)
+            val format = (0 until extractor.trackCount).map(extractor::getTrackFormat)
+                .first { it.getString(MediaFormat.KEY_MIME).orEmpty().startsWith("video/") }
+            // HDR 색 공간과 품질 제약을 임의로 낮추지 않고 기존 소프트웨어 경로를 유지합니다.
+            if (format.containsKey(MediaFormat.KEY_COLOR_STANDARD) && format.getInteger(MediaFormat.KEY_COLOR_STANDARD) == 6 ||
+                format.containsKey(MediaFormat.KEY_COLOR_TRANSFER) && format.getInteger(MediaFormat.KEY_COLOR_TRANSFER) in listOf(6, 7)) return emptyList<String>() to null
+            val width = format.getInteger(MediaFormat.KEY_WIDTH); val height = format.getInteger(MediaFormat.KEY_HEIGHT)
+            val fps = if (format.containsKey(MediaFormat.KEY_FRAME_RATE)) format.getNumber(MediaFormat.KEY_FRAME_RATE)?.toDouble() ?: 30.0 else 30.0
+            val codecs = android.media.MediaCodecList(android.media.MediaCodecList.REGULAR_CODECS).codecInfos
+            /** 드라이버가 해당 MIME·크기·프레임률을 지원할 때만 하드웨어를 요청합니다. */
+            fun supports(info: android.media.MediaCodecInfo, mime: String): Boolean = info.isHardwareAccelerated &&
+                mime in info.supportedTypes && runCatching {
+                    info.getCapabilitiesForType(mime).videoCapabilities.areSizeAndRateSupported(width, height, fps)
+                }.getOrDefault(false)
+            val mime = format.getString(MediaFormat.KEY_MIME).orEmpty()
+            val decoderType = when (mime) {
+                "video/avc" -> "h264"; "video/hevc" -> "hevc"; "video/av01" -> "av1"
+                "video/x-vnd.on2.vp8" -> "vp8"; "video/x-vnd.on2.vp9" -> "vp9"; "video/mp4v-es" -> "mpeg4"
+                else -> null
+            }
+            val decoder = codecs.firstOrNull { !it.isEncoder && supports(it, mime) }
+            // codec_name은 FFmpeg 인코더 전용입니다. 독립 프로세스에서는 NDK 디코더 경로를 명시합니다.
+            val decode = if (decoderType != null && decoder != null) listOf("-c:v", "${decoderType}_mediacodec", "-ndk_codec", "1") else emptyList()
+            val encoder = codecs.firstOrNull { it.isEncoder && supports(it, "video/av01") && runCatching {
+                it.getCapabilitiesForType("video/av01").encoderCapabilities.isBitrateModeSupported(android.media.MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CQ)
+            }.getOrDefault(false) }
+            val encode = encoder?.let {
+                val range = it.getCapabilitiesForType("video/av01").encoderCapabilities.qualityRange
+                val quality = MediaRules.hardwareQuality(crf, range.lower, range.upper)
+                if (quality <= 0) null else listOf("-c:v", "av1_mediacodec", "-ndk_codec", "1", "-codec_name", it.name, "-bitrate_mode", "cq", "-global_quality", quality.toString())
+            }
+            decode to encode
+        } catch (failure: Exception) {
+            android.util.Log.w("MediaLibrary", "하드웨어 코덱 확인 실패로 기존 변환 사용", failure)
+            emptyList<String>() to null
+        } finally { extractor.release() }
+    }
+
+    /** 하드웨어를 먼저 시도하되 실패·취소·결과 검증 전에 원본을 교체하지 않습니다. */
     private fun transcode(
         source: File,
         taskId: String,
@@ -613,6 +666,7 @@ object MediaLibrary {
         container: String,
         progress: ((Float, Long, String) -> Unit)?,
     ): File {
+        val operation = checkNotNull(operations[taskId])
         val destination = source.resolveSibling(source.nameWithoutExtension + "-av1.$container")
         check(!destination.exists()) { com.junkfood.seal.App.context.getString(R.string.loc_av1_target_exists_named, destination.name) }
         val temporary =
@@ -620,12 +674,15 @@ object MediaLibrary {
         check(!temporary.exists()) { com.junkfood.seal.App.context.getString(R.string.loc_av1_temporary_exists) }
         val executable = File(context.applicationInfo.nativeLibraryDir, "libffmpeg.so")
         val packages = File(context.noBackupFilesDir, "youtubedl-android/packages")
-        val process =
-            ProcessBuilder(
-                    executable.absolutePath,
-                    "-nostdin",
-                    "-i",
-                    source.absolutePath,
+        val (decode, encode) = hardwareArguments(source, crf)
+        val software = listOf("-c:v", "libsvtav1", "-preset", MediaRules.av1Preset(preset).toString(), "-crf", crf.coerceIn(20, 50).toString())
+        val inputs = listOf("-i", source.absolutePath)
+        val plans = buildList {
+            if (encode != null) add(decode + inputs + encode)
+            if (decode.isNotEmpty()) add(decode + inputs + software)
+            add(inputs + software)
+        }.distinct()
+        val outputArguments = listOf(
                     "-map",
                     "0:v:0",
                     "-map",
@@ -634,12 +691,6 @@ object MediaLibrary {
                     "0:s?",
                     "-map_metadata",
                     "0",
-                    "-c:v",
-                    "libsvtav1",
-                    "-preset",
-                    MediaRules.av1Preset(preset).toString(),
-                    "-crf",
-                    crf.coerceIn(20, 50).toString(),
                     "-c:a",
                     "copy",
                     "-c:s",
@@ -648,6 +699,14 @@ object MediaLibrary {
                     "pipe:1",
                     temporary.absolutePath,
                 )
+        var process: Process? = null
+        val duration = durationSeconds(source.absolutePath)
+        val messages = ArrayDeque<String>()
+        try {
+        for (plan in plans) {
+            if (!ffmpegHardwareAvailable && plan.any { it.endsWith("_mediacodec") }) continue
+            if (operation.canceled) throw kotlinx.coroutines.CancellationException(context.getString(R.string.loc_av1_canceled))
+            val running = ProcessBuilder(listOf(executable.absolutePath, "-y", "-nostdin") + plan + outputArguments)
                 .redirectErrorStream(true)
                 .apply {
                     environment()["LD_LIBRARY_PATH"] =
@@ -656,11 +715,11 @@ object MediaLibrary {
                         }
                 }
                 .start()
-        processes[taskId] = process
-        val duration = durationSeconds(source.absolutePath)
-        val messages = ArrayDeque<String>()
-        try {
-            process.inputStream.bufferedReader().useLines { lines ->
+            process?.destroy(); process = running; operation.process = running
+            // 이전 시도가 끝난 순간 취소가 들어와도 다음 시도까지 실행하지 않습니다.
+            if (operation.canceled) throw kotlinx.coroutines.CancellationException(context.getString(R.string.loc_av1_canceled))
+            android.util.Log.i("MediaLibrary", "AV1 변환 경로: ${plan.joinToString(" ") { if (it == source.absolutePath) "원본" else it }}")
+            running.inputStream.bufferedReader().useLines { lines ->
                 lines.forEach { line ->
                     messages.addLast(line)
                     if (messages.size > 30) messages.removeFirst()
@@ -675,17 +734,28 @@ object MediaLibrary {
                     }
                 }
             }
-            check(process.waitFor() == 0 && temporary.length() > 0) {
+            val exit = running.waitFor()
+            if (operation.canceled) throw kotlinx.coroutines.CancellationException(context.getString(R.string.loc_av1_canceled))
+            val valid = exit == 0 && temporary.length() > 0 && duration > 0 &&
+                kotlin.math.abs(durationSeconds(temporary.absolutePath) - duration) <= 2.0
+            if (valid) break
+            if (messages.any { "Failed to create media format" in it || "No Java virtual machine" in it }) ffmpegHardwareAvailable = false
+            android.util.Log.w("MediaLibrary", "AV1 경로 실패·소프트웨어 재시도: ${messages.takeLast(6).joinToString("\n")}")
+            check(plan != plans.last()) {
                 context.getString(R.string.loc_av1_failed, messages.joinToString("\n"))
             }
+        }
             val convertedDuration = durationSeconds(temporary.absolutePath)
-            return MediaRules.replaceWithAv1(
+            // 검증 후 이름 교환·원본 보존 선택은 취소와 엇갈리지 않는 하나의 확정 단계입니다.
+            return synchronized(operation) {
+                if (operation.canceled) throw kotlinx.coroutines.CancellationException(context.getString(R.string.loc_av1_canceled))
+                MediaRules.replaceWithAv1(
                 source,
                 temporary,
                 destination,
                 duration,
                 convertedDuration,
-                taskId in canceled,
+                operation.canceled,
                 keepOriginal,
                 failureMessage = { reason ->
                     context.getString(when (reason) {
@@ -697,11 +767,9 @@ object MediaLibrary {
                         MediaRules.Av1Failure.SOURCE_DELETE_FAILED -> R.string.loc_av1_source_delete_failed
                     })
                 },
-            )
+            ) }
         } finally {
-            processes.remove(taskId, process)
-            canceled.remove(taskId)
-            process.destroy()
+            process?.destroy()
             if (temporary.exists()) temporary.delete()
         }
     }

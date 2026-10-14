@@ -23,6 +23,7 @@ object EnhancementModels {
     const val SELECTED = "image_ai_model"
     const val VIDEO_SELECTED = "video_ai_model"
     const val VIDEO_FPS = "video_ai_fps"
+    const val VIDEO_ORIGINAL_CODEC = "video_ai_original_codec"
     const val SMALL_MODEL = "asset://image-ai/quicksrnet-small.tflite"
     const val MEDIUM_MODEL = "asset://image-ai/quicksrnet-medium.tflite"
     const val ACCELERATED = "image_ai_accelerated"

@@ -105,7 +105,7 @@ private fun VideoAiAction(path: String, onSaved: (String, Boolean) -> Unit) {
                         Button(enabled = !saving && EnhancementFiles.canReplace(result), onClick = { save(true) }) { Text("교체") }
                         OutlinedButton(enabled = !saving, onClick = { save(false) }) { Text("복제") }
                     }
-                    Text("결과는 MP4(H.264)로 저장합니다. MP4 원본만 교체할 수 있습니다.", style = MaterialTheme.typography.bodySmall)
+                    Text("MP4 · ${when (result.codec) { "video/av01" -> "AV1"; "video/avc" -> "H.264"; "video/hevc" -> "H.265"; else -> result.codec }} · MP4 원본만 교체할 수 있습니다.", style = MaterialTheme.typography.bodySmall)
                 } else if (processing) {
                     LinearProgressIndicator(progress = { progress / 100f }, modifier = Modifier.fillMaxWidth())
                     Text("영상 처리 중 · $progress%"); Text(engine, style = MaterialTheme.typography.bodySmall)
@@ -117,7 +117,7 @@ private fun VideoAiAction(path: String, onSaved: (String, Boolean) -> Unit) {
                     Text("최소: QuickSRNet Small · 2배\n최대: QuickSRNet Medium · 4K에 가깝게", style = MaterialTheme.typography.bodySmall)
                     TextButton(onClick = { advanced = !advanced }) { Text(if (advanced) "상세 조정 접기" else "상세 조정") }
                     if (advanced) {
-                        FrameSettings(); SamplingSettings()
+                        VideoEncodingSettings(); FrameSettings(); SamplingSettings()
                         Text("직접 선택 모델: ${EnhancementModels.VIDEO_SELECTED.getString(EnhancementModels.SMALL_MODEL).substringAfterLast('/')}", style = MaterialTheme.typography.bodySmall)
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             listOf(1 to "크기 유지", -720 to "720p", -1080 to "1080p", -1440 to "2K", -2160 to "4K", 2 to "2배", 4 to "4배").forEach { (option, label) ->

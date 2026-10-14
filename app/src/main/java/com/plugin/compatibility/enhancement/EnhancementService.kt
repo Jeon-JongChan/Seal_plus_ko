@@ -33,8 +33,10 @@ open class EnhancementService : Service() {
                     }
                     send(reply, DONE, data)
                 } catch (failure: Throwable) {
+                    android.util.Log.e("MediaAi", "미디어 보정 실패", failure)
                     send(reply, FAILED, Bundle().apply { putString("error", if (failure is OutOfMemoryError)
-                        "보정 메모리가 부족합니다. 더 낮은 해상도를 선택하세요." else failure.message ?: "이미지 보정에 실패했습니다.") })
+                        "보정 메모리가 부족합니다. 더 낮은 해상도를 선택하세요." else failure.message?.takeIf { it.isNotBlank() }
+                            ?: "미디어 보정에 실패했습니다. (${failure.javaClass.simpleName})") })
                 } finally { if (data.getBoolean("video")) stopForeground(STOP_FOREGROUND_REMOVE) }
             }
         } else if (message.what == RUN) send(message.replyTo, FAILED, Bundle().apply { putString("error", "이미지 보정 작업이 실행 중입니다.") })

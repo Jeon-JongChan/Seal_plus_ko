@@ -2,7 +2,7 @@ package com.plugin
 
 import android.content.Intent
 import android.os.SystemClock
-import androidx.lifecycle.ViewModelProvider
+import org.koin.androidx.viewmodel.ext.android.getViewModel
 import androidx.test.core.app.ActivityScenario
 import androidx.test.platform.app.InstrumentationRegistry
 import com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel.Action
@@ -16,6 +16,21 @@ import java.util.concurrent.atomic.AtomicReference
 
 /** 실제 공유 창의 종료 요청이 두 번째 닫기 애니메이션을 기다리지 않는지 검사합니다. */
 class QuickDownloadUiTest {
+    /** 회전·창 크기 변경의 Activity 재생성이 빠른 다운로드창을 닫지 않습니다. */
+    @Test fun recreationKeepsQuickDownloadOpen() {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val intent = Intent(instrumentation.targetContext, PluginQuickDownloadActivity::class.java)
+            .setAction(Intent.ACTION_SEND).setType("text/plain")
+            .putExtra(Intent.EXTRA_TEXT, "https://example.invalid/recreation")
+        ActivityScenario.launch<PluginQuickDownloadActivity>(intent).use { scenario ->
+            instrumentation.waitForIdleSync(); scenario.recreate(); instrumentation.waitForIdleSync()
+            scenario.onActivity {
+                assertTrue(!it.isFinishing)
+                assertTrue(it.getViewModel<PluginDownloadDialogViewModel>().sheetValueFlow.value ==
+                    com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel.SheetValue.Expanded)
+            }
+        }
+    }
     /** 조회·다운로드 없이 검사 Activity의 닫기 요청부터 종료 시작까지 측정합니다. */
     @Test fun closeStartsWithoutWaitingForSheetAnimation() {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
@@ -30,7 +45,7 @@ class QuickDownloadUiTest {
             scenario.onActivity {
                 activity.set(it)
                 started.set(SystemClock.uptimeMillis())
-                ViewModelProvider(it)[PluginDownloadDialogViewModel::class.java].postAction(Action.HideSheet)
+                it.getViewModel<PluginDownloadDialogViewModel>().postAction(Action.HideSheet)
             }
             val finishing = AtomicBoolean(false)
             while (!finishing.get() && SystemClock.uptimeMillis() - started.get() < 2_000) {

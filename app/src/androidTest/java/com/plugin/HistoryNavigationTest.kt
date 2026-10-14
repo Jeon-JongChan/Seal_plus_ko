@@ -21,6 +21,39 @@ import org.junit.Test
 
 /** 폴더 탐색·두 화면 정렬·게시글 상세 동작을 실제 접근성 UI로 검증합니다. */
 class HistoryNavigationTest {
+    /** 선택 플러그인을 끈 기본 화면도 다섯 개씩 추가하며 이력 원본은 모두 보존합니다. */
+    @Test fun historyLoadsFiveAtATime(): Unit = runBlocking {
+        val instrumentation = InstrumentationRegistry.getInstrumentation()
+        val context = instrumentation.targetContext
+        check(context.packageName.endsWith(".devicecheck"))
+        val token = java.util.UUID.randomUUID().toString()
+        val paths = (1..12).map { java.io.File(context.cacheDir, "paging-$token/$it.mp4").path }
+        val originalCount = PluginDatabaseUtil.getDownloadHistory().size
+        try {
+            paths.forEachIndexed { index, path -> PluginDatabaseUtil.insertInfoImmediately(
+                DownloadedVideoInfo(0, "페이징 $token ${index + 1}", "", "https://example.invalid/$token/$index", "", path, "External")) }
+            for (enhanced in listOf(false, true)) {
+                ActivityScenario.launch(PluginMainActivity::class.java).use { scenario ->
+                    scenario.onActivity { it.setContent { SealTheme {
+                        com.plugin.library.EnhancedVideoListPage(enhanced = enhanced, onNavigateBack = {})
+                    } } }
+                    val total = originalCount + 12
+                    awaitNode("표시 5 / $total")
+                    for (attempt in 0 until 12) {
+                        val automation = instrumentation.uiAutomation
+                        if (android.os.Build.VERSION.SDK_INT >= 33) automation.clearCache()
+                        val root = automation.rootInActiveWindow
+                        // 푸터에 닿으면 자동 로딩하고, 짧은 화면에서도 더 보기 버튼으로 진행할 수 있습니다.
+                        if (findNode(root, "표시 10 / $total") != null) break
+                        findVerticalScroll(root)?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
+                        SystemClock.sleep(200)
+                    }
+                    awaitNode("표시 10 / $total")
+                    assertEquals(total, PluginDatabaseUtil.getDownloadHistory().size)
+                }
+            }
+        } finally { paths.forEach { PluginDatabaseUtil.deleteInfoByPath(it) } }
+    }
     /** 같은 720p 하위 폴더도 사이트를 거쳐 탐색하고 전체보기로 돌아옵니다. */
     @Test fun navigatesFoldersAndRestoresAllView(): Unit = runBlocking {
         val instrumentation = InstrumentationRegistry.getInstrumentation()

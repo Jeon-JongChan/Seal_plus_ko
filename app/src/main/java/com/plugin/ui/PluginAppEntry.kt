@@ -47,7 +47,6 @@ import com.junkfood.seal.ui.page.command.TaskListPage
 import com.junkfood.seal.ui.page.command.TaskLogPage
 import com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialog
 import com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel
-import com.junkfood.seal.ui.page.downloadv2.DownloadPageV2
 import com.junkfood.seal.ui.page.settings.about.AboutPage
 import com.junkfood.seal.ui.page.settings.about.CreditsPage
 import com.junkfood.seal.ui.page.settings.about.SponsorsPage
@@ -67,7 +66,6 @@ import com.junkfood.seal.ui.page.settings.network.CookiesViewModel
 import com.junkfood.seal.ui.page.settings.network.NetworkPreferences
 import com.junkfood.seal.ui.page.settings.network.WebViewPage
 import com.junkfood.seal.ui.page.settings.troubleshooting.TroubleShootingPage
-import com.junkfood.seal.ui.page.videolist.VideoListPage
 import com.plugin.PLUGINS_ROUTE
 import com.plugin.PluginId
 import com.plugin.PluginState
@@ -192,11 +190,9 @@ fun PluginAppEntry(dialogViewModel: com.plugin.runtime.PluginDownloadDialogViewM
                     }
                 }
                 animatedComposable(Route.DOWNLOADS) {
-                    if (PluginState.isEnabled(PluginId.LIBRARY) || PluginState.isEnabled(PluginId.IMAGE_AI) || PluginState.isEnabled(PluginId.POST_INFO)) {
-                        EnhancedVideoListPage { onNavigateBack() }
-                    } else {
-                        VideoListPage { onNavigateBack() }
-                    }
+                    EnhancedVideoListPage(enhanced = PluginState.isEnabled(PluginId.LIBRARY) ||
+                        PluginState.isEnabled(PluginId.IMAGE_AI) || PluginState.isEnabled(PluginId.VIDEO_AI) ||
+                        PluginState.isEnabled(PluginId.POST_INFO)) { onNavigateBack() }
                 }
                 animatedComposableVariant(Route.TASK_LIST) {
                     TaskListPage(

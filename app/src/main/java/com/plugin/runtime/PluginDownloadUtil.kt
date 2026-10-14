@@ -27,7 +27,6 @@ import com.plugin.compatibility.*
 import com.plugin.compatibility.copyPluginOptions
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteDatabase.OPEN_READONLY
-import android.media.MediaCodecList
 import android.os.Build
 import android.util.Log
 import android.webkit.CookieManager
@@ -1041,22 +1040,4 @@ object PluginDownloadUtil {
         }
     }
 
-    /** checkIfAv1HardwareAccelerated의 분리된 다운로드 처리를 수행합니다. */
-    private fun checkIfAv1HardwareAccelerated(): Boolean {
-        if (PreferenceUtil.containsKey(AV1_HARDWARE_ACCELERATED)) {
-            return AV1_HARDWARE_ACCELERATED.getBoolean()
-        } else {
-            val res =
-                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
-                    false
-                } else {
-                    MediaCodecList(MediaCodecList.REGULAR_CODECS).codecInfos.any { info ->
-                        info.supportedTypes.any { it.equals("video/av01", ignoreCase = true) } &&
-                            info.isHardwareAccelerated
-                    }
-                }
-            AV1_HARDWARE_ACCELERATED.updateBoolean(res)
-            return res
-        }
-    }
 }

@@ -75,6 +75,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
@@ -114,6 +115,7 @@ import com.junkfood.seal.ui.svg.drawablevectors.videoSteaming
 import com.junkfood.seal.util.AUDIO_REGEX
 import com.junkfood.seal.util.FileUtil
 import com.junkfood.seal.util.ToastUtil
+import com.junkfood.seal.util.makeToast
 import com.junkfood.seal.util.toFileSizeText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -150,12 +152,12 @@ private const val TAG = "VideoListPage"
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 /** EnhancedVideoListPage에 필요한 화면 구성 또는 처리 규칙을 제공합니다. */
-fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNavigateBack: () -> Unit) {
+fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhanced: Boolean = true, onNavigateBack: () -> Unit) {
     var showFileManager by remember { mutableStateOf(false) }
     if (showFileManager) MediaFileManagerDialog { showFileManager = false }
     val viewState by viewModel.stateFlow.collectAsStateWithLifecycle()
     var mediaFilter by remember { mutableIntStateOf(0) }
-    var sortByName by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(PluginPreferences.historySortByName) }
+    var sortByName by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(enhanced && PluginPreferences.historySortByName) }
     var folderMode by remember { mutableStateOf(false) }
     var folderFilter by remember { mutableStateOf<String?>(null) }
     val observedVideoList by viewModel.videoListFlow.collectAsStateWithLifecycle(emptyList())
@@ -189,12 +191,13 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
     // 직접 경로를 갱신한 이력도 검색 결과에서는 최신 파일 경로를 사용합니다.
     val searchedIds = remember(searchedVideoList) { searchedVideoList.map { it.id }.toSet() }
     val videoList = if (viewState.isSearching) fullVideoList.filter { it.id in searchedIds } else fullVideoList
-    val posts = videoList.filter { it.filterSort(mediaFilter, folderFilter) }.groupBy {
-        if (it.extractor.lowercase() in setOf("instagram", "tiktok")) MediaRules.identity(it.videoUrl.substringBefore('#'))
+    val posts = remember(videoList, mediaFilter, folderFilter, sortByName, enhanced) { videoList.filter { it.filterSort(mediaFilter, folderFilter) }.groupBy {
+        if (enhanced && it.extractor.lowercase() in setOf("instagram", "tiktok")) MediaRules.identity(it.videoUrl.substringBefore('#'))
         else it.videoPath
     }.values.map { it.sortedBy { page -> page.postPageIndex } }
         // 원본 이력에 시각 필드가 없어 증가하는 등록 ID로 최신 등록 순서를 유지합니다.
-        .sortMedia(sortByName, { post -> post.maxOf { it.id }.toLong() }, { post -> post.first().videoTitle })
+        .sortMedia(sortByName, { post -> post.maxOf { it.id }.toLong() }, { post -> post.first().videoTitle }) }
+    var visibleCount by remember(mediaFilter, folderFilter, sortByName, viewState.isSearching, searchedIds) { mutableIntStateOf(5) }
     var openedPost by remember { mutableStateOf<Pair<List<String>, String?>?>(null) }
     openedPost?.let { (paths, initial) -> PostMediaViewer(paths, initial) { openedPost = null } }
     var wallpaperPages by remember { mutableStateOf<List<com.plugin.ui.WallpaperPageItem>?>(null) }
@@ -217,17 +220,11 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
 
-    // 이동 중 사라진 로컬 경로를 DocumentFile에 넘기지 않고 공통 안전한 크기 읽기를 사용합니다.
-    val fileSizeMap by androidx.compose.runtime.produceState<Map<Int, Long>>(emptyMap(), fullVideoList, scan.running) {
-        value = withContext(kotlinx.coroutines.Dispatchers.IO) {
-            fullVideoList.associate { it.id to MediaLibrary.fileBytes(it.videoPath) }
-        }
-    }
     val sheetState = rememberModalBottomSheetState(initialValue = ModalBottomSheetValue.Hidden)
     val hostState = remember { SnackbarHostState() }
 
     LaunchedEffect(scan.running, observedVideoList) {
-        if (!scan.running) runCatching {
+        if (enhanced && !scan.running) runCatching {
             withContext(kotlinx.coroutines.Dispatchers.IO) {
                 MediaLibrary.registerExternalFiles(MediaLibrary.listVideos(createPluginPreferences()))
             }
@@ -254,6 +251,12 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
     })
 
     val lazyListState = rememberLazyListState()
+    LaunchedEffect(lazyListState, visibleCount, posts.size) {
+        if (visibleCount < posts.size) snapshotFlow {
+            lazyListState.isScrollInProgress &&
+                lazyListState.layoutInfo.visibleItemsInfo.lastOrNull()?.key == "history-more"
+        }.collect { reachedEnd -> if (reachedEnd) visibleCount = minOf(visibleCount + 5, posts.size) }
+    }
     // 정렬·폴더·유형이 바뀌면 이전 항목의 위치 대신 새 목록의 처음을 표시합니다.
     LaunchedEffect(folderFilter, mediaFilter) { lazyListState.requestScrollToItem(0) }
 
@@ -269,10 +272,12 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
                 }
             }
             Row(Modifier.horizontalScroll(rememberScrollState())) {
-                VideoFilterChip(selected = !folderMode, onClick = { folderMode = false; folderFilter = null }, label = "전체보기")
-                VideoFilterChip(selected = folderMode, onClick = { folderMode = true; folderFilter = folderRoot }, label = "폴더별")
-                VideoFilterChip(selected = !sortByName, onClick = { sortByName = false; PluginPreferences.historySortByName = false; lazyListState.requestScrollToItem(0) }, label = "시간순")
-                VideoFilterChip(selected = sortByName, onClick = { sortByName = true; PluginPreferences.historySortByName = true; lazyListState.requestScrollToItem(0) }, label = "이름순")
+                if (enhanced) {
+                    VideoFilterChip(selected = !folderMode, onClick = { folderMode = false; folderFilter = null }, label = "전체보기")
+                    VideoFilterChip(selected = folderMode, onClick = { folderMode = true; folderFilter = folderRoot }, label = "폴더별")
+                    VideoFilterChip(selected = !sortByName, onClick = { sortByName = false; PluginPreferences.historySortByName = false; lazyListState.requestScrollToItem(0) }, label = "시간순")
+                    VideoFilterChip(selected = sortByName, onClick = { sortByName = true; PluginPreferences.historySortByName = true; lazyListState.requestScrollToItem(0) }, label = "이름순")
+                }
             }
             if (folderMode) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -287,6 +292,13 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
     }
 
     val selectedItemIds = remember(videoList, viewState, mediaFilter, folderFilter) { mutableStateListOf<Int>() }
+
+    // 표시할 게시글만 파일을 조회하되 전체 선택의 크기 합산에는 숨은 선택 항목도 포함합니다.
+    val fileSizeMap by androidx.compose.runtime.produceState<Map<Int, Long>>(emptyMap(), posts, visibleCount, selectedItemIds.toList(), scan.running) {
+        val selected = selectedItemIds.toSet()
+        val needed = (posts.take(visibleCount).flatten() + videoList.filter { it.id in selected }).distinctBy { it.id }
+        value = withContext(Dispatchers.IO) { needed.associate { it.id to MediaLibrary.fileBytes(it.videoPath) } }
+    }
 
     LaunchedEffect(isSelectEnabled) {
         if (!isSelectEnabled) {
@@ -365,7 +377,11 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
         topBar = {
             LargeTopAppBar(
                 title = {
-                    Text(modifier = Modifier, text = stringResource(R.string.downloads_history))
+                    Column {
+                        Text(modifier = Modifier, text = stringResource(R.string.downloads_history))
+                        Text("표시 ${minOf(visibleCount, posts.size)} / ${posts.size}",
+                            style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 },
                 navigationIcon = { BackButton {
                     if (folderMode && folderFilter != folderRoot) folderFilter = MediaRules.historyFolderParent(folderFilter.orEmpty(), folderRoot)
@@ -407,7 +423,7 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
                                 expanded = expanded,
                                 onDismissRequest = { expanded = false },
                             ) {
-                                DropdownMenuItem(
+                                if (enhanced) DropdownMenuItem(
                                     text = { Text(stringResource(R.string.loc_media_file_manager)) },
                                     onClick = {
                                         showFileManager = true
@@ -447,7 +463,7 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
                                         expanded = false
                                     },
                                 )
-                                DropdownMenuItem(text = { Text("정리하기") }, enabled = !scan.running,
+                                if (enhanced) DropdownMenuItem(text = { Text("정리하기") }, enabled = !scan.running,
                                     leadingIcon = { Icon(Icons.Outlined.DeleteSweep, null) },
                                     onClick = { showCleanup = true; expanded = false })
                             }
@@ -568,8 +584,9 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
                     }
                 }
             }
-            for (post in posts) {
+            for (post in posts.take(visibleCount)) {
                 val info = post.first()
+                item(key = info.id, contentType = MediaRules.mediaKind(info.videoPath, info.quality?.codec.orEmpty())) {
                 val successful = post.filter { fileSizeMap.getOrElse(it.id) { 0L } > 0 }
                 val qualities = post.mapNotNull { it.quality }.sortedBy { it.width.toLong() * it.height }
                 val imageCount = successful.filter { it.quality?.codec?.startsWith("image/") == true || it.videoPath.substringAfterLast('.').lowercase() in setOf("jpg", "jpeg", "png", "webp", "avif") }.distinctBy { it.videoUrl }.size
@@ -585,7 +602,6 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
                     av1Mode = if (post.none { it.sourceQuality != null }) 0 else if (post.any { it.sourceQuality == null && it.videoUrl in post.filter { item -> item.sourceQuality != null }.map { item -> item.videoUrl } }) 2 else 1)
 
 
-                item(key = info.id, contentType = { info.videoPath.contains(AUDIO_REGEX) }) {
                     with(info) {
                         AnimatedVisibility(
                             modifier = Modifier,
@@ -604,7 +620,7 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
                                     Column {
                                         if (extractor == "External") Text(stringResource(R.string.revision5_external),
                                             color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
-                                        PostMediaDetails(details, overlay = true, compact = true)
+                                        if (enhanced) PostMediaDetails(details, overlay = true, compact = true)
                                     }
                                 },
                                 videoUrl = videoUrl,
@@ -615,7 +631,8 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
                                     else post.forEach { if (it.id !in selectedItemIds) selectedItemIds.add(it.id) }
                                 },
                                 onClick = {
-                                    if (successful.isNotEmpty()) openedPost = successful.map { it.videoPath } to videoPath
+                                    if (!enhanced) FileUtil.openFile(videoPath) { context.makeToast(R.string.file_unavailable) }
+                                    else if (successful.isNotEmpty()) openedPost = successful.map { it.videoPath } to videoPath
                                     else scope.launch { ToastUtil.makeToastSuspend(App.context.getString(R.string.file_unavailable)) }
                                 },
                                 onLongClick = {
@@ -631,17 +648,22 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), onNav
                                         sheetState.show()
                                     }
                                 },
-                                onWallpaperClick = {
+                                onWallpaperClick = if (!enhanced) null else ({
                                     val files = if (successful.isNotEmpty()) successful.map { it.videoPath } else listOf(videoPath)
                                     val targetList = files.mapIndexed { idx, p -> com.plugin.ui.WallpaperPageItem(p, idx) }
                                     if (targetList.isNotEmpty()) wallpaperPages = targetList
-                                },
-                                onInstagramClick = {
+                                }),
+                                onInstagramClick = if (!enhanced) null else ({
                                     com.plugin.compatibility.WallpaperHelper.openInstagramUrl(context, videoUrl)
-                                },
+                                }),
                             )
                         }
                     }
+                }
+            }
+            if (visibleCount < posts.size) item(key = "history-more") {
+                TextButton(onClick = { visibleCount = minOf(visibleCount + 5, posts.size) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("5개 더 보기 (${minOf(visibleCount, posts.size)}/${posts.size})")
                 }
             }
         }

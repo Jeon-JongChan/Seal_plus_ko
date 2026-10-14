@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
-import androidx.compose.material.icons.automirrored.outlined.TextSnippet
 import androidx.compose.material.icons.outlined.AudioFile
 import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material.icons.outlined.ContentCopy
@@ -152,19 +151,6 @@ private fun CancelButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
         contentColor = MaterialTheme.colorScheme.onSurface,
         imageVector = Icons.Outlined.Cancel,
         text = stringResource(R.string.cancel),
-        onClick = onClick,
-    )
-}
-
-@Composable
-/** DownloadLogButton의 전용 대기열 처리 또는 화면 동작을 제공합니다. */
-private fun DownloadLogButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
-    ActionSheetPrimaryButton(
-        modifier = modifier,
-        containerColor = LocalFixedColorRoles.current.secondaryFixed,
-        contentColor = LocalFixedColorRoles.current.onSecondaryFixedVariant,
-        imageVector = Icons.AutoMirrored.Outlined.TextSnippet,
-        text = stringResource(R.string.show_logs),
         onClick = onClick,
     )
 }

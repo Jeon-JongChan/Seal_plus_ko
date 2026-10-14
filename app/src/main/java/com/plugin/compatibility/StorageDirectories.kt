@@ -28,6 +28,6 @@ object StorageDirectories {
         else configured?.takeIf { it.isNotBlank() && !it.startsWith("content://") }?.let(::File) ?: File(downloads, "Seal")
 
     /** 실제 필요한 저장 루트만 만들며 쓰기 접근 실패는 기존 다운로드 경로에서 처리합니다. */
-    fun externalDownloadDirectory(): File = selected(PRIVATE_DIRECTORY.getBoolean(), VIDEO_DIRECTORY.getString(""),
+    fun externalDownloadDirectory(): File = TemporarySession.session?.let(TemporarySession::owned) ?: selected(PRIVATE_DIRECTORY.getBoolean(), VIDEO_DIRECTORY.getString(""),
         Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)).also { it.mkdirs() }
 }

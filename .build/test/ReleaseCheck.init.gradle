@@ -1,0 +1,17 @@
+// 실제 Release 축소 규칙으로 얼굴 모델을 검사하며 기존 앱과 패키지를 분리합니다.
+gradle.beforeProject { project ->
+    if (project.path == ':app') {
+        project.plugins.withId('com.android.application') {
+            project.androidComponents.finalizeDsl { android ->
+                def variant = android.buildTypes.create('releaseCheck')
+                variant.initWith(android.buildTypes.getByName('release'))
+                variant.applicationIdSuffix = '.release.devicecheck'
+                variant.matchingFallbacks = ['release']
+                variant.proguardFiles += project.rootProject.file('.build/test/face/ProbeEntry.pro')
+                android.splits.abi.reset()
+                android.splits.abi.include('arm64-v8a')
+                android.splits.abi.universalApk = false
+            }
+        }
+    }
+}

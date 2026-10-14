@@ -12,6 +12,9 @@ import kotlin.coroutines.resumeWithException
 /** 바인딩 수명과 원본 사본을 관리하고 네이티브 추론은 다른 프로세스에 맡깁니다. */
 object EnhancementClient {
     private val running = Mutex()
+    /** 저장 루트 변경 중 실행 중인 보정을 보호합니다. */
+    val busy: Boolean get() = running.isLocked
+    private val cleanup = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /** 영상도 이미지와 같은 작업 잠금·격리 프로세스·검증 후 저장 절차를 사용합니다. */
     suspend fun enhanceVideo(context: Context, source: String, option: Int, model: String,
@@ -22,11 +25,15 @@ object EnhancementClient {
         check(running.tryLock()) { "다른 미디어 보정이 진행 중입니다." }
         val directory = File(context.cacheDir, "image-ai/${java.util.UUID.randomUUID()}")
         try {
+            check(!com.plugin.compatibility.TemporarySession.changing) { "저장소 전환이 진행 중입니다." }
             check(directory.mkdirs()) { "영상 작업 폴더를 만들 수 없습니다." }
             onEngine("원본과 모델 준비 중")
             val snapshot = File(directory, "source")
             EnhancementModels.stage(context, source, snapshot, VideoEnhancer.MAX_SOURCE_BYTES)
-            val info = withContext(Dispatchers.IO) { VideoEnhancer.inspect(snapshot) }
+            val info = withContext(Dispatchers.IO) {
+                val jobContext = currentCoroutineContext()
+                VideoEnhancer.inspect(snapshot) { jobContext.ensureActive() }
+            }
             check(directory.usableSpace > maxOf(snapshot.length(), 128L * 1024 * 1024)) { "영상 결과를 저장할 공간이 부족합니다." }
             val lite = EnhancementModels.isLiteRt(context, model)
             val backend = if (lite) "litert" else if (model == EnhancementModels.DEFAULT_MODEL)
@@ -37,6 +44,7 @@ object EnhancementClient {
             val request = com.junkfood.seal.util.PreferenceUtil.run { Bundle().apply {
                 putString("directory", directory.path); putBoolean("video", true); putInt("option", option); putInt("fps", fps)
                 putInt("sampling", EnhancementSampling.normalized(EnhancementSampling.KEY.getInt(EnhancementSampling.BILINEAR)))
+                putBoolean("original_codec", EnhancementModels.VIDEO_ORIGINAL_CODEC.getBoolean(false))
                 putBoolean("accelerated", EnhancementModels.ACCELERATED.getBoolean(true))
                 putInt("cpu_threads", EnhancementModels.CPU_THREADS.getInt(2)); putString("backend", backend)
             } }
@@ -55,7 +63,7 @@ object EnhancementClient {
             return Preview(source, directory, withContext(Dispatchers.IO) { EnhancementModels.hash(snapshot) }, result.getInt("width"), result.getInt("height"),
                 (if (source.startsWith("content://")) androidx.documentfile.provider.DocumentFile.fromSingleUri(context, Uri.parse(source))?.name.orEmpty()
                     else File(source).name).substringAfterLast('.', "").lowercase(),
-                result.getString("engine").orEmpty(), result.getInt("worker_pid"), true, result.getDouble("frame_rate"), result.getDouble("duration"))
+                result.getString("engine").orEmpty(), result.getInt("worker_pid"), true, result.getDouble("frame_rate"), result.getDouble("duration"), result.getString("codec").orEmpty())
         } catch (failure: Throwable) { directory.deleteRecursively(); throw failure }
         finally { running.unlock() }
     }
@@ -82,8 +90,32 @@ object EnhancementClient {
     /** 사용자 승인 전까지만 보관하는 결과와 원본 검증값입니다. */
     data class Preview(val source: String, val directory: File, val hash: String,
         val width: Int, val height: Int, val format: String, val engine: String, val workerPid: Int,
-        val video: Boolean = false, val frameRate: Double = 0.0, val duration: Double = 0.0) {
+        val video: Boolean = false, val frameRate: Double = 0.0, val duration: Double = 0.0, val codec: String = "") {
         val image: File get() = File(directory, if (video) "preview.mp4" else "preview.png")
+
+        private var saves = 0
+        private var discarded = false
+
+        /** 저장 중에는 화면이 사라져도 작업 사본을 보존합니다. */
+        @Synchronized internal fun retain() {
+            check(!discarded) { "이미 닫힌 보정 결과입니다." }
+            saves++
+        }
+
+        /** 마지막 저장이 끝난 뒤 미뤄둔 정리를 수행합니다. */
+        internal fun release() {
+            val remove = synchronized(this) { check(saves > 0); --saves == 0 && discarded }
+            if (remove) directory.deleteRecursively()
+        }
+
+        /** 화면 종료는 저장 중인 결과의 삭제를 마지막 저장 완료까지 미룹니다. */
+        internal fun discard() {
+            val remove = synchronized(this) {
+                if (discarded) false else { discarded = true; saves == 0 }
+            }
+            // UI 종료에서 큰 작업 사본을 지우느라 메인 스레드를 막지 않습니다.
+            if (remove) cleanup.launch { directory.deleteRecursively() }
+        }
     }
 
     /** 같은 이미지의 수정 중첩을 막고 서비스 종료는 복구 가능한 오류로 전달합니다. */
@@ -96,6 +128,7 @@ object EnhancementClient {
         }
         val directory = File(context.cacheDir, "image-ai/${java.util.UUID.randomUUID()}")
         try {
+            check(!com.plugin.compatibility.TemporarySession.changing) { "저장소 전환이 진행 중입니다." }
             check(directory.mkdirs()) { "보정 임시 폴더를 만들 수 없습니다." }
             val google = com.junkfood.seal.util.PreferenceUtil.run { EnhancementModels.GOOGLE_FIRST.getBoolean() }
             val model = EnhancementModels.selectedSource(context)
@@ -202,5 +235,5 @@ object EnhancementClient {
     }
 
     /** 승인 전 결과 취소는 해당 요청의 캐시만 제거합니다. */
-    fun discard(preview: Preview) { preview.directory.deleteRecursively() }
+    fun discard(preview: Preview) { preview.discard() }
 }

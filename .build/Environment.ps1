@@ -6,13 +6,8 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $BuildRoot = $PSScriptRoot
 $ProjectRoot = Split-Path -Parent $BuildRoot
-# Seal 폴더를 제외해 복사하면 공용 설정만 사용합니다. 새 앱 설정은 Project.psd1에서 지정합니다.
+# 프로젝트 설정은 한 파일에서 읽고 생성 자료는 공용 로컬 폴더에 둡니다.
 $PortableProject = Import-PowerShellDataFile -LiteralPath (Join-Path $BuildRoot 'Project.psd1')
-$sealSettings = Join-Path $BuildRoot 'Seal/Project.psd1'
-if (Test-Path -LiteralPath $sealSettings) {
-    $sealValues = Import-PowerShellDataFile -LiteralPath $sealSettings
-    foreach ($key in $sealValues.Keys) { $PortableProject[$key] = $sealValues[$key] }
-}
 $LogRoot = Join-Path $BuildRoot $PortableProject.LogDirectory
 $env:JAVA_HOME = Join-Path $BuildRoot 'tools/jdk'
 $env:ANDROID_HOME = Join-Path $BuildRoot 'tools/android-sdk'

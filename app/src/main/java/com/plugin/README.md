@@ -14,6 +14,7 @@
 | 선택 | IMAGE_AI | 이미지 보정·업스케일, 모델 관리, 원본·결과 비교와 저장 | `enhancement/` |
 | 선택 | VIDEO_AI | QuickSRNet 영상 해상도 개선·RIFE GPU 프레임 보간 | `videoenhancement/` |
 | 선택 | SHARE_MENU | Android 공유 메뉴의 빠른 다운로드·앱 화면 선택 | `sharemenu/` |
+| 선택 | HIDDEN | 내부 저장소의 임시 다운로드·이력 격리와 통합·폐기 | `temporary/` |
 | 선택 | ACCOUNTS | 자주 방문하는 계정·받은 게시글 수 정렬 | `instagram/` |
 | 선택 | POST_INFO | 게시글 설명·링크·저장 메타데이터 | `instagram/` |
 | 선택 | FOLDERS | 기본 디렉터리 안의 기존 저장폴더 등록·요청별 선택 | `folders/` |
@@ -67,6 +68,7 @@ LIST는 SOCIAL을 켜지 않아도 계정과 이미지 목록을 처리한다. L
 | `ModelSettings(video)` | 공통 모델·장치·다운샘플링 설정 |
 | `EnhancementClient.enhanceVideo()` | 영상 작업 사본·격리 실행 |
 | `EnhancementFiles.save()` | 검증 후 교체·복제·이력 갱신 |
+| `EnhancementClient.discard()` | 저장 완료까지 삭제 보류·백그라운드 캐시 정리 |
 | `ImageTiles.process()` | LiteRT·ONNX 공통 타일 처리 |
 | `SamplingSettings()` | 기본 양선형·최근접·영역 평균 선택 |
 | `FrameSettings()` | 원본 유지·24/25/30/50/60 FPS 선택 |
@@ -97,16 +99,16 @@ flowchart LR
 
 ## 검사
 
-새 체크아웃은 `.build/Setup.ps1`로 Android 도구를 준비하고 NDK `29.0.13846066`·CMake `3.22.1` 설치 뒤 `.build/Seal/native/rife/Build.ps1`을 먼저 실행한다. 고정 RIFE/ncnn 소스를 검증하고 네 ABI의 JNI를 `.build/Seal/runtime/rife/jniLibs/`에 만든다. 빌드 캐시·SDK·가중치는 Git과 APK에 포함하지 않는다. APK에는 생성한 JNI·작은 QuickSRNet 모델·라이선스만 넣는다.
+새 체크아웃은 `.build/Setup.ps1`로 Android 도구를 준비하고 NDK `29.0.13846066`·CMake `3.22.1` 설치 뒤 `.build/native/rife/Build.ps1`을 먼저 실행한다. 고정 RIFE/ncnn 소스를 검증하고 네 ABI의 JNI를 `.build/runtime/rife/jniLibs/`에 만든다. 빌드 캐시·SDK·가중치는 Git과 APK에 포함하지 않는다. APK에는 생성한 JNI·작은 QuickSRNet 모델·라이선스만 넣는다.
 
 ```powershell
-python -X utf8 .build/Seal/Test-PluginIsolation.py
-python -X utf8 .build/Seal/Test-ShareMenu.py
-powershell -NoProfile -ExecutionPolicy Bypass -File .build/Seal/Test-Localization.ps1
+python -X utf8 .build/test/Test-PluginIsolation.py
+python -X utf8 .build/test/Test-ShareMenu.py
+powershell -NoProfile -ExecutionPolicy Bypass -File .build/test/Test-Localization.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .build/Build.ps1 -Offline -Test :app:assembleGenericDebug :app:assembleGenericDebugAndroidTest
 ```
 
-`PluginExecutionPolicyTest`는 원본 경로, 개별 실행 경로, 작업 사본 유지, LIST 단독 사용을 검사한다. `SharedDownloaderStateTest`는 네트워크를 실행하지 않고 원본 엔진의 공유 저장소·취소·재시작을 검사한다. `PluginStateTest`는 MMKV와 필수 활성화를, `.build/Seal/Test-PluginUi.py`는 변경 불가 호환 항목과 여섯 개 선택 스위치를 검사한다.
+`PluginExecutionPolicyTest`는 원본 경로, 개별 실행 경로, 작업 사본 유지, LIST 단독 사용을 검사한다. `SharedDownloaderStateTest`는 네트워크를 실행하지 않고 원본 엔진의 공유 저장소·취소·재시작을 검사한다. `PluginStateTest`는 MMKV와 필수 활성화를, `.build/test/Test-PluginUi.py`는 변경 불가 호환 항목과 여섯 개 선택 스위치를 검사한다.
 
 번역은 Android 리소스 규칙에 따라 `res/values*/`에 둔다. 소셜 API 접근 제한·로그인 요구, 기기의 인코더·SAF 공급자 차이는 기능 분리만으로 해결되지 않는다.
 
@@ -145,3 +147,19 @@ FOLDERS 등록 카드의 퀵 표시로 한 폴더를 지정하면 다운로드�
 기본 가속 모델은 기존 일반 사진 복원 가중치를 유지한 고정 192픽셀 입력·DCR 배치 모델이다. NNAPI 모바일 호환 검사 70/70 연산을 통과했고 합성 입력의 기존 모델 대비 출력 오차는 0이다. 실제 가속은 기기 드라이버에 따라 달라지며 첫 타일의 NNAPI·CPU 실행 제공자 기록을 보정 중 표시한다. 구간 수는 사용률이나 GPU·NPU별 이용률을 의미하지 않는다. CPU 스레드는 1부터 기기가 보고한 논리 코어 수의 절반까지 저장해 적용한다.
 
 기본 실행 경로는 LiteRT v2의 공통 NPU·GPU API이며 같은 가중치의 ONNX 실행을 선택 옵션과 실패 시 대체 경로로 유지한다. 제조사별 추론 구현 대신 공통 제공자를 사용하고 Qualcomm HTP v79 런타임을 배포한다. LiteRT 공개 API는 연산별 실제 장치 분배를 제공하지 않으므로 경로 실행 완료와 분배 확인 불가를 구분해 표시한다. 두 엔진 모두 ImageTiles의 겹침 타일·경계 제거·결합을 공유하며 가중치 블렌딩은 사용하지 않는다.
+
+## 임시 숨기기 공통 함수
+
+영상 저장: `VideoRules.encoderMimes`의 기본은 AV1→원본 코덱. `VIDEO_ORIGINAL_CODEC`를 선택하면 원본→AV1. `VideoEncodingSettings`를 설정·상세 조정에서 재사용. AV1 MP4는 API 34 이상. 입력은 원본 코덱으로 디코딩. `EnhancementClient.Preview.codec`에 실제 결과 MIME 기록. `VideoTiming` 로그에 읽기·보정·쓰기·전체 시간 표시.
+
+영상 코덱: 크기·FPS·YUV 접근을 지원하는 하드웨어 우선. 일반 AV1은 FFmpeg MediaCodec 디코더·지원 CQ 인코더 우선, 실패 시 소프트웨어. `MediaRules.hardwareQuality`는 CRF 상대 수준을 제조사 CQ 범위로 환산. 실제 CQ 품질은 기기별 차이 존재.
+
+다운로드 이력: 기본·확장 화면 모두 같은 페이징 호스트 사용. 5개씩 추가. 보이는 항목만 파일 크기 조회·카드 상세 계산. 전체 선택·삭제 범위는 전체 이력 유지.
+
+| 함수 | 지원 내용 |
+| --- | --- |
+| `TemporarySession.root` | 현재 임시 다운로드 루트. 비활성 시 null. |
+| `TemporarySession.preferences(value)` | 새 요청의 저장 경로 격리. |
+| `TemporarySession.storage(name)` | 현재 세션의 MMKV 메타데이터. |
+
+임시 숨기기: 기존 엔진·Room 재사용. 내부 저장소만 지원. 종료 시 통합 또는 폐기 확인.

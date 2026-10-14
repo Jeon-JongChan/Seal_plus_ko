@@ -156,7 +156,7 @@ android {
 
 
     // 큰 Qualcomm SDK 런타임은 NPU를 선택할 때 고정 해시를 확인하여 내려받습니다.
-    sourceSets.getByName("main").jniLibs.srcDir(rootProject.file(".build/Seal/runtime/rife/jniLibs"))
+    sourceSets.getByName("main").jniLibs.srcDir(rootProject.file(".build/runtime/rife/jniLibs"))
 
     packaging {
         resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
@@ -203,7 +203,7 @@ dependencies {
     implementation("com.google.ai.edge.litert:litert-gpu:2.3.0")
     implementation("com.google.ai.edge.litert:litert-npu-runtime-qualcomm:2.3.0")
     implementation("com.google.ai.edge.litert:litert-npu-runtime-mediatek:2.3.0")
-    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.22.0")
     implementation("com.google.mediapipe:tasks-vision:1.1.0")
     implementation("com.google.android.gms:play-services-media-effect-enhancement:16.0.0-beta04")
 
@@ -241,7 +241,8 @@ dependencies {
 /** 원본 소스는 그대로 두고 저장 루트 함수의 빌드 산출물만 공통 플러그인으로 연결합니다. */
 abstract class StoragePrivacyVisitorFactory : AsmClassVisitorFactory<InstrumentationParameters.None> {
     /** 다른 원본 클래스와 다른 함수는 변환하지 않습니다. */
-    override fun isInstrumentable(classData: ClassData): Boolean = classData.className == "com.junkfood.seal.util.FileUtil"
+    override fun isInstrumentable(classData: ClassData): Boolean = classData.className in setOf(
+        "com.junkfood.seal.util.FileUtil", "com.junkfood.seal.util.DatabaseUtil", "com.junkfood.seal.App\$Companion")
 
     /** 대상 함수의 서명·접근 제한·Kotlin 메타데이터를 유지하며 실행 본문만 교체합니다. */
     override fun createClassVisitor(classContext: ClassContext, nextClassVisitor: ClassVisitor): ClassVisitor =
@@ -249,6 +250,27 @@ abstract class StoragePrivacyVisitorFactory : AsmClassVisitorFactory<Instrumenta
             /** 내부 함수의 변형 이름도 인식하고 File 반환 함수 하나만 선택합니다. */
             override fun visitMethod(access: Int, name: String, descriptor: String, signature: String?, exceptions: Array<out String>?): MethodVisitor {
                 val target = super.visitMethod(access, name, descriptor, signature, exceptions)
+                if (classContext.currentClassData.className == "com.junkfood.seal.util.DatabaseUtil") {
+                    return object : MethodVisitor(Opcodes.ASM9, target) {
+                        /** DAO 초기화 시 이력 어댑터만 연결하고 원본 DB 설정은 보존합니다. */
+                        override fun visitFieldInsn(opcode: Int, owner: String, field: String, desc: String) {
+                            if (opcode == Opcodes.PUTSTATIC && field == "dao" && desc == "Lcom/junkfood/seal/database/VideoInfoDao;")
+                                super.visitMethodInsn(Opcodes.INVOKESTATIC, "com/plugin/compatibility/TemporarySession", "wrap", "($desc)$desc", false)
+                            super.visitFieldInsn(opcode, owner, field, desc)
+                        }
+                    }
+                }
+                if (classContext.currentClassData.className == "com.junkfood.seal.App\$Companion" &&
+                    name in setOf("getVideoDownloadDir", "getAudioDownloadDir", "getPrivateDownloadDir")) {
+                    return object : MethodVisitor(Opcodes.ASM9, target) {
+                        /** 호출자 전체가 세션 루트를 사용하도록 반환 경로를 연결합니다. */
+                        override fun visitInsn(opcode: Int) {
+                            if (opcode == Opcodes.ARETURN) super.visitMethodInsn(Opcodes.INVOKESTATIC,
+                                "com/plugin/compatibility/TemporarySession", "downloadPath", "(Ljava/lang/String;)Ljava/lang/String;", false)
+                            super.visitInsn(opcode)
+                        }
+                    }
+                }
                 if (!name.startsWith("getExternalDownloadDirectory") || descriptor != "()Ljava/io/File;") return target
                 return object : MethodNode(Opcodes.ASM9, access, name, descriptor, signature, exceptions) {
                     /** 새 본문의 프레임은 AGP가 계산하며 원본 지역 변수·예외 테이블을 남기지 않습니다. */

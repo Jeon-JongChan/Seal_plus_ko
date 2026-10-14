@@ -12,6 +12,8 @@ import com.plugin.compatibility.quality
 import com.plugin.compatibility.sourceQuality
 import com.plugin.compatibility.listProcessing
 import com.plugin.compatibility.withStoredPluginOptions
+import com.plugin.compatibility.TemporarySession
+import androidx.compose.runtime.snapshots.Snapshot
 
 import android.app.PendingIntent
 import android.content.Context
@@ -71,6 +73,9 @@ private const val MAX_CONCURRENCY = 3
 /** 전용 작업 상태·백업·단일 스케줄러를 소유하고 요청 설정에 따라 작업자를 선택합니다. */
 @OptIn(FlowPreview::class)
 class PluginTaskEngine(private val appContext: Context) : PluginTaskDownloader, KoinComponent {
+    /** 복구 완료 전 저장소를 바꿔 일반 백업이 새 세션으로 유입되는 것을 막습니다. */
+    @Volatile var restored = false
+        private set
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val taskStateMap = mutableStateMapOf<Task, Task.State>()
     private val snapshotFlow = snapshotFlow { taskStateMap.toMap() }
@@ -96,7 +101,7 @@ class PluginTaskEngine(private val appContext: Context) : PluginTaskDownloader, 
                 return@launch
             }
             // 완료 작업을 버리던 이전 버전에서 빠진 이력만 최초 한 번 복구합니다.
-            if (com.plugin.PluginState.isEnabled(com.plugin.PluginId.QUEUE) && !"queue_history_imported".getBoolean()) {
+            if (TemporarySession.root == null && com.plugin.PluginState.isEnabled(com.plugin.PluginId.QUEUE) && !"queue_history_imported".getBoolean()) {
                 val preferences = com.plugin.compatibility.createPluginPreferences()
                 val paths = taskStateMap.values.flatMap { (it.downloadState as? Completed)?.filePaths.orEmpty() }.toSet()
                 com.plugin.compatibility.PluginDatabaseUtil.getDownloadHistory().filterNot { it.videoPath in paths }.forEach { info ->
@@ -112,13 +117,12 @@ class PluginTaskEngine(private val appContext: Context) : PluginTaskDownloader, 
                 "queue_history_imported".updateBoolean(true)
             }
             refreshCompletedFiles()
+            restored = true
 
-            snapshotFlow
-                .map { it }
+            snapshotFlow { TemporarySession.root to taskStateMap.toMap() }
                 .distinctUntilChanged()
-                .collect {
-                    it.forEach { Log.d(TAG, it.value.viewState.title) }
-                    runCatching { PluginTaskBackup.save(it) }.onFailure {
+                .collect { (root, tasks) ->
+                    runCatching { PluginTaskBackup.save(tasks, root) }.onFailure {
                         Log.e(TAG, "플러그인 대기열 백업 저장에 실패했습니다.")
                     }
                 }
@@ -164,13 +168,28 @@ class PluginTaskEngine(private val appContext: Context) : PluginTaskDownloader, 
         return taskStateMap
     }
 
+    /** 경로와 대기열을 한 스냅샷에서 바꿔 이전 이력이 새 세션에 저장되지 않게 합니다. */
+    fun switchSession(session: TemporarySession.Session?, tasks: Map<Task, Task.State>) {
+        Snapshot.withMutableSnapshot {
+            TemporarySession.publish(session)
+            taskStateMap.clear()
+            taskStateMap.putAll(tasks)
+        }
+        completedNotifications.clear()
+        TemporarySession.notifyChange()
+    }
+
     /** 정보 미조회 작업도 공통 추가 경로로 보내 기존 작업 추가 토스트를 표시합니다. */
     override fun enqueue(task: Task) {
         enqueue(task, Task.State(Idle, null, Task.ViewState(url = task.url, title = task.url)))
     }
 
     /** 정보가 있는 인스타그램·일반 작업에 동일한 추가 알림을 제공합니다. */
-    override fun enqueue(task: Task, state: Task.State) {
+    @Synchronized override fun enqueue(task: Task, state: Task.State) {
+        if (TemporarySession.changing || (TemporarySession.root != null && task.type is TypeInfo.CustomCommand)) {
+            ToastUtil.makeToastSuspend("저장소 전환 중이거나 임시 숨기기에서 사용할 수 없는 요청입니다.")
+            return
+        }
         completedNotifications.remove(QueueMedia.postKey(task))
         val added = !taskStateMap.containsKey(task)
         val effective = task.copy(preferences = com.plugin.PluginState.preferences(task.preferences.withStoredPluginOptions()))
@@ -179,7 +198,11 @@ class PluginTaskEngine(private val appContext: Context) : PluginTaskDownloader, 
     }
 
     /** 재등록한 게시물도 이번 실행이 끝날 때 한 번 알립니다. */
-    fun enqueueBatch(tasks: Map<Task, Task.State>) {
+    @Synchronized fun enqueueBatch(tasks: Map<Task, Task.State>) {
+        if (TemporarySession.changing || (TemporarySession.root != null && tasks.keys.any { it.type is TypeInfo.CustomCommand })) {
+            ToastUtil.makeToastSuspend("저장소 전환 중이거나 임시 숨기기에서 사용할 수 없는 요청입니다.")
+            return
+        }
         // 분석 이후 스위치가 바뀌어도 새 작업에는 현재 켜진 기능만 적용합니다.
         val effective = tasks.mapKeys { (task, _) ->
             task.copy(preferences = com.plugin.PluginState.preferences(task.preferences.withStoredPluginOptions()))
@@ -205,7 +228,8 @@ class PluginTaskEngine(private val appContext: Context) : PluginTaskDownloader, 
     }
 
     /** restart의 독립 플러그인 처리를 제공합니다. */
-    override fun restart(task: Task) {
+    @Synchronized override fun restart(task: Task) {
+        if (TemporarySession.changing) { ToastUtil.makeToastSuspend("저장소 전환이 진행 중입니다."); return }
         if (owns(task)) task.restartImpl() else original.restart(task)
     }
 

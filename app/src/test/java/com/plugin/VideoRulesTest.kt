@@ -6,6 +6,27 @@ import org.junit.Test
 
 /** 영상의 실제 시각 보존과 프레임 증가·색 변환 경계를 검사합니다. */
 class VideoRulesTest {
+    /** 품질 선택이 제조사의 CQ 범위를 넘지 않고 잘못된 범위를 거부합니다. */
+    @Test fun hardwareQualityRespectsDeviceRange() {
+        val rules = com.plugin.compatibility.MediaRules
+        assertEquals(68, rules.hardwareQuality(20, 0, 100))
+        assertEquals(44, rules.hardwareQuality(35, 0, 100))
+        assertEquals(21, rules.hardwareQuality(50, 0, 100))
+        assertEquals(6, rules.hardwareQuality(35, 5, 7))
+        assertEquals(68, rules.hardwareQuality(Int.MIN_VALUE, 0, 100))
+        try { rules.hardwareQuality(35, 10, 9); fail("잘못된 품질 범위를 허용했습니다.") }
+        catch (_: IllegalArgumentException) { }
+    }
+    /** 원본 우선·AV1 대체·구형 플랫폼의 저장 경계를 검사합니다. */
+    @Test fun originalCodecThenAv1() {
+        assertEquals(listOf("video/av01", "video/hevc"), VideoRules.encoderMimes("video/hevc", 34))
+        assertEquals(listOf("video/hevc", "video/av01"), VideoRules.encoderMimes("video/hevc", 34, true))
+        assertEquals(listOf("video/av01"), VideoRules.encoderMimes("video/x-vnd.on2.vp8", 34))
+        assertEquals(listOf("video/av01"), VideoRules.encoderMimes("video/av01", 34))
+        assertEquals(listOf("video/avc"), VideoRules.encoderMimes("video/avc", 28))
+        assertTrue(VideoRules.encoderMimes("video/av01", 33).isEmpty())
+        assertTrue(VideoRules.encoderMimes("video/unknown", 28).isEmpty())
+    }
     /** 프레임 하나를 복제해 AI 보간으로 표시하지 않습니다. */
     @Test fun singleFrameKeepsOriginal() {
         assertFalse(VideoRules.increases(60, 30.0, 1))

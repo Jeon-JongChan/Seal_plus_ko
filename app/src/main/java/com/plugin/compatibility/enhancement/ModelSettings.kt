@@ -44,7 +44,10 @@ internal fun ModelSettings(onBack: () -> Unit, video: Boolean = false) {
     val selectedKey = if (video) EnhancementModels.VIDEO_SELECTED else EnhancementModels.SELECTED
     val defaultModel = if (video) EnhancementModels.SMALL_MODEL else EnhancementModels.DEFAULT_MODEL
     val npuProvider = remember(context) { OptionalNpuProvider(context) }
-    var models by remember { mutableStateOf(listOf(EnhancementModels.Model("Real-ESRGAN x4v3 · 모바일 4배 · 기본", EnhancementModels.DEFAULT_MODEL, 4_870_119L))) }
+    var models by remember { mutableStateOf(if (video) listOf(
+        EnhancementModels.Model("QuickSRNet Small · 초고속 4배 · 영상 기본", EnhancementModels.SMALL_MODEL, 136_904L),
+        EnhancementModels.Model("QuickSRNet Medium · 초고속 4배", EnhancementModels.MEDIUM_MODEL, 249_452L)
+    ) else listOf(EnhancementModels.Model("Real-ESRGAN x4v3 · 모바일 4배 · 이미지 기본", EnhancementModels.DEFAULT_MODEL, 4_870_119L))) }
     var selected by remember { mutableStateOf(selectedKey.getString().ifBlank { defaultModel }) }
     var backend by remember { mutableStateOf(EnhancementModels.BACKEND.getString("litert")) }
     var accelerated by remember { mutableStateOf(EnhancementModels.ACCELERATED.getBoolean(true)) }
@@ -128,6 +131,12 @@ internal fun ModelSettings(onBack: () -> Unit, video: Boolean = false) {
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             Text(if (video) "영상 기본: QuickSRNet Small · 최대: Medium · LiteRT · 약 134/244 KB"
                 else "이미지 기본: Real-ESRGAN x4v3 · LiteRT·ONNX · 약 4.9 MB", style = MaterialTheme.typography.bodySmall)
+            if (video) {
+                VideoEncodingSettings(enabled = !busy)
+                FrameSettings(enabled = !busy)
+                Text(if (rifeReady) "RIFE 4.6 보간 모델 설치됨" else "RIFE 4.6은 보간할 때 다운로드합니다.", style = MaterialTheme.typography.bodySmall)
+                if (rifeReady) TextButton(enabled = !busy, onClick = { deleteRife = true }) { Text("보간 모델 삭제") }
+            }
             Text("모델 폴더", style = MaterialTheme.typography.titleMedium)
             Text("${EnhancementModels.publicRoot()}\nSD 카드 다운로드를 사용하면 선택한 폴더의 models를 검색합니다.", style = MaterialTheme.typography.bodySmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -177,11 +186,6 @@ internal fun ModelSettings(onBack: () -> Unit, video: Boolean = false) {
             TextButton(enabled = !busy && link.isNotBlank(), onClick = { acquire { EnhancementModels.download(context, link) { status = it } } }) { Text("링크에서 다운로드") }
             HorizontalDivider()
             SamplingSettings(enabled = !busy)
-            if (video) {
-                FrameSettings(enabled = !busy)
-                Text(if (rifeReady) "RIFE 4.6 보간 모델 설치됨" else "RIFE 4.6은 보간할 때 다운로드합니다.", style = MaterialTheme.typography.bodySmall)
-                if (rifeReady) TextButton(enabled = !busy, onClick = { deleteRife = true }) { Text("보간 모델 삭제") }
-            }
             Text("실행 엔진", style = MaterialTheme.typography.titleMedium)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(backend == "litert", enabled = !busy, onClick = { backend = "litert"; EnhancementModels.BACKEND.updateString(backend) }, label = { Text("LiteRT v2 · 기본") })

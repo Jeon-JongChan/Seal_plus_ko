@@ -1,53 +1,52 @@
-# Seal Plus — 변경 사항 / Changes
+# Seal Plus
 
-Seal 기반 Android 미디어 다운로더 확장판.
 An extended Android media downloader based on Seal.
 
-## Seal 원본 대비 / Compared with upstream Seal
+[한국어](translations/README-ko.md)
 
-| 기능 / Feature | 한국어 / Korean | English |
-| --- | --- | --- |
-| 플러그인 / Plugins | 13개 기능 개별 활성화. 기본 비활성. 설정·기록 보존. | 13 independently enabled features. Disabled by default. Settings and history retained. |
-| 소셜 미디어 / Social media | Instagram·TikTok 이미지·영상 및 혼합 게시글 선택 다운로드. | Selective downloads of Instagram and TikTok images, videos, and mixed posts. |
-| 목록 다운로드 / List downloads | 계정·게시글 목록 조회. 개별·전체 다운로드. | Account and post lists. Individual or batch downloads. |
-| 미디어 처리 / Media processing | AV1 변환·컨테이너 선택·기존 파일 재사용. | AV1 conversion, container selection, and existing file reuse. |
-| 라이브러리 / Library | 폴더·해상도별 분류. 이동한 파일과 게시글 연결. | Folder and resolution sorting. Post matching for moved files. |
-| 대기열 / Queue | 게시글 묶음·정렬·선택 관리. 5개씩 추가 표시. | Grouped posts, sorting, and selection. Load five more at a time. |
-| 입력·메뉴 / Input and menus | 통합 입력·메뉴 즐겨찾기·빠른 쿠키 선택. | Unified input, menu favorites, and quick cookie selection. |
-| AI 이미지 / AI images | 이미지 복원·확대. 공유 모델·상세 조정·비교·교체 또는 복제. | Image restoration and upscaling. Shared models, controls, comparison, replace or save a copy. |
-| AI 동영상 / AI videos | QuickSRNet Small 기본·간편 최대 Medium. 모델 공유·FPS 선택·RIFE Vulkan 보간. | QuickSRNet Small by default; Medium for the maximum preset. Shared models, FPS selection, and RIFE Vulkan interpolation. |
-| 자주 방문하는 계정 / Frequent accounts | 기본 정렬은 받은 게시글 수. 프로필·게시글 바로 열기. | Default sorting by downloaded post count. Open profiles and posts directly. |
-| 게시글 정보 / Post details | 프로필 사진·계정명·본문·태그 표시 선택. | Optional avatars, usernames, captions, and hashtags. |
-| 저장폴더 / Save folders | 기존 폴더 등록·요청별 선택·퀵 폴더 전환. | Register existing folders, choose per request, and switch quick folders. |
-| 얼굴 분류 / Face sorting | YuNet·MediaPipe 판별. NOFACE 게시글 연결 유지·변경 작업 제외. | YuNet and MediaPipe detection. NOFACE keeps post matching and is excluded from processing. |
-| 공유 메뉴 / Share menu | 빠른 다운로드만 기본 표시. 한 기능 선택 시 바로 실행. | Quick download is the default share action. A single selected action opens directly. |
-| 뷰어 / Viewer | 전체 화면·핀치 확대·반투명 배율. 재생바·음량 분리. | Full screen, pinch zoom, and translucent zoom indicator. Separate seek and volume controls. |
-| 다운로드창 / Download dialog | 형식 선택 한 줄·링크 입력 두 줄. 재시도·쿠키·로그 보기 한 줄. | One format row, two link-input lines, and one row for retry, cookies, and logs. |
-| 쿠키 / Cookies | 재시도 쿠키는 현재 요청에만 적용. | Retry cookies apply only to the current request. |
-| 공통 구조 / Shared structure | 파사드·팩토리·전략/어댑터·템플릿. 공통 기능은 항시 활성. | Facades, factories, strategies/adapters, and templates. Shared services are always enabled. |
+## Changes from Seal
 
-## 빌드·개발 / Build and development
+| Feature | Description |
+| --- | --- |
+| Plugins | 14 independently enabled features. Disabled by default. Settings and history retained. |
+| Social media | Selective downloads of Instagram and TikTok images, videos, and mixed posts. |
+| List downloads | Account and post lists. Individual or batch downloads. |
+| Media processing | AV1 conversion, container selection, and existing file reuse. |
+| Library | Folder and resolution sorting. Post matching for moved files. Download history loads five posts at a time. |
+| Queue | Grouped posts, sorting, and selection. Load five more at a time. |
+| Input and menus | Unified input, menu favorites, and quick cookie selection. |
+| AI images | Image restoration and upscaling. Shared models, controls, comparison, replace or save a copy. |
+| AI videos | QuickSRNet Small by default; Medium for the maximum preset. Shared models, FPS selection, and RIFE Vulkan interpolation. AV1 preferred; optional source codec retention. |
+| Frequent accounts | Default sorting by downloaded post count. Open profiles and posts directly. |
+| Post details | Optional avatars, usernames, captions, and hashtags. |
+| Save folders | Register existing folders, choose per request, and switch quick folders. |
+| Face sorting | YuNet and MediaPipe detection. NOFACE keeps post matching and is excluded from processing. |
+| Share menu | Quick download is the default share action. A single selected action opens directly. |
+| Viewer | Full screen, pinch zoom, and translucent zoom indicator. Separate seek and volume controls. |
+| Download dialog | One format row, two link-input lines, and one row for retry, cookies, and logs. |
+| Cookies | Retry cookies apply only to the current request. |
+| Shared structure | Facades, factories, strategies/adapters, and templates. Shared services are always enabled. |
+| Temporary hide | Isolated downloads, queue, and history inside tmp. Merge or discard on exit. Internal storage folders only. |
 
-- Android 7.0 이상 / Android 7.0 or later.
-- Windows 포터블 환경 / Portable Windows toolchain: JDK·SDK·Gradle·AVD → `.build/`.
-- 원본 소스 보존·확장 코드 분리 / Upstream sources preserved; extensions in `app/src/main/java/com/plugin/`.
-- GPU·NPU: 호환 모델·기기 필요 / GPU/NPU: compatible models and devices required.
+## Build and development
+
+- Android 7.0 or later.
+- Portable Windows toolchain: JDK, SDK, Gradle, and AVD in `.build/`.
+- Upstream sources preserved; extensions in `app/src/main/java/com/plugin/`.
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File Setup-Portable.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .build/Build.ps1
 ```
 
-- [설치·빌드 안내 / Setup and build guide](.build/README.md)
-- [플러그인·공통 API / Plugins and shared APIs](app/src/main/java/com/plugin/README.md)
-- [의존성 버전 / Dependency versions](gradle/libs.versions.toml)
+- [Setup and build guide](.build/README.md)
+- [Plugins and shared APIs](app/src/main/java/com/plugin/README.md)
+- [Dependency versions](gradle/libs.versions.toml)
 
-RIFE 네이티브 빌드: NDK·CMake 준비 후 `.build/Seal/native/rife/Build.ps1` 실행.
-RIFE native build: install NDK and CMake, then run `.build/Seal/native/rife/Build.ps1`.
+RIFE native build: install NDK and CMake, then run `.build/native/rife/Build.ps1`.
 
-## 원본 Seal 안내 / Upstream Seal information
+## Upstream Seal
 
-아래 배지·다운로드·스크린샷·연락처는 원본 Seal 기준.
 The badges, downloads, screenshots, and contacts below refer to upstream Seal.
 
 <div align="center">

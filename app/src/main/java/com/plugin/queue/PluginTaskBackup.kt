@@ -1,6 +1,8 @@
 package com.plugin.queue
 
 import com.tencent.mmkv.MMKV
+import com.plugin.compatibility.TemporarySession
+import java.io.File
 import com.plugin.compatibility.storedPluginOptions
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.*
@@ -11,7 +13,8 @@ object PluginTaskBackup {
     private val json = Json { ignoreUnknownKeys = true; allowStructuredMapKeys = true; encodeDefaults = true }
 
     /** 원본 백업은 보존하고 전용 백업이 없는 경우에만 읽습니다. */
-    fun load(): Map<PluginTask, PluginTask.State> {
+    fun load(root: String? = TemporarySession.root): Map<PluginTask, PluginTask.State> {
+        if (root != null) return File(root, ".data/queue.json").takeIf { it.isFile }?.readText()?.let(::decode) ?: emptyMap()
         val kv = MMKV.defaultMMKV()
         val stored = kv.decodeString(KEY)
         if (stored != null) return decode(stored)
@@ -19,7 +22,15 @@ object PluginTaskBackup {
     }
 
     /** 완료·삭제 상태를 포함한 모든 전용 작업을 저장합니다. */
-    fun save(tasks: Map<PluginTask, PluginTask.State>) {
+    @Synchronized fun save(tasks: Map<PluginTask, PluginTask.State>, root: String? = TemporarySession.root) {
+        // 전환 전에 채집한 임시 스냅샷은 종료 후 폴더를 다시 만들지 않습니다.
+        if (root != TemporarySession.root) return
+        if (root != null) { TemporarySession.write(File(root, ".data/queue.json"), encode(tasks)); return }
+        saveNormal(tasks)
+    }
+
+    /** 전환 컨트롤러는 활성 저장소와 무관하게 일반 백업을 먼저 확정합니다. */
+    @Synchronized fun saveNormal(tasks: Map<PluginTask, PluginTask.State>) {
         check(MMKV.defaultMMKV().encode(KEY, encode(tasks))) { "플러그인 대기열 백업 저장에 실패했습니다." }
     }
 

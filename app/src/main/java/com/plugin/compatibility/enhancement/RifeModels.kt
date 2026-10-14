@@ -5,6 +5,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
@@ -14,6 +16,7 @@ import java.util.concurrent.TimeUnit
 
 /** RIFE 가중치는 보간 요청 때만 받으며 APK에는 고정 버전·해시·라이선스만 포함합니다. */
 object RifeModels {
+    private val files = Mutex()
     /** 보간 모델은 사용자 사진·일반 업스케일 모델과 다른 내부 폴더에 보관합니다. */
     fun root(context: Context): File = File(context.filesDir, "video-ai-models/rife-v4.6")
 
@@ -22,6 +25,7 @@ object RifeModels {
 
     /** 사용자 확인 뒤 앱 내부 보간 가중치 두 파일만 삭제하고 다른 모델은 보존합니다. */
     suspend fun delete(context: Context) = withContext(Dispatchers.IO) {
+        files.withLock {
         val directory = root(context).canonicalFile
         check(directory.path.startsWith(context.filesDir.canonicalPath + File.separator))
         for (name in listOf("flownet.param", "flownet.bin")) {
@@ -29,10 +33,13 @@ object RifeModels {
             check(file.canonicalFile.parentFile == directory)
             check(!file.exists() || file.delete()) { "보간 모델 파일을 삭제하지 못했습니다." }
         }
+        }
     }
 
     /** 공식 고정 커밋의 두 파일만 검증한 뒤 선택한 동영상의 작업 사본을 만듭니다. */
     suspend fun prepare(context: Context, destination: File, progress: (String) -> Unit) = withContext(Dispatchers.IO) {
+        // 삭제와 설치·작업 복사를 직렬화해 .part 충돌과 원본 모델 소실을 방지합니다.
+        files.withLock {
         val model = root(context)
         check(model.isDirectory || model.mkdirs()) { "보간 모델 폴더를 만들 수 없습니다." }
         val manifest = context.assets.open("video-ai/rife-v4.6.json").use { JSONObject(it.bufferedReader().readText()) }
@@ -68,5 +75,6 @@ object RifeModels {
         }
         check(destination.isDirectory || destination.mkdirs()) { "보간 작업 폴더를 만들 수 없습니다." }
         for (name in listOf("flownet.param", "flownet.bin")) File(model, name).copyTo(File(destination, name), overwrite = true)
+        }
     }
 }

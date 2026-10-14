@@ -16,7 +16,7 @@ buildscript {
 }
 
 // 루트 Gradle 보고서는 포터블 폴더에 모으되 clean이 도구·캐시까지 지우지 않게 분리합니다.
-layout.buildDirectory.set(layout.projectDirectory.dir(".build/Seal/gradle-output"))
+layout.buildDirectory.set(layout.projectDirectory.dir(".build/gradle-output"))
 
 tasks.register("clean", Delete::class) {
     delete(rootProject.layout.buildDirectory)
