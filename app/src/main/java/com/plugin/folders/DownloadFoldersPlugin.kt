@@ -34,6 +34,7 @@ object DownloadFoldersPlugin : FeaturePlugin() {
         var error by remember { mutableStateOf(loaded.exceptionOrNull()?.message.orEmpty()) }
         var quickKey by remember { mutableStateOf(runCatching { DownloadFolders.quick()?.key }.getOrNull()) }
         var opened by remember { mutableStateOf(false) }
+        var holdMillis by remember { mutableIntStateOf(PluginPreferences.quickFolderHoldMillis) }
         val preferences = remember { createPluginPreferences() }
         /** 저장에 성공한 경우에만 화면의 등록 목록을 교체합니다. */
         fun save(value: List<DownloadFolder>) {
@@ -43,6 +44,12 @@ object DownloadFoldersPlugin : FeaturePlugin() {
             LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 item { Text(stringResource(R.string.plugin_download_folders_desc)) }
                 item { Text(stringResource(R.string.download_folder_quick_hint), style = MaterialTheme.typography.bodySmall) }
+                item {
+                    Text("폴더 메뉴 길게 누르기: %.1f초".format(java.util.Locale.ROOT, holdMillis / 1000f))
+                    Slider(value = holdMillis.toFloat(), valueRange = 100f..3000f, steps = 28,
+                        onValueChange = { holdMillis = kotlin.math.round(it / 100).toInt() * 100 },
+                        onValueChangeFinished = { PluginPreferences.quickFolderHoldMillis = holdMillis })
+                }
                 item { FilledTonalButton(enabled = loaded.isSuccess, onClick = { opened = true }) { Text(stringResource(R.string.download_folder_add)) } }
                 if (error.isNotBlank()) item { Text(error, color = MaterialTheme.colorScheme.error) }
                 if (folders.isEmpty()) item { Text(stringResource(R.string.download_folder_empty)) }

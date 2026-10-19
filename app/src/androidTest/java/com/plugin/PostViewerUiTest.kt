@@ -17,7 +17,7 @@ import org.junit.Assert.*
 import org.junit.Test
 import java.io.File
 
-/** 사진·실제 영상의 확대와 재생/음량 컨트롤 분리를 화면에서 검증합니다. */
+/** 사진·실제 영상의 확대와 일시적인 음량 제스처 표시를 화면에서 검증합니다. */
 class PostViewerUiTest {
     /** 실제 영상이 준비되고 확대·초기화·일시정지가 가능하며 두 슬라이더가 겹치지 않습니다. */
     @Test fun videoZoomAndSeparateControls(): Unit = runBlocking {
@@ -43,25 +43,32 @@ class PostViewerUiTest {
                     assertEquals("뷰어 창이 화면 아래를 채우지 않습니다.", wholeScreen.height, windowBounds.bottom)
                 } finally { wholeScreen.recycle() }
                 tap("일시정지"); await("재생")
+                assertFalse(labels(instrumentation.uiAutomation.rootInActiveWindow).contains("확대 100%"))
+                assertNull(find(instrumentation.uiAutomation.rootInActiveWindow, "음량"))
                 pinchOut()
                 val enlarged = Regex("확대 (\\d+)%").find(labels(instrumentation.uiAutomation.rootInActiveWindow))
                     ?.groupValues?.get(1)?.toIntOrNull() ?: error("제스처 확대 표시가 없습니다.")
                 assertTrue("두 손가락 제스처로 확대되지 않았습니다.", enlarged > 100)
                 repeat(3) {
                     val label = Regex("확대 \\d+%").find(labels(instrumentation.uiAutomation.rootInActiveWindow))?.value
-                        ?: error("확대 버튼이 없습니다.")
-                    if (label != "확대 100%") tap(label)
+                    if (label != null) tap(label)
                     instrumentation.waitForIdleSync()
                     if (android.os.Build.VERSION.SDK_INT >= 33) instrumentation.uiAutomation.clearCache()
                 }
                 val seek = Rect().also { await("재생 위치").getBoundsInScreen(it) }
-                val volume = Rect().also { await("음량").getBoundsInScreen(it) }
-                assertTrue("재생바와 음량바가 겹칩니다.", seek.bottom <= volume.top)
-                val zoom = Rect().also { await("확대 100%").getBoundsInScreen(it) }
+                assertFalse(labels(instrumentation.uiAutomation.rootInActiveWindow).contains("확대 100%"))
+                swipeVolume()
+                await("음량")
+                SystemClock.sleep(1500)
+                instrumentation.uiAutomation.clearCache()
+                assertNull(find(instrumentation.uiAutomation.rootInActiveWindow, "음량"))
+                pinchOut()
+                val enlargedLabel = Regex("확대 \\d+%").find(labels(instrumentation.uiAutomation.rootInActiveWindow))!!.value
+                val zoom = Rect().also { await(enlargedLabel).getBoundsInScreen(it) }
                 assertTrue("확대 배율 표시가 재생 조작부에 닿습니다.", zoom.bottom < seek.top)
                 assertTrue("확대 배율 표시가 오른쪽에 없습니다.", zoom.centerX() > windowBounds.centerX())
                 val before = instrumentation.uiAutomation.takeScreenshot()
-                tap("확대 100%"); await("확대 200%")
+                tap(enlargedLabel)
                 SystemClock.sleep(150)
                 val after = instrumentation.uiAutomation.takeScreenshot()
                 try {
@@ -70,17 +77,39 @@ class PostViewerUiTest {
                         if (before.getPixel(x, y) != after.getPixel(x, y)) changed++
                     assertTrue("실제 영상 화면이 확대되지 않았습니다.", changed > 20)
                 } finally { before.recycle(); after.recycle() }
-                tap("확대 200%"); await("확대 400%")
-                tap("확대 400%"); await("확대 100%")
+                repeat(3) {
+                    instrumentation.waitForIdleSync(); instrumentation.uiAutomation.clearCache()
+                    Regex("확대 \\d+%").find(labels(instrumentation.uiAutomation.rootInActiveWindow))?.value?.let(::tap)
+                    instrumentation.waitForIdleSync(); instrumentation.uiAutomation.clearCache()
+                }
                 val screen = instrumentation.uiAutomation.takeScreenshot()
                 File(context.cacheDir, "post-video-controls-ui.png").outputStream().use { screen.compress(Bitmap.CompressFormat.PNG, 100, it) }; screen.recycle()
                 // 사진으로 페이지를 넘긴 뒤 영상 컨트롤이 남지 않고 같은 확대 동작을 제공합니다.
                 swipeLeft()
-                await("2 / 2"); await("확대 100%")
+                await("2 / 2")
+                // 페이지 번호는 전환 중간에 바뀌므로 이동 애니메이션이 끝난 뒤 사진 제스처를 보냅니다.
+                SystemClock.sleep(500)
+                assertFalse(labels(instrumentation.uiAutomation.rootInActiveWindow).contains("확대 100%"))
                 assertNull(find(instrumentation.uiAutomation.rootInActiveWindow, "재생 위치"))
-                tap("확대 100%"); await("확대 200%")
+                pinchOut()
+                assertTrue(labels(instrumentation.uiAutomation.rootInActiveWindow).contains("확대 "))
             }
         } finally { fixture.walkBottomUp().forEach { it.delete() } }
+    }
+
+    /** 기본 배율에서 세로 이동하면 음량 표시가 잠깐 나타납니다. */
+    private fun swipeVolume() {
+        val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
+        val bounds = Rect().also { automation.rootInActiveWindow.getBoundsInScreen(it) }
+        val start = SystemClock.uptimeMillis()
+        for (step in 0..10) {
+            val action = when (step) { 0 -> android.view.MotionEvent.ACTION_DOWN; 10 -> android.view.MotionEvent.ACTION_UP; else -> android.view.MotionEvent.ACTION_MOVE }
+            val event = android.view.MotionEvent.obtain(start, start + step * 25L, action,
+                bounds.width() * 0.7f, bounds.height() * (0.6f - step * 0.02f), 0)
+            event.source = android.view.InputDevice.SOURCE_TOUCHSCREEN
+            automation.injectInputEvent(event, true); event.recycle()
+        }
+        automation.clearCache()
     }
 
     /** 두 포인터를 동시에 벌려 버튼과 독립적인 실제 터치 확대를 검사합니다. */

@@ -12,6 +12,15 @@ enum class PluginId {
     SOCIAL, LIST, MEDIA, LIBRARY, QUEUE, INTERACTION, IMAGE_AI, ACCOUNTS, POST_INFO, FOLDERS, FACE_SORT, VIDEO_AI, SHARE_MENU, HIDDEN;
 
     val preferenceKey: String get() = "plugin_enabled_${name.lowercase()}"
+
+    /** 기능과 저장된 활성화 값은 유지하고 관리 화면의 관련 항목만 같은 분류로 묶습니다. */
+    val category: String get() = when (this) {
+        SOCIAL, LIST, INTERACTION, SHARE_MENU -> "다운로드·입력"
+        MEDIA, LIBRARY, QUEUE, FOLDERS -> "파일·대기열 관리"
+        IMAGE_AI, VIDEO_AI, FACE_SORT -> "AI 미디어 처리"
+        ACCOUNTS, POST_INFO -> "게시글·계정 정보"
+        HIDDEN -> "임시 공간"
+    }
 }
 
 /** 기존 MMKV 저장소를 재사용하며 변경 즉시 Compose 화면에 반영합니다. */

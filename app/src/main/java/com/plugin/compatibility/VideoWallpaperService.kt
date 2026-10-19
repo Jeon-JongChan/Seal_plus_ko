@@ -135,6 +135,11 @@ class VideoWallpaperService : WallpaperService() {
         override fun onVisibilityChanged(visible: Boolean) { this.visible = visible; if (visible) reload() else stop() }
         /** 시스템이 새 출력 표면을 만든 뒤 재생을 준비합니다. */
         override fun onSurfaceCreated(holder: SurfaceHolder) { super.onSurfaceCreated(holder); reload() }
+        /** 미리보기에서 실제 홈 화면으로 표면 크기가 바뀌면 새 출력 표면에 다시 연결합니다. */
+        override fun onSurfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+            super.onSurfaceChanged(holder, format, width, height)
+            if (visible) reload()
+        }
         /** 표면이 사라지면 유효하지 않은 표면에 쓰지 않습니다. */
         override fun onSurfaceDestroyed(holder: SurfaceHolder) { stop(); super.onSurfaceDestroyed(holder) }
         /** 엔진 참조와 디코더를 모두 정리합니다. */

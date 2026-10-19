@@ -21,13 +21,13 @@ import org.junit.Test
 
 /** 폴더 탐색·두 화면 정렬·게시글 상세 동작을 실제 접근성 UI로 검증합니다. */
 class HistoryNavigationTest {
-    /** 선택 플러그인을 끈 기본 화면도 다섯 개씩 추가하며 이력 원본은 모두 보존합니다. */
-    @Test fun historyLoadsFiveAtATime(): Unit = runBlocking {
+    /** 기본 화면과 확장 화면이 30개씩 추가하며 이력 원본을 모두 보존합니다. */
+    @Test fun historyLoadsThirtyAtATime(): Unit = runBlocking {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
         val context = instrumentation.targetContext
         check(context.packageName.endsWith(".devicecheck"))
         val token = java.util.UUID.randomUUID().toString()
-        val paths = (1..12).map { java.io.File(context.cacheDir, "paging-$token/$it.mp4").path }
+        val paths = (1..65).map { java.io.File(context.cacheDir, "paging-$token/$it.mp4").path }
         val originalCount = PluginDatabaseUtil.getDownloadHistory().size
         try {
             paths.forEachIndexed { index, path -> PluginDatabaseUtil.insertInfoImmediately(
@@ -37,18 +37,18 @@ class HistoryNavigationTest {
                     scenario.onActivity { it.setContent { SealTheme {
                         com.plugin.library.EnhancedVideoListPage(enhanced = enhanced, onNavigateBack = {})
                     } } }
-                    val total = originalCount + 12
-                    awaitNode("표시 5 / $total")
+                    val total = originalCount + 65
+                    awaitNode("표시 30 / $total")
                     for (attempt in 0 until 12) {
                         val automation = instrumentation.uiAutomation
                         if (android.os.Build.VERSION.SDK_INT >= 33) automation.clearCache()
                         val root = automation.rootInActiveWindow
                         // 푸터에 닿으면 자동 로딩하고, 짧은 화면에서도 더 보기 버튼으로 진행할 수 있습니다.
-                        if (findNode(root, "표시 10 / $total") != null) break
+                        if (findNode(root, "표시 60 / $total") != null) break
                         findVerticalScroll(root)?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
                         SystemClock.sleep(200)
                     }
-                    awaitNode("표시 10 / $total")
+                    awaitNode("표시 60 / $total")
                     assertEquals(total, PluginDatabaseUtil.getDownloadHistory().size)
                 }
             }

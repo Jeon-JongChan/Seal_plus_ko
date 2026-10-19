@@ -54,7 +54,8 @@ object EnhancementFiles {
             else if (!replace) "image/png" else when (preview.format) { "jpg", "jpeg" -> "image/jpeg"; "webp" -> "image/webp"; else -> "image/png" }
         val quality = VideoQuality(preview.width, preview.height, preview.frameRate, preview.duration, input.length(), codec)
         PluginMediaMetadataStore.save(result, quality = quality, sourceQuality = saved?.sourceQuality ?: saved?.quality,
-            postPageIndex = saved?.postPageIndex ?: 0, postPageCount = saved?.postPageCount ?: 1)
+            postPageIndex = saved?.postPageIndex ?: 0, postPageCount = saved?.postPageCount ?: 1,
+            aiDuplicate = !replace || PluginMediaMetadataStore.isAiDuplicate(preview.source))
         if (replace && result != preview.source) PluginDatabaseUtil.updateMediaPath(preview.source, result)
         if (!replace && saved != null) PluginDatabaseUtil.insertInfoImmediately(saved.copy(id = 0, videoPath = result))
         val downloader = org.koin.core.context.GlobalContext.get().get<com.junkfood.seal.download.DownloaderV2>().pluginQueue()

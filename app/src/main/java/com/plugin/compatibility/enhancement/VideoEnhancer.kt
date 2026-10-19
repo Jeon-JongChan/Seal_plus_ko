@@ -71,6 +71,9 @@ object VideoEnhancer {
             Runtime.getRuntime().maxMemory() * 7 / 10) { "영상 처리 메모리가 부족합니다. 더 낮은 해상도를 선택하세요." }
         val requested = data.getInt("fps"); val increase = VideoRules.increases(requested, info.fps, info.frames)
         val fps = if (increase) requested.toDouble() else info.fps
+        val enhanceFirst = VideoRules.enhanceFirst(info.width, info.height, target)
+        val frameNote = VideoRules.frameNote(requested, info.fps, info.frames)
+        val orderNote = if (enhanceFirst) "화질 개선 → 보간" else "보간 → 화질 개선"
         val reference = data.getBoolean("rife_reference_test") && context.packageName.endsWith(".devicecheck")
         val rifeEngine = if (reference) "RIFE CPU 기준 검사" else "RIFE Vulkan GPU"
         val sampling = EnhancementSampling.normalized(data.getInt("sampling", EnhancementSampling.BILINEAR))
@@ -105,15 +108,17 @@ object VideoEnhancer {
                 currentCoroutineContext().ensureActive()
                 if (lite?.route()?.startsWith("CPU") == true) throw failure
                 lite?.close(); lite = newLite(false)
-                data.putString("engine", "LiteRT CPU 대체${if (increase) " · $rifeEngine" else ""}")
+                data.putString("engine", "LiteRT CPU 대체${if (increase) " · $rifeEngine" else ""}\n$frameNote · $orderNote")
                 run()
             }
         }
         /** 결과 하나를 인코더에 전달한 뒤 프레임 메모리를 즉시 반환합니다. */
         suspend fun emit(frame: Bitmap, time: Long) {
             currentCoroutineContext().ensureActive()
+            // 일부 VFR 파일은 종료 시각에도 표본을 노출합니다. 표시 시간이 없는 표본으로 길이를 늘리지 않습니다.
+            if (time >= info.first + info.duration) return
             val begin = SystemClock.elapsedRealtime()
-            val output = upscale(frame)
+            val output = if (enhanceFirst) frame else upscale(frame)
             upscaleMs += SystemClock.elapsedRealtime() - begin
             val writing = SystemClock.elapsedRealtime()
             try { checkNotNull(encoder).write(output, time); frames++ }
@@ -128,14 +133,14 @@ object VideoEnhancer {
                 catch (failure: LinkageError) { if (!data.getBoolean("accelerated")) throw failure; newLite(false) }
             } else check(File(directory, "model.onnx").isFile) { "영상 보정 모델이 없습니다." }
             if (increase) rife = RifeSession(context, File(directory, "rife").path, reference)
-            data.putString("engine", "${lite?.let { "LiteRT ${it.route()}" } ?: "ONNX"}${if (increase) " · $rifeEngine" else " · 프레임 유지"}")
+            data.putString("engine", "${lite?.let { "LiteRT ${it.route()}" } ?: "ONNX"}${if (increase) " · $rifeEngine" else " · 프레임 유지"}\n$frameNote · $orderNote")
             val sourceMime = info.format.getString(MediaFormat.KEY_MIME)!!
             var encoderFailure: Exception? = null
-            for (mime in VideoRules.encoderMimes(sourceMime, android.os.Build.VERSION.SDK_INT, data.getBoolean("original_codec"))) {
+            for (mime in VideoRules.encoderMimes(sourceMime, android.os.Build.VERSION.SDK_INT, data.getBoolean("original_codec"), data.getString("video_codec", "auto"))) {
                 try { encoder = Encoder(video, target.first, target.second, fps, info.rotation, mime); break }
                 catch (failure: Exception) { encoderFailure = failure }
             }
-            check(encoder != null) { "원본 코덱과 AV1 인코더를 사용할 수 없습니다. ${encoderFailure?.message ?: "AV1 MP4 저장은 Android 14 이상이 필요합니다."}" }
+            check(encoder != null) { "선택한 코덱의 인코더가 해상도·FPS를 지원하지 않습니다. ${encoderFailure?.message.orEmpty()}" }
             data.putString("encoder", encoder.name)
             extractor.setDataSource(source.path); extractor.selectTrack(info.track)
             info.format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible)
@@ -162,8 +167,15 @@ object VideoEnhancer {
                         if (bufferInfo.size > 0) {
                             val image = decoder.getOutputImage(slot) ?: error("이 디코더는 CPU에서 읽을 수 있는 SDR 프레임을 지원하지 않습니다.")
                             val reading = SystemClock.elapsedRealtime()
-                            val frame = image.use { read(it, decoder.outputFormat, decodedPixels) }
+                            val decoded = image.use { read(it, decoder.outputFormat, decodedPixels) }
                             readMs += SystemClock.elapsedRealtime() - reading
+                            // 크기 유지에서는 원본마다 한 번만 보정하고 보간 결과를 다시 보정하지 않습니다.
+                            val frame = if (enhanceFirst) {
+                                val begin = SystemClock.elapsedRealtime()
+                                try { upscale(decoded).also { if (it !== decoded) decoded.recycle() } }
+                                catch (failure: Throwable) { decoded.recycle(); throw failure }
+                                finally { upscaleMs += SystemClock.elapsedRealtime() - begin }
+                            } else decoded
                             val time = bufferInfo.presentationTimeUs
                             try {
                                 check(time >= info.first && (previousTime < 0 || time > previousTime)) { "영상 프레임 시각이 올바르지 않습니다." }

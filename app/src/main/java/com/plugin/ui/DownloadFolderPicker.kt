@@ -53,10 +53,11 @@ fun DownloadFolderSelector(preferences: DownloadPreferences, onUpdate: (Download
     }
     val quick = result?.getOrNull()?.firstOrNull { it == configuredQuick }
     val viewConfiguration = LocalViewConfiguration.current
-    val folderConfiguration = remember(viewConfiguration) {
-        /** 이 저장폴더 버튼만 정확히 1초 길게 누르기를 사용합니다. */
+    val holdMillis = PluginPreferences.quickFolderHoldMillis
+    val folderConfiguration = remember(viewConfiguration, holdMillis) {
+        /** 저장폴더 버튼에만 사용자가 지정한 길게 누르기 시간을 적용합니다. */
         object : ViewConfiguration by viewConfiguration {
-            override val longPressTimeoutMillis: Long = 1_000L
+            override val longPressTimeoutMillis: Long = holdMillis.toLong()
         }
     }
     val selectFolder = {

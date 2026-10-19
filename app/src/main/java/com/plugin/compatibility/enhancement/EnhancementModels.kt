@@ -20,6 +20,7 @@ import java.util.concurrent.TimeUnit
 
 /** 가속 호환 기본 모델을 내장하고 공개 폴더 또는 사용자가 가져온 모델도 지원합니다. */
 object EnhancementModels {
+    const val VIDEO_CODEC = "video_ai_codec"
     const val SELECTED = "image_ai_model"
     const val VIDEO_SELECTED = "video_ai_model"
     const val VIDEO_FPS = "video_ai_fps"
@@ -128,8 +129,9 @@ object EnhancementModels {
             ?: error("파일을 열 수 없습니다.")
         else File(if (source.startsWith("file://")) Uri.parse(source).path!! else source).inputStream()
 
-    /** 선택한 단일 파일 모델을 작업 전용 사본으로 만들고 파일 크기를 검증합니다. */
-    suspend fun stage(context: Context, source: String, destination: File, limit: Long = EnhancementRules.MAX_MODEL_BYTES) =
+    /** 작업 사본을 크기 검증과 함께 만들고 필요하면 복사하는 바이트의 해시도 동시에 계산합니다. */
+    suspend fun stage(context: Context, source: String, destination: File, limit: Long = EnhancementRules.MAX_MODEL_BYTES,
+        digest: MessageDigest? = null) =
         withContext(Dispatchers.IO) {
             open(context, source).use { input ->
                 destination.outputStream().use { output ->
@@ -142,6 +144,8 @@ object EnhancementModels {
                         total += count
                         check(total <= limit) { "파일이 너무 큽니다. 더 작은 모델이나 이미지를 사용하세요." }
                         output.write(buffer, 0, count)
+                        // 큰 영상을 해시 때문에 다시 읽지 않도록 실제 저장한 바이트만 누적합니다.
+                        digest?.update(buffer, 0, count)
                     }
                     check(total > 0) { "빈 파일은 사용할 수 없습니다." }
                 }

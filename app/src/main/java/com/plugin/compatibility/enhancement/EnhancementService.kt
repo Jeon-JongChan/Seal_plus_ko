@@ -22,11 +22,12 @@ open class EnhancementService : Service() {
             val data = Bundle(message.data); val reply = message.replyTo
             job = scope.launch {
                 try {
-                    if (data.getBoolean("video")) foregroundVideo()
+                    if (Build.VERSION.SDK_INT >= 26) foregroundMedia(data.getBoolean("video"), 0)
                     var lastProgress = -1; var lastEngine: String? = null
                     process(data) { percent ->
                         val engine = data.getString("engine")
                         if (percent != lastProgress || engine != lastEngine) {
+                            if (!data.getBoolean("video") && Build.VERSION.SDK_INT >= 26 && percent != lastProgress) foregroundMedia(false, percent)
                             lastProgress = percent; lastEngine = engine
                             send(reply, PROGRESS, Bundle().apply { putInt("progress", percent); putString("engine", engine) })
                         }
@@ -37,7 +38,7 @@ open class EnhancementService : Service() {
                     send(reply, FAILED, Bundle().apply { putString("error", if (failure is OutOfMemoryError)
                         "보정 메모리가 부족합니다. 더 낮은 해상도를 선택하세요." else failure.message?.takeIf { it.isNotBlank() }
                             ?: "미디어 보정에 실패했습니다. (${failure.javaClass.simpleName})") })
-                } finally { if (data.getBoolean("video")) stopForeground(STOP_FOREGROUND_REMOVE) }
+                } finally { if (Build.VERSION.SDK_INT >= 26) stopForeground(STOP_FOREGROUND_REMOVE) }
             }
         } else if (message.what == RUN) send(message.replyTo, FAILED, Bundle().apply { putString("error", "이미지 보정 작업이 실행 중입니다.") })
         true
@@ -152,12 +153,15 @@ open class EnhancementService : Service() {
         }
     }
 
-    /** 긴 영상 작업은 OS의 미디어 처리 전경 서비스 시간 제한을 따릅니다. */
-    private fun foregroundVideo() {
+    /** 이미지도 진행 막대를 표시하며 영상은 외부 작업 서비스의 전체 진행 알림을 유지합니다. */
+    private fun foregroundMedia(video: Boolean, percent: Int) {
         val manager = getSystemService(android.app.NotificationManager::class.java)
-        manager.createNotificationChannel(android.app.NotificationChannel("video_ai", "AI 동영상 화질개선", android.app.NotificationManager.IMPORTANCE_LOW))
-        val notification = android.app.Notification.Builder(this, "video_ai").setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle("AI 동영상 화질개선").setContentText("영상 처리 중 · 앱에서 취소할 수 있습니다.").setOngoing(true).build()
+        val channel = if (video) "video_ai" else "image_ai"
+        val title = if (video) "AI 동영상 화질개선" else "AI 이미지 화질개선"
+        manager.createNotificationChannel(android.app.NotificationChannel(channel, title, android.app.NotificationManager.IMPORTANCE_LOW))
+        val notification = android.app.Notification.Builder(this, channel).setSmallIcon(android.R.drawable.stat_sys_download)
+            .setContentTitle(title).setContentText(if (video) "영상 처리 중 · 앱에서 취소할 수 있습니다." else "이미지 처리 중 · $percent%")
+            .setProgress(100, percent, percent == 0).setOnlyAlertOnce(true).setOngoing(true).build()
         if (Build.VERSION.SDK_INT >= 35) startForeground(7421, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROCESSING)
         else if (Build.VERSION.SDK_INT >= 29) startForeground(7421, notification, android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         else startForeground(7421, notification)

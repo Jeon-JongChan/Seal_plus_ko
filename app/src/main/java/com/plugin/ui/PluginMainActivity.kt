@@ -40,6 +40,9 @@ class PluginMainActivity : AppCompatActivity() {
         com.plugin.runtime.PluginAppHelper.initDownloader(this)
 
         context = this.baseContext
+        com.plugin.compatibility.enhancement.VideoEnhancementWork.restore(applicationContext)
+        if (intent.action == com.plugin.compatibility.enhancement.VideoEnhancementWork.RESULT_ACTION)
+            com.plugin.compatibility.enhancement.VideoEnhancementWork.showResult.value = true
         if (savedInstanceState == null) {
             intent.getSharedURL()?.let { url ->
                 dialogViewModel.postAction(DownloadDialogViewModel.Action.ShowSheet(listOf(url)))
@@ -56,6 +59,7 @@ class PluginMainActivity : AppCompatActivity() {
                         androidx.compose.runtime.key(com.plugin.compatibility.TemporarySession.root) {
                             PluginAppEntry(dialogViewModel = dialogViewModel)
                         }
+                        com.plugin.videoenhancement.VideoEnhancementResultHost()
                     }
                 }
             }
@@ -66,6 +70,10 @@ class PluginMainActivity : AppCompatActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (intent.action == com.plugin.compatibility.enhancement.VideoEnhancementWork.RESULT_ACTION) {
+            com.plugin.compatibility.enhancement.VideoEnhancementWork.restore(applicationContext)
+            com.plugin.compatibility.enhancement.VideoEnhancementWork.showResult.value = true
+        }
         val url = intent.getSharedURL()
         if (url != null) {
             dialogViewModel.postAction(DownloadDialogViewModel.Action.ShowSheet(listOf(url)))

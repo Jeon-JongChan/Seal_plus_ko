@@ -69,24 +69,31 @@ object QueueMedia {
                     else -> active
                 }
                 val views = entries.map { it.value.viewState }
+                val duplicates = entries.flatMap { (it.value.downloadState as? Task.DownloadState.Completed)?.takeUnless { state -> state.missing }?.filePaths.orEmpty() }
+                    .distinct().filter { PluginMediaMetadataStore.isAiDuplicate(it) }
                 val sizes = views.filter { it.width > 0 && it.height > 0 }.sortedBy { it.width.toLong() * it.height }
                 // 게시물 페이지의 원본·AV1 복제는 같은 페이지이며 일반 URL의 출력 파일 수와 구분합니다.
                 val counts = entries.map { if (it.key.type is Task.TypeInfo.SocialMedia) 1 else maxOf(1, it.value.viewState.mediaCount,
-                    (it.value.downloadState as? Task.DownloadState.Completed)?.filePaths?.distinct()?.size ?: 0) }
+                    (it.value.downloadState as? Task.DownloadState.Completed)?.filePaths?.distinct()?.count { path -> !PluginMediaMetadataStore.isAiDuplicate(path) } ?: 0) }
                 // 게시물 메타데이터의 전체 수를 사용해 선택 제외나 파일 삭제로 분모가 줄지 않게 합니다.
                 val total = maxOf(counts.sum(), attempts.maxOf { entry -> maxOf(
                     (entry.key.type as? Task.TypeInfo.SocialMedia)?.media?.pageCount ?: 0,
-                    entry.value.videoInfo?.postPageCount ?: 0) })
+                    entry.value.videoInfo?.postPageCount ?: 0) }) + duplicates.size
                 val images = entries.mapIndexed { index, entry ->
-                    if ((entry.key.type as? Task.TypeInfo.SocialMedia)?.media?.image ?: entry.value.viewState.isImage) counts[index] else 0
+                    if ((entry.key.type as? Task.TypeInfo.SocialMedia)?.media?.image ?: entry.value.viewState.isImage)
+                        counts[index] + (entry.value.downloadState as? Task.DownloadState.Completed)?.takeUnless { it.missing }
+                            ?.filePaths.orEmpty().distinct().count { PluginMediaMetadataStore.isAiDuplicate(it) }
+                    else 0
                 }.sum()
                 first.key to first.value.copy(downloadState = state,
                     viewState = first.value.viewState.copy(mediaCount = total,
-                        isImage = images == counts.sum(), imageCount = images, videoCount = counts.sum() - images,
+                        isImage = images == counts.sum() + duplicates.size, imageCount = images, videoCount = counts.sum() + duplicates.size - images,
                         completedCount = entries.sumOf { entry ->
                             val paths = (entry.value.downloadState as? Task.DownloadState.Completed)?.takeUnless { it.missing }
                                 ?.filePaths?.distinct().orEmpty()
-                            if (entry.key.type is Task.TypeInfo.SocialMedia) if (paths.isEmpty()) 0 else 1 else paths.size },
+                            if (entry.key.type is Task.TypeInfo.SocialMedia)
+                                (if (paths.any { !PluginMediaMetadataStore.isAiDuplicate(it) }) 1 else 0) + paths.count { PluginMediaMetadataStore.isAiDuplicate(it) }
+                            else paths.size },
                         width = sizes.lastOrNull()?.width ?: 0, height = sizes.lastOrNull()?.height ?: 0,
                         minWidth = sizes.firstOrNull()?.width ?: 0, minHeight = sizes.firstOrNull()?.height ?: 0,
                         duration = views.filterNot { it.isImage }.maxOfOrNull { it.duration } ?: 0,

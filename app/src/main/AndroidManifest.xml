@@ -57,6 +57,8 @@
         <uses-native-library android:name="libGLESv3.so" android:required="false" />
         <service android:name="com.plugin.compatibility.enhancement.EnhancementService"
             android:exported="false" android:process=":image_ai" android:foregroundServiceType="dataSync|mediaProcessing" />
+        <service android:name="com.plugin.compatibility.enhancement.VideoEnhancementWork"
+            android:exported="false" android:foregroundServiceType="dataSync|mediaProcessing" />
         <service android:name="com.plugin.compatibility.enhancement.EnhancementGpuService"
             android:exported="false" android:process=":image_ai_gpu" android:foregroundServiceType="dataSync|mediaProcessing" />
         <service android:name="com.plugin.compatibility.enhancement.EnhancementCpuService"

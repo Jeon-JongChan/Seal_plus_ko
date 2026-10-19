@@ -63,7 +63,9 @@ fun PluginsPage(onBack: () -> Unit, onNavigate: (String) -> Unit) {
                         isChecked = com.plugin.compatibility.CompatibilityPlugin.enabled, enabled = false)
                 }
             }
-            items(PluginId.entries, key = { it.name }) { id ->
+            PluginId.entries.groupBy { it.category }.forEach { (category, ids) ->
+            item(key = "category:$category") { Text(category, style = MaterialTheme.typography.titleMedium) }
+            items(ids, key = { it.name }) { id ->
                 val (title, description) = when (id) {
                     PluginId.SOCIAL -> R.string.plugin_social to R.string.plugin_social_desc
                     PluginId.LIST -> R.string.loc_list_downloads to R.string.plugin_list_desc
@@ -96,6 +98,7 @@ fun PluginsPage(onBack: () -> Unit, onNavigate: (String) -> Unit) {
                         }
                     }
                 }
+            }
             }
         }
     }

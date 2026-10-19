@@ -20,6 +20,7 @@ data class MediaMetadataRecord(
     val postPageIndex: Int = 0,
     val postPageCount: Int = 1,
     val excludedFromProcessing: Boolean = false,
+    val aiDuplicate: Boolean = false,
 )
 
 /**
@@ -29,6 +30,7 @@ object PluginMediaMetadataStore {
     private val mmkv get() = runCatching { TemporarySession.storage("plugin_media_metadata") }.getOrNull()
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val memoryCache = ConcurrentHashMap<String, MediaMetadataRecord>()
+    private val duplicateName = Regex("-AI-[0-9a-f]{8}(?: \\[[^]]+])?\\.(?:png|mp4)$")
 
     /** 저장소 전환 후 이전 세션의 메모리 자료를 표시하지 않습니다. */
     fun clearMemory() { memoryCache.clear() }
@@ -51,6 +53,7 @@ object PluginMediaMetadataStore {
         postPageIndex: Int = 0,
         postPageCount: Int = 1,
         excludedFromProcessing: Boolean? = null,
+        aiDuplicate: Boolean? = null,
     ) {
         if (videoPath.isBlank()) return
         val existing = get(videoPath)
@@ -60,6 +63,7 @@ object PluginMediaMetadataStore {
             postPageIndex = if (postPageIndex != 0) postPageIndex else existing?.postPageIndex ?: 0,
             postPageCount = maxOf(postPageCount, existing?.postPageCount ?: 1),
             excludedFromProcessing = excludedFromProcessing ?: existing?.excludedFromProcessing ?: false,
+            aiDuplicate = aiDuplicate ?: existing?.aiDuplicate ?: false,
         )
         memoryCache[videoPath] = record
         mmkv?.encode(videoPath, json.encodeToString(record))
@@ -85,6 +89,10 @@ object PluginMediaMetadataStore {
     /** 불투명 SAF ID는 실제 부모 이름을 읽을 때 저장한 표지를 사용하고 일반 경로는 현재 이름을 따릅니다. */
     fun isProcessingExcluded(path: String): Boolean = MediaRules.isNoFacePath(path) ||
         (path.startsWith("content://") && get(path)?.excludedFromProcessing == true)
+
+    /** 이전 버전의 AI 복제도 앱이 생성한 파일명 표식으로 인식합니다. */
+    fun isAiDuplicate(path: String): Boolean = get(path)?.aiDuplicate == true ||
+        duplicateName.containsMatchIn(path.substringAfterLast('/'))
 }
 
 /** DownloadedVideoInfo의 품질 정보 확장 프로퍼티 */

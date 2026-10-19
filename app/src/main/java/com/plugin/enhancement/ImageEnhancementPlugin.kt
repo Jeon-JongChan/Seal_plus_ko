@@ -62,7 +62,7 @@ object ImageEnhancementPlugin : FeaturePlugin() {
 }
 
 /** 보정 선택·진행·전후 비교·명시적 저장을 한 화면에서 제공합니다. */
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, com.google.accompanist.permissions.ExperimentalPermissionsApi::class)
 @Composable
 private fun ImageAiAction(paths: List<String>, batch: Boolean, onSaved: (String, String, Boolean) -> Unit) {
     val path = paths.firstOrNull() ?: return
@@ -71,6 +71,8 @@ private fun ImageAiAction(paths: List<String>, batch: Boolean, onSaved: (String,
     val stateKey = if (batch) "post" else path
     val latestSaved by rememberUpdatedState(onSaved)
     val context = LocalContext.current
+    val notificationPermission = if (android.os.Build.VERSION.SDK_INT >= 33)
+        com.google.accompanist.permissions.rememberPermissionState(android.Manifest.permission.POST_NOTIFICATIONS) else null
     val scope = rememberCoroutineScope()
     var open by remember(stateKey) { mutableStateOf(false) }
     var advanced by remember(stateKey) { mutableStateOf(false) }
@@ -94,6 +96,8 @@ private fun ImageAiAction(paths: List<String>, batch: Boolean, onSaved: (String,
     }
     /** 해상도 선택이 끝난 시점에만 별도 프로세스의 추론을 시작합니다. */
     fun start(option: Int) {
+        if (notificationPermission != null && notificationPermission.status != com.google.accompanist.permissions.PermissionStatus.Granted)
+            notificationPermission.launchPermissionRequest()
         if (processing || saving) return
         error = ""; processing = true; percent = 0; completed = 0; selectedPreview = 0; engine = "실행 준비 중"
         job = scope.launch {
@@ -131,8 +135,8 @@ private fun ImageAiAction(paths: List<String>, batch: Boolean, onSaved: (String,
     FilledTonalIconButton(onClick = { advanced = false; upscale = false; error = ""; open = true }) {
         Icon(if (batch) Icons.Rounded.Collections else Icons.Rounded.AutoFixHigh, contentDescription = if (batch) "게시글 전체 화질 개선" else "이미지 AI 보정")
     }
-    if (open) Dialog(onDismissRequest = { close() }, properties = DialogProperties(usePlatformDefaultWidth = false,
-        dismissOnBackPress = !saving, dismissOnClickOutside = !saving)) {
+    if (open) Dialog(onDismissRequest = {}, properties = DialogProperties(usePlatformDefaultWidth = false,
+        dismissOnBackPress = false, dismissOnClickOutside = false)) {
         Surface(Modifier.fillMaxWidth().padding(12.dp), shape = MaterialTheme.shapes.extraLarge) {
             Column(Modifier.heightIn(max = 720.dp).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(if (batch) "게시글 전체 화질 개선" else "이미지 AI 보정", style = MaterialTheme.typography.titleLarge)

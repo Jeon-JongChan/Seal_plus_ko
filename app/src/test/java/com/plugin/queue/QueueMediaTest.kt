@@ -16,6 +16,17 @@ import org.junit.Test
 
 /** 게시물 묶음·혼합 종류 분리·완료 백업 호환성을 확인합니다. */
 class QueueMediaTest {
+    /** AI 복제 삭제 후에는 추가 페이지 수만 줄고 원본 게시글의 분모는 유지됩니다. */
+    @Test fun aiCopiesIncreaseOnlyTheirOwnPageCount() {
+        val media = InstagramMedia("photo", "https://www.instagram.com/p/BA/", "", "", true, "post", "author", pageCount = 3)
+        val task = Task(media.postUrl, Task.TypeInfo.SocialMedia(media), DownloadUtil.DownloadPreferences.EMPTY)
+        val original = "/photo.png"; val copy = "/photo-AI-1234abcd.png"
+        val state = Task.State(Task.DownloadState.Completed(original, listOf(original, copy)), null, Task.ViewState(isImage = true))
+        val withCopy = QueueMedia.grouped(mapOf(task to state)).values.single().viewState
+        assertEquals(4, withCopy.mediaCount); assertEquals(2, withCopy.completedCount)
+        val withoutCopy = QueueMedia.grouped(mapOf(task to state.copy(downloadState = Task.DownloadState.Completed(original)))).values.single().viewState
+        assertEquals(3, withoutCopy.mediaCount); assertEquals(1, withoutCopy.completedCount)
+    }
     /** 원본과 AV1 복제 파일을 실제 완료 파일 수에 포함합니다. */
     @Test
     fun av1CopiesCountAsCompletedFiles() {

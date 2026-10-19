@@ -28,6 +28,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.runtime.produceState
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridItemSpanScope
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -120,6 +122,7 @@ import com.junkfood.seal.util.toFileSizeText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinViewModel
 
@@ -160,7 +163,9 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
     var sortByName by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(enhanced && PluginPreferences.historySortByName) }
     var folderMode by remember { mutableStateOf(false) }
     var folderFilter by remember { mutableStateOf<String?>(null) }
-    val observedVideoList by viewModel.videoListFlow.collectAsStateWithLifecycle(emptyList())
+    // 이 화면이 자체 정렬하므로 원본 뷰모델의 중복 정렬을 거치지 않습니다.
+    val historyFlow = remember { com.junkfood.seal.util.DatabaseUtil.getDownloadHistoryFlow().flowOn(Dispatchers.IO) }
+    val observedVideoList by historyFlow.collectAsStateWithLifecycle(emptyList())
     var refreshedVideoList by remember { mutableStateOf<List<DownloadedVideoInfo>?>(null) }
     val scan by MediaScanService.state.collectAsStateWithLifecycle()
     LaunchedEffect(observedVideoList) { refreshedVideoList = null }
@@ -185,26 +190,32 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
         val currentFolder = folderFilter
         if (folderMode && (currentFolder == null || folderRoot.isNotEmpty() && currentFolder != folderRoot && !currentFolder.startsWith(folderRoot.trimEnd('/') + "/"))) folderFilter = folderRoot
     }
-    val searchedVideoList by
-        viewModel.searchedVideoListFlow.collectAsStateWithLifecycle(emptyList())
-
     // 직접 경로를 갱신한 이력도 검색 결과에서는 최신 파일 경로를 사용합니다.
-    val searchedIds = remember(searchedVideoList) { searchedVideoList.map { it.id }.toSet() }
-    val videoList = if (viewState.isSearching) fullVideoList.filter { it.id in searchedIds } else fullVideoList
-    val posts = remember(videoList, mediaFilter, folderFilter, sortByName, enhanced) { videoList.filter { it.filterSort(mediaFilter, folderFilter) }.groupBy {
+    val searchedIds = if (viewState.isSearching) {
+        val searchFlow = remember(viewModel) { viewModel.searchedVideoListFlow.flowOn(Dispatchers.Default) }
+        val searchedVideoList by searchFlow.collectAsStateWithLifecycle(emptyList())
+        remember(searchedVideoList) { searchedVideoList.map { it.id }.toSet() }
+    } else emptySet()
+    val videoList = remember(fullVideoList, viewState.isSearching, searchedIds) {
+        if (viewState.isSearching) fullVideoList.filter { it.id in searchedIds } else fullVideoList
+    }
+    val posts by produceState<List<List<DownloadedVideoInfo>>>(emptyList(), videoList,
+        listOf(mediaFilter, folderFilter, sortByName, enhanced)) {
+        // 대량 이력의 필터·그룹·정렬은 UI 스레드 밖에서 한 번만 계산합니다.
+        value = withContext(Dispatchers.Default) { videoList.filter { it.filterSort(mediaFilter, folderFilter) }.groupBy {
         if (enhanced && it.extractor.lowercase() in setOf("instagram", "tiktok")) MediaRules.identity(it.videoUrl.substringBefore('#'))
         else it.videoPath
     }.values.map { it.sortedBy { page -> page.postPageIndex } }
         // 원본 이력에 시각 필드가 없어 증가하는 등록 ID로 최신 등록 순서를 유지합니다.
         .sortMedia(sortByName, { post -> post.maxOf { it.id }.toLong() }, { post -> post.first().videoTitle }) }
-    var visibleCount by remember(mediaFilter, folderFilter, sortByName, viewState.isSearching, searchedIds) { mutableIntStateOf(5) }
+    }
+    var visibleCount by remember(mediaFilter, folderFilter, sortByName, viewState.isSearching, searchedIds) { mutableIntStateOf(30) }
     var openedPost by remember { mutableStateOf<Pair<List<String>, String?>?>(null) }
     openedPost?.let { (paths, initial) -> PostMediaViewer(paths, initial) { openedPost = null } }
     var wallpaperPages by remember { mutableStateOf<List<com.plugin.ui.WallpaperPageItem>?>(null) }
     wallpaperPages?.let { pages ->
         com.plugin.ui.WallpaperPreviewDialog(pages) { wallpaperPages = null }
     }
-    val filterSet by viewModel.filterSetFlow.collectAsState(mutableSetOf())
 
     val scrollBehavior =
         if (fullVideoList.isNotEmpty())
@@ -223,7 +234,8 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
     val sheetState = rememberModalBottomSheetState(initialValue = ModalBottomSheetValue.Hidden)
     val hostState = remember { SnackbarHostState() }
 
-    LaunchedEffect(scan.running, observedVideoList) {
+    // 이력 알림마다 디스크 전체를 재검색하지 않고 진입·스캔 완료 때만 외부 파일을 연결합니다.
+    LaunchedEffect(scan.running) {
         if (enhanced && !scan.running) runCatching {
             withContext(kotlinx.coroutines.Dispatchers.IO) {
                 MediaLibrary.registerExternalFiles(MediaLibrary.listVideos(createPluginPreferences()))
@@ -255,7 +267,7 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
         if (visibleCount < posts.size) snapshotFlow {
             lazyListState.isScrollInProgress &&
                 lazyListState.layoutInfo.visibleItemsInfo.lastOrNull()?.key == "history-more"
-        }.collect { reachedEnd -> if (reachedEnd) visibleCount = minOf(visibleCount + 5, posts.size) }
+        }.collect { reachedEnd -> if (reachedEnd) visibleCount = minOf(visibleCount + 30, posts.size) }
     }
     // 정렬·폴더·유형이 바뀌면 이전 항목의 위치 대신 새 목록의 처음을 표시합니다.
     LaunchedEffect(folderFilter, mediaFilter) { lazyListState.requestScrollToItem(0) }
@@ -292,12 +304,23 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
     }
 
     val selectedItemIds = remember(videoList, viewState, mediaFilter, folderFilter) { mutableStateListOf<Int>() }
+    val selectedIds by remember(selectedItemIds) { derivedStateOf { selectedItemIds.toSet() } }
 
-    // 표시할 게시글만 파일을 조회하되 전체 선택의 크기 합산에는 숨은 선택 항목도 포함합니다.
-    val fileSizeMap by androidx.compose.runtime.produceState<Map<Int, Long>>(emptyMap(), posts, visibleCount, selectedItemIds.toList(), scan.running) {
+    val visiblePostIds by remember(lazyListState) { derivedStateOf {
+        lazyListState.layoutInfo.visibleItemsInfo.mapNotNull { it.key as? Int }.toSet()
+    } }
+    val sizeCache = remember(videoList, scan.running) { mutableMapOf<Int, Long>() }
+    // 실제 화면의 게시글과 선택 항목만 조회하며 스크롤할 때 앞쪽 파일을 다시 열지 않습니다.
+    val fileSizeMap by androidx.compose.runtime.produceState<Map<Int, Long>>(emptyMap(), posts,
+        listOf(visiblePostIds, selectedItemIds.toList(), scan.running)) {
         val selected = selectedItemIds.toSet()
-        val needed = (posts.take(visibleCount).flatten() + videoList.filter { it.id in selected }).distinctBy { it.id }
-        value = withContext(Dispatchers.IO) { needed.associate { it.id to MediaLibrary.fileBytes(it.videoPath) } }
+        val visible = if (visiblePostIds.isEmpty()) posts.take(8) else posts.filter { it.first().id in visiblePostIds }
+        val needed = (visible.flatten() + videoList.filter { it.id in selected }).distinctBy { it.id }
+        val measured = withContext(Dispatchers.IO) {
+            needed.associate { it.id to (sizeCache[it.id] ?: MediaLibrary.fileBytes(it.videoPath)) }
+        }
+        sizeCache.putAll(measured)
+        value = sizeCache.toMap()
     }
 
     LaunchedEffect(isSelectEnabled) {
@@ -308,19 +331,19 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
     }
 
     val selectedVideoCount =
-        remember(selectedItemIds.size) {
+        remember(selectedIds, videoList) {
             mutableIntStateOf(
                 videoList.count { info ->
-                    selectedItemIds.contains(info.id) &&
+                    info.id in selectedIds &&
                         info.filterByType(videoFilter = true, audioFilter = false)
                 }
             )
         }
     val selectedAudioCount =
-        remember(selectedItemIds.size) {
+        remember(selectedIds, videoList) {
             mutableIntStateOf(
                 videoList.count { info ->
-                    selectedItemIds.contains(info.id) &&
+                    info.id in selectedIds &&
                         info.filterByType(videoFilter = false, audioFilter = true)
                 }
             )
@@ -489,14 +512,10 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
                             when (checkBoxState) {
                                 ToggleableState.On -> selectedItemIds.clear()
                                 else -> {
-                                    for (item in videoList) {
-                                        if (
-                                            !selectedItemIds.contains(item.id) &&
-                                                item.filterSort(mediaFilter, folderFilter)
-                                        ) {
-                                            selectedItemIds.add(item.id)
-                                        }
-                                    }
+                                    // 선택 여부를 집합으로 조회해 대량 전체 선택의 반복 선형 탐색을 없앱니다.
+                                    selectedItemIds.addAll(videoList.filter {
+                                        it.id !in selectedIds && it.filterSort(mediaFilter, folderFilter)
+                                    }.map { it.id })
                                 }
                             }
                         },
@@ -584,14 +603,16 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
                     }
                 }
             }
-            for (post in posts.take(visibleCount)) {
+            items(posts.take(visibleCount), key = { it.first().id },
+                contentType = { MediaRules.mediaKind(it.first().videoPath, it.first().quality?.codec.orEmpty()) }) { post ->
                 val info = post.first()
-                item(key = info.id, contentType = MediaRules.mediaKind(info.videoPath, info.quality?.codec.orEmpty())) {
                 val successful = post.filter { fileSizeMap.getOrElse(it.id) { 0L } > 0 }
                 val qualities = post.mapNotNull { it.quality }.sortedBy { it.width.toLong() * it.height }
-                val imageCount = successful.filter { it.quality?.codec?.startsWith("image/") == true || it.videoPath.substringAfterLast('.').lowercase() in setOf("jpg", "jpeg", "png", "webp", "avif") }.distinctBy { it.videoUrl }.size
-                val successCount = successful.distinctBy { it.videoUrl }.size
-                val count = maxOf(post.maxOf { it.postPageCount }, post.distinctBy { it.videoUrl }.size)
+                val imageCount = successful.filter { it.quality?.codec?.startsWith("image/") == true || it.videoPath.substringAfterLast('.').lowercase() in setOf("jpg", "jpeg", "png", "webp", "avif") }
+                    .distinctBy { if (PluginMediaMetadataStore.isAiDuplicate(it.videoPath)) it.videoPath else it.videoUrl }.size
+                val successCount = successful.distinctBy { if (PluginMediaMetadataStore.isAiDuplicate(it.videoPath)) it.videoPath else it.videoUrl }.size
+                val count = maxOf(post.maxOf { it.postPageCount }, post.filterNot { PluginMediaMetadataStore.isAiDuplicate(it.videoPath) }.distinctBy { it.videoUrl }.size) +
+                    post.count { PluginMediaMetadataStore.isAiDuplicate(it.videoPath) }
                 val details = Task.ViewState(mediaCount = count, completedCount = successCount,
                     isImage = imageCount == successCount, imageCount = imageCount, videoCount = successCount - imageCount,
                     width = qualities.lastOrNull()?.width ?: 0, height = qualities.lastOrNull()?.height ?: 0,
@@ -625,7 +646,7 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
                                 },
                                 videoUrl = videoUrl,
                                 isSelectEnabled = { isSelectEnabled },
-                                isSelected = { post.all { selectedItemIds.contains(it.id) } },
+                                isSelected = { post.all { it.id in selectedIds } },
                                 onSelect = {
                                     if (post.all { it.id in selectedItemIds }) selectedItemIds.removeAll(post.map { it.id }.toSet())
                                     else post.forEach { if (it.id !in selectedItemIds) selectedItemIds.add(it.id) }
@@ -659,11 +680,10 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
                             )
                         }
                     }
-                }
             }
             if (visibleCount < posts.size) item(key = "history-more") {
-                TextButton(onClick = { visibleCount = minOf(visibleCount + 5, posts.size) }, modifier = Modifier.fillMaxWidth()) {
-                    Text("5개 더 보기 (${minOf(visibleCount, posts.size)}/${posts.size})")
+                TextButton(onClick = { visibleCount = minOf(visibleCount + 30, posts.size) }, modifier = Modifier.fillMaxWidth()) {
+                    Text("30개 더 보기 (${minOf(visibleCount, posts.size)}/${posts.size})")
                 }
             }
         }
@@ -690,7 +710,8 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
             deleteFile = deleteFile,
             onDeleteFileToggled = { deleteFile = it },
             onRemoveConfirm = {
-                viewModel.deleteDownloadHistory(listOf(currentVideoInfo), deleteFile = deleteFile)
+                val removeFiles = deleteFile
+                scope.launch { PluginDatabaseUtil.deleteInfoListSafe(listOf(currentVideoInfo), deleteFile = removeFiles) }
             },
             onDismissRequest = { showRemoveDialog = false },
         )
@@ -722,10 +743,9 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
             },
             confirmButton = {
                 ConfirmButton {
-                    viewModel.deleteDownloadHistory(
-                        infoList = videoList.filter { selectedItemIds.contains(it.id) },
-                        deleteFile = deleteFile,
-                    )
+                    val targets = videoList.filter { selectedItemIds.contains(it.id) }
+                    val removeFiles = deleteFile
+                    scope.launch { PluginDatabaseUtil.deleteInfoListSafe(targets, deleteFile = removeFiles) }
                     showRemoveMultipleItemsDialog = false
                     isSelectEnabled = false
                 }

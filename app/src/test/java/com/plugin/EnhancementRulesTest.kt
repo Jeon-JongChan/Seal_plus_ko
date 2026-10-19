@@ -6,6 +6,18 @@ import org.junit.Test
 
 /** 비율·메모리 한도·원격 모델 링크와 미디어 ID 보존을 검증합니다. */
 class EnhancementRulesTest {
+    /** 확대 여부에 따른 순서·낮은 FPS 생략·직접 코덱 선택이 서로 독립적인지 검증합니다. */
+    @Test fun videoOrderAndExplicitCodecFollowTheRequest() {
+        val rules = com.plugin.compatibility.enhancement.VideoRules
+        assertTrue(rules.enhanceFirst(1280, 720, 1280 to 720))
+        assertFalse(rules.enhanceFirst(1280, 720, 2560 to 1440))
+        assertTrue(rules.frameNote(24, 30.0, 300).contains("보간 생략"))
+        assertTrue(rules.frameNote(30, 30.0, 300).contains("보간 생략"))
+        assertTrue(rules.frameNote(60, 30.0, 300).contains("프레임 보간"))
+        assertEquals(listOf("video/avc"), rules.encoderMimes("video/hevc", 35, selected = "h264"))
+        assertEquals(listOf("video/hevc"), rules.encoderMimes("video/avc", 35, selected = "h265"))
+        assertEquals(listOf("video/avc", "video/av01"), rules.encoderMimes("video/avc", 35, true))
+    }
     /** 전체 보정은 순서·중복 제거를 유지하며 영상과 NOFACE 폴더를 제외합니다. */
     @Test fun postImagesExcludeVideosAndNoFace() {
         assertEquals(listOf("/post/1.jpg", "/post/2.png"), EnhancementRules.postImages(listOf(

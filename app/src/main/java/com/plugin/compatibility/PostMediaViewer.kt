@@ -17,6 +17,7 @@ import android.graphics.SurfaceTexture
 import android.media.MediaPlayer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.rememberTransformableState
 import androidx.compose.foundation.gestures.transformable
 import androidx.compose.ui.draw.clipToBounds
@@ -27,6 +28,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Pause
 import kotlinx.coroutines.delay
@@ -67,22 +69,34 @@ fun PostMediaViewer(paths: List<String>, initialPath: String?, onDismiss: () -> 
     var pages by remember(paths) { mutableStateOf(paths.distinct()) }
     var revision by remember(paths) { mutableIntStateOf(0) }
     var totalPages by remember(paths) { mutableIntStateOf(paths.distinct().size) }
-    LaunchedEffect(paths) {
-        val savedTotal = withContext(Dispatchers.IO) {
-            com.plugin.compatibility.PluginDatabaseUtil.getDownloadHistory().filter { it.videoPath in paths }
-                .maxOfOrNull { it.postPageCount } ?: 0
-        }
-        totalPages = maxOf(totalPages, savedTotal)
+    var originalTotal by remember(paths) { mutableIntStateOf(paths.distinct().count { !PluginMediaMetadataStore.isAiDuplicate(it) }) }
+    val history by produceState<Map<String, com.junkfood.seal.database.objects.DownloadedVideoInfo>>(emptyMap(), pages, revision) {
+        value = withContext(Dispatchers.IO) { PluginDatabaseUtil.getDownloadHistory().associateBy { it.videoPath } }
+    }
+    LaunchedEffect(history) {
+        val savedTotal = pages.maxOfOrNull { history[it]?.postPageCount ?: 0 } ?: 0
+        originalTotal = maxOf(originalTotal, savedTotal)
+        totalPages = originalTotal + pages.count { PluginMediaMetadataStore.isAiDuplicate(it) }
     }
     if (pages.isEmpty()) return
     val pager = rememberPagerState(initialPage = pages.indexOf(initialPath).coerceAtLeast(0), pageCount = { pages.size })
     var showInfo by remember { mutableStateOf(MEDIA_INFO_OVERLAY.getBoolean()) }
     var volume by remember { mutableFloatStateOf(PluginPreferences.mediaVolume) }
+    var volumeGesture by remember { mutableIntStateOf(0) }
+    var showVolume by remember { mutableStateOf(false) }
+    LaunchedEffect(volumeGesture) {
+        if (volumeGesture > 0) { showVolume = true; delay(1200); showVolume = false }
+    }
     var deleting by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
     var zoomed by remember { mutableStateOf(false) }
     var currentVideo by remember { mutableStateOf<MediaPlayer?>(null) }
+    val comparisonOpen by com.plugin.compatibility.enhancement.VideoEnhancementWork.showResult.collectAsState()
+    val enhancementWork by com.plugin.compatibility.enhancement.VideoEnhancementWork.state.collectAsState()
+    LaunchedEffect(comparisonOpen, enhancementWork.running, currentVideo) {
+        if (comparisonOpen || enhancementWork.running) runCatching { currentVideo?.pause() }
+    }
     var position by remember { mutableIntStateOf(0) }
     var duration by remember { mutableIntStateOf(0) }
     var playing by remember { mutableStateOf(false) }
@@ -103,9 +117,7 @@ fun PostMediaViewer(paths: List<String>, initialPath: String?, onDismiss: () -> 
     val context = androidx.compose.ui.platform.LocalContext.current
     var showWallpaperDialog by remember { mutableStateOf(false) }
     if (showWallpaperDialog) com.plugin.ui.WallpaperPreviewDialog(pages.mapIndexed { index, path -> com.plugin.ui.WallpaperPageItem(path, index) }, pager.currentPage) { showWallpaperDialog = false }
-    val currentPostUrl by produceState<String?>(null, pages, pager.currentPage) {
-        value = withContext(Dispatchers.IO) { com.plugin.compatibility.PluginDatabaseUtil.getDownloadHistory().firstOrNull { it.videoPath == pages.getOrNull(pager.currentPage) }?.videoUrl }
-    }
+    val currentPostUrl = history[pages.getOrNull(pager.currentPage)]?.videoUrl
     // 창 자체를 시스템 바 뒤까지 확장하고 조작부에만 여백을 줘 뒤 게시글이 비치지 않게 합니다.
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false,
         decorFitsSystemWindows = false)) {
@@ -121,14 +133,15 @@ fun PostMediaViewer(paths: List<String>, initialPath: String?, onDismiss: () -> 
                     }
                     IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, stringResource(R.string.close)) }
                 }
-                HorizontalPager(pager, Modifier.fillMaxWidth().weight(1f).clipToBounds(), userScrollEnabled = !zoomed) { page ->
+                HorizontalPager(pager, Modifier.fillMaxWidth().weight(1f).clipToBounds(), userScrollEnabled = !zoomed,
+                    key = { pages[it] }) { page ->
                     val originalPath = pages[page]
-                    val info by produceState<com.junkfood.seal.database.objects.DownloadedVideoInfo?>(null, originalPath, revision) {
+                    val info by produceState<com.junkfood.seal.database.objects.DownloadedVideoInfo?>(null, originalPath, revision, history) {
                         value = withContext(Dispatchers.IO) {
                             val preferences = com.plugin.compatibility.createPluginPreferences()
                             val path = MediaLibrary.resolveDownloadedPath(originalPath, preferences) ?: originalPath
                             if (path != originalPath) com.plugin.compatibility.PluginDatabaseUtil.updateMediaPath(originalPath, path)
-                            val saved = com.plugin.compatibility.PluginDatabaseUtil.getDownloadHistory().firstOrNull { it.videoPath == path }
+                            val saved = history[path] ?: history[originalPath]
                             val quality = saved?.quality ?: MediaLibrary.readMediaQuality(path)
                             if (saved != null && saved.quality == null && quality != null)
                                 com.plugin.compatibility.PluginMediaMetadataStore.save(saved.videoPath, quality = quality)
@@ -151,11 +164,36 @@ fun PostMediaViewer(paths: List<String>, initialPath: String?, onDismiss: () -> 
                     }
                     Box(Modifier.fillMaxSize().clipToBounds().background(MaterialTheme.colorScheme.surface)) {
                         Box(Modifier.fillMaxSize().onSizeChanged { size = it }
+                            .semantics {
+                                // 화면에 상시 음량바를 두지 않아도 보조기술로 음량을 조절할 수 있습니다.
+                                if (!image) customActions = listOf(
+                                    androidx.compose.ui.semantics.CustomAccessibilityAction("음량 키우기") {
+                                        volume = (volume + 0.1f).coerceAtMost(1f); PluginPreferences.mediaVolume = volume; volumeGesture++; true
+                                    },
+                                    androidx.compose.ui.semantics.CustomAccessibilityAction("음량 줄이기") {
+                                        volume = (volume - 0.1f).coerceAtLeast(0f); PluginPreferences.mediaVolume = volume; volumeGesture++; true
+                                    })
+                            }
                             .transformable(transform, canPan = { scale > 1f })
-                            .pointerInput(path) { detectTapGestures(onDoubleTap = {
+                            .pointerInput(path, image) { detectTapGestures(onTap = {
+                                // 터치 이동은 감지기가 취소하므로 확대 드래그·음량 제스처를 정지로 오인하지 않습니다.
+                                if (!image && page == pager.currentPage) runCatching {
+                                    currentVideo?.let { if (it.isPlaying) it.pause() else it.start(); playing = it.isPlaying }
+                                }
+                            }, onDoubleTap = {
                                 scale = if (scale > 1f) 1f else 2f; offset = Offset.Zero
                                 if (page == pager.currentPage) zoomed = scale > 1f
                             }) }
+                            .pointerInput(path, image, scale > 1f) {
+                                // 기본 배율의 한 손가락 세로 이동만 음량으로 쓰고 확대 이동은 기존 제스처에 맡깁니다.
+                                if (!image && scale <= 1f) detectVerticalDragGestures(
+                                    onDragEnd = { PluginPreferences.mediaVolume = volume },
+                                    onDragCancel = { PluginPreferences.mediaVolume = volume }) { change, amount ->
+                                    change.consume()
+                                    volume = (volume - amount / size.height.coerceAtLeast(1) * 2f).coerceIn(0f, 1f)
+                                    volumeGesture++
+                                }
+                            }
                             .graphicsLayer { scaleX = scale; scaleY = scale; translationX = offset.x; translationY = offset.y }) {
                         if (image) AsyncImage(coil.request.ImageRequest.Builder(context).data(uri)
                             .memoryCacheKey("$path#$revision").diskCacheKey("$path#$revision").build(), stringResource(R.string.loc_image_preview),
@@ -173,6 +211,7 @@ fun PostMediaViewer(paths: List<String>, initialPath: String?, onDismiss: () -> 
                                                 .setUsage(android.media.AudioAttributes.USAGE_MEDIA)
                                                 .setContentType(android.media.AudioAttributes.CONTENT_TYPE_MOVIE).build())
                                             player.setDataSource(context, uri)
+                                            player.isLooping = true
                                             player.setOnPreparedListener {
                                                 currentVideo = it; it.setVolume(volume, volume)
                                                 fitVideoTexture(this@apply, it); it.start()
@@ -206,7 +245,7 @@ fun PostMediaViewer(paths: List<String>, initialPath: String?, onDismiss: () -> 
                         }
                         }
                         // 배율은 미디어 오른쪽 중앙에 반투명으로 표시해 상단 작업 버튼과 하단 정보·재생 조작부를 피합니다.
-                        if (page == pager.currentPage) FilledTonalButton(
+                        if (page == pager.currentPage && scale > 1.01f) FilledTonalButton(
                             modifier = Modifier.align(Alignment.CenterEnd).padding(12.dp),
                             colors = ButtonDefaults.filledTonalButtonColors(
                                 containerColor = Color.Black.copy(alpha = 0.45f), contentColor = Color.White),
@@ -215,6 +254,11 @@ fun PostMediaViewer(paths: List<String>, initialPath: String?, onDismiss: () -> 
                                 scale = if (scale < 2f) 2f else if (scale < 4f) 4f else 1f
                                 offset = Offset.Zero; zoomed = scale > 1f
                             }) { Text("확대 ${(scale * 100).toInt()}%") }
+                        if (!image && page == pager.currentPage && showVolume) Surface(
+                            Modifier.align(Alignment.CenterStart).padding(16.dp),
+                            color = Color.Black.copy(alpha = 0.6f), contentColor = Color.White) {
+                            Text("음량 ${(volume * 100).toInt()}%", Modifier.padding(12.dp).semantics { contentDescription = "음량" })
+                        }
                         if (image && page == pager.currentPage) Box(Modifier.align(Alignment.TopStart).padding(8.dp).then(Modifier.zIndex(1f))) {
                             com.plugin.compatibility.ImagePluginActions(path, pages) { source, output, replace ->
                                 pages = if (replace) pages.map { if (it == source || (source == path && it == originalPath)) output else it }
@@ -276,14 +320,6 @@ fun PostMediaViewer(paths: List<String>, initialPath: String?, onDismiss: () -> 
                             }, modifier = Modifier.weight(1f).semantics { contentDescription = "재생 위치" })
                         Text((duration / 1000).toDurationText(), style = MaterialTheme.typography.labelSmall)
                     }
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { volume = if (volume > 0) 0f else 1f; PluginPreferences.mediaVolume = volume }) {
-                            Text(stringResource(if (volume == 0f) R.string.loc_sound_off else R.string.loc_sound_on))
-                        }
-                        // 드래그 중에는 재생 음량만 갱신하고 손을 뗄 때 마지막 값을 저장합니다.
-                        Slider(volume, onValueChange = { volume = it }, onValueChangeFinished = { PluginPreferences.mediaVolume = volume }, modifier = Modifier.weight(1f).semantics { contentDescription = "음량" })
-                        Text("${(volume * 100).toInt()}%")
-                    }
                 }
                 if (error.isNotBlank() && deleting == null) Text(error, Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.error)
             }
@@ -295,15 +331,18 @@ fun PostMediaViewer(paths: List<String>, initialPath: String?, onDismiss: () -> 
         confirmButton = {
             TextButton(enabled = !busy, onClick = {
                 val selected = deleting ?: return@TextButton
+                val duplicate = PluginMediaMetadataStore.isAiDuplicate(selected)
                 busy = true
                 scope.launch {
                     val result = withContext(Dispatchers.IO) {
                         val path = MediaLibrary.resolveDownloadedPath(selected,
                             com.plugin.compatibility.createPluginPreferences()) ?: selected
-                        com.plugin.compatibility.CompatibilityFiles.deleteFile(path).onSuccess { com.plugin.compatibility.PluginDatabaseUtil.deleteInfoByPath(path) }
+                        com.plugin.compatibility.CompatibilityFiles.deleteFile(path).onSuccess { com.plugin.compatibility.PluginDatabaseUtil.deleteInfoByPath(path, removedFromStorage = true) }
                     }
                     result.onSuccess {
+                        if (duplicate) totalPages = (totalPages - 1).coerceAtLeast(originalTotal)
                         pages = pages - selected
+                        revision++
                         deleting = null; error = ""
                         if (pages.isEmpty()) onDismiss()
                     }.onFailure { error = it.message.orEmpty() }
@@ -315,10 +354,12 @@ fun PostMediaViewer(paths: List<String>, initialPath: String?, onDismiss: () -> 
         })
 }
 
-/** 기본 크기에서 영상을 늘이지 않고 가운데 맞춘 뒤 바깥 레이어의 확대를 적용합니다. */
-private fun fitVideoTexture(view: TextureView, player: MediaPlayer) {
+/** 영상 비율을 유지하며 전체 맞춤 또는 중앙 채우기를 공통 적용합니다. */
+internal fun fitVideoTexture(view: TextureView, player: MediaPlayer, crop: Boolean = false) {
     if (view.width <= 0 || view.height <= 0 || player.videoWidth <= 0 || player.videoHeight <= 0) return
-    val ratio = minOf(view.width.toFloat() / player.videoWidth, view.height.toFloat() / player.videoHeight)
+    // 배경화면은 빈 공간 없이 채우고 일반·비교 뷰어는 영상 전체를 표시합니다.
+    val ratio = if (crop) maxOf(view.width.toFloat() / player.videoWidth, view.height.toFloat() / player.videoHeight)
+        else minOf(view.width.toFloat() / player.videoWidth, view.height.toFloat() / player.videoHeight)
     view.setTransform(android.graphics.Matrix().apply {
         setScale(player.videoWidth * ratio / view.width, player.videoHeight * ratio / view.height, view.width / 2f, view.height / 2f)
     })

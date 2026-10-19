@@ -34,6 +34,11 @@ object PluginPreferences {
 
     private val kv get() = com.tencent.mmkv.MMKV.defaultMMKV()
 
+    /** 퀵 폴더 메뉴의 길게 누르기 시간은 0.1초 간격이며 기본은 기존 1초입니다. */
+    var quickFolderHoldMillis: Int
+        get() = (kv.decodeInt("quick_folder_hold_millis", 1000).coerceIn(100, 3000) / 100) * 100
+        set(value) { kv.encode("quick_folder_hold_millis", (value.coerceIn(100, 3000) / 100) * 100) }
+
     /** 다운로드 목록의 정렬을 저장하며 기본값은 시간순입니다. */
     var historySortByName: Boolean
         get() = kv.decodeBool(HISTORY_SORT_BY_NAME, false)

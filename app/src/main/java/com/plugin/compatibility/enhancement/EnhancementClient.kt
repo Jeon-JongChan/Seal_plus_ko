@@ -29,7 +29,9 @@ object EnhancementClient {
             check(directory.mkdirs()) { "영상 작업 폴더를 만들 수 없습니다." }
             onEngine("원본과 모델 준비 중")
             val snapshot = File(directory, "source")
-            EnhancementModels.stage(context, source, snapshot, VideoEnhancer.MAX_SOURCE_BYTES)
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            EnhancementModels.stage(context, source, snapshot, VideoEnhancer.MAX_SOURCE_BYTES, digest)
+            val sourceHash = digest.digest().joinToString("") { "%02x".format(it) }
             val info = withContext(Dispatchers.IO) {
                 val jobContext = currentCoroutineContext()
                 VideoEnhancer.inspect(snapshot) { jobContext.ensureActive() }
@@ -45,6 +47,7 @@ object EnhancementClient {
                 putString("directory", directory.path); putBoolean("video", true); putInt("option", option); putInt("fps", fps)
                 putInt("sampling", EnhancementSampling.normalized(EnhancementSampling.KEY.getInt(EnhancementSampling.BILINEAR)))
                 putBoolean("original_codec", EnhancementModels.VIDEO_ORIGINAL_CODEC.getBoolean(false))
+                putString("video_codec", EnhancementModels.VIDEO_CODEC.getString("auto"))
                 putBoolean("accelerated", EnhancementModels.ACCELERATED.getBoolean(true))
                 putInt("cpu_threads", EnhancementModels.CPU_THREADS.getInt(2)); putString("backend", backend)
             } }
@@ -60,7 +63,7 @@ object EnhancementClient {
                 }
                 recovered ?: throw (stopped ?: IllegalStateException("영상 결과를 받지 못했습니다."))
             } }
-            return Preview(source, directory, withContext(Dispatchers.IO) { EnhancementModels.hash(snapshot) }, result.getInt("width"), result.getInt("height"),
+            return Preview(source, directory, sourceHash, result.getInt("width"), result.getInt("height"),
                 (if (source.startsWith("content://")) androidx.documentfile.provider.DocumentFile.fromSingleUri(context, Uri.parse(source))?.name.orEmpty()
                     else File(source).name).substringAfterLast('.', "").lowercase(),
                 result.getString("engine").orEmpty(), result.getInt("worker_pid"), true, result.getDouble("frame_rate"), result.getDouble("duration"), result.getString("codec").orEmpty())

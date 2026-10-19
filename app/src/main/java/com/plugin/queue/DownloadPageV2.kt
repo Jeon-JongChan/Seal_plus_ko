@@ -227,14 +227,14 @@ fun EnhancedDownloadPageV2(
                             queue.cancel(member)
                             if (action == UiAction.DeleteFiles && completed != null && !completed.missing) {
                                 val results = completed.filePaths.map { path ->
-                                    com.plugin.compatibility.CompatibilityFiles.deleteFile(path).onSuccess { com.plugin.compatibility.PluginDatabaseUtil.deleteInfoByPath(path) }
+                                    com.plugin.compatibility.CompatibilityFiles.deleteFile(path).onSuccess { com.plugin.compatibility.PluginDatabaseUtil.deleteInfoByPath(path, removedFromStorage = true) }
                                 }
                                 if (results.any { it.isFailure }) {
                                     context.makeToast(R.string.loc_file_delete_failed)
                                     return@forEach
                                 }
                             }
-                            if (completed?.missing == true) completed.filePaths.forEach { com.plugin.compatibility.PluginDatabaseUtil.deleteInfoByPath(it) }
+                            if (completed?.missing == true) completed.filePaths.forEach { com.plugin.compatibility.PluginDatabaseUtil.deleteInfoByPath(it, removedFromStorage = true) }
                             queue.remove(member)
                         }
                     }
@@ -665,7 +665,12 @@ fun DownloadPageImplV2(
                 onDismissRequest = {
                     scope.launch { sheetState.hide() }.invokeOnCompletion { selectedTask = null }
                 },
-                onActionPost = onActionPost,
+                onActionPost = { target, action ->
+                    // 단일 게시글 삭제도 다중 선택과 같은 파일 삭제 확인창을 사용합니다.
+                    if (action == UiAction.Delete) {
+                        deleteFiles = false; deletionTargets = listOf(target)
+                    } else onActionPost(target, action)
+                },
             )
         }
     }

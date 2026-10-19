@@ -7,7 +7,11 @@ object VideoRules {
     val frameRates = listOf(0, 24, 25, 30, 50, 60)
 
     /** 기본은 AV1 우선이며 원본 유지 선택과 플랫폼 지원 범위에 따라 대체 순서를 정합니다. */
-    fun encoderMimes(source: String, sdk: Int, preserveOriginal: Boolean = false): List<String> = buildList {
+    fun encoderMimes(source: String, sdk: Int, preserveOriginal: Boolean = false, selected: String = "auto"): List<String> = buildList {
+        if (selected == "h264" || selected == "h265") {
+            add(if (selected == "h264") "video/avc" else "video/hevc")
+            return@buildList
+        }
         val original = source in listOf("video/avc", "video/hevc", "video/mp4v-es", "video/3gpp", "video/x-vnd.on2.vp9") ||
             source == "video/av01" && sdk >= 34
         if (preserveOriginal && original) add(source)
@@ -20,6 +24,18 @@ object VideoRules {
     fun increases(requested: Int, original: Double, frames: Long = Long.MAX_VALUE): Boolean {
         require(requested in frameRates && original.isFinite() && original >= 0 && frames > 0)
         return frames > 1 && requested > 0 && requested > original + 0.01
+    }
+
+    /** 크기를 유지하는 보정은 원본만 보정하고 확대는 저해상도에서 먼저 보간합니다. */
+    fun enhanceFirst(width: Int, height: Int, target: Pair<Int, Int>): Boolean =
+        target.first <= width && target.second <= height
+
+    /** 원본보다 낮거나 같은 FPS를 선택했을 때 보간을 생략한 이유를 표시합니다. */
+    fun frameNote(requested: Int, original: Double, frames: Long): String = when {
+        requested == 0 -> "보간 생략 · 원본 FPS 유지"
+        frames <= 1 -> "보간 생략 · 원본이 한 프레임입니다"
+        !increases(requested, original, frames) -> "보간 생략 · 선택 ${requested}fps ≤ 원본 %.2ffps".format(java.util.Locale.ROOT, original)
+        else -> "프레임 보간 · 원본 %.2ffps → ${requested}fps".format(java.util.Locale.ROOT, original)
     }
 
     /** 누적 반올림 오차 없이 프레임 번호에서 마이크로초 시각을 계산합니다. */

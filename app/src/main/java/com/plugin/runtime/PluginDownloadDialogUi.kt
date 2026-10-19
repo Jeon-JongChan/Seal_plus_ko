@@ -293,8 +293,9 @@ internal fun ErrorPage(modifier: Modifier = Modifier, state: Error, onActionPost
             overflow = TextOverflow.Clip,
         )
 
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        androidx.compose.foundation.layout.FlowRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(4.dp)) {
             FilledTonalButton(onClick = {
                 val action = state.action
                 onActionPost(actionForRetry(action, retryPreferences))

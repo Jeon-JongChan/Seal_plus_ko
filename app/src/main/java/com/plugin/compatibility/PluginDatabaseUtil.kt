@@ -9,6 +9,7 @@ import com.junkfood.seal.util.ToastUtil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import com.plugin.runtime.pluginQueue
 
 /**
  * 플러그인 전용 데이터베이스 보조 유틸리티입니다.
@@ -64,7 +65,7 @@ object PluginDatabaseUtil {
     }
 
     /** 경로로 이력 레코드와 메타데이터를 삭제합니다. */
-    suspend fun deleteInfoByPath(path: String) = withContext(Dispatchers.IO) {
+    suspend fun deleteInfoByPath(path: String, removedFromStorage: Boolean = false) = withContext(Dispatchers.IO) {
         if (path.isBlank()) return@withContext
         runCatching {
             getWritableDatabase().use { db ->
@@ -72,6 +73,25 @@ object PluginDatabaseUtil {
             }
         }
         PluginMediaMetadataStore.delete(path)
+        if (removedFromStorage) removeCompletedPath(path)
+    }
+
+    /** 파일 삭제만 대기열에 반영하고 이력 정리나 같은 경로의 파일 교체는 보존합니다. */
+    private fun removeCompletedPath(path: String) {
+        // 삭제 직후 완료 대기열의 경로도 제거해 앱 재시작 전 빈 페이지가 남지 않게 합니다.
+        runCatching {
+            val queue = org.koin.core.context.GlobalContext.get().get<com.junkfood.seal.download.DownloaderV2>().pluginQueue()
+            queue.getTaskStateMap().toMap().forEach { (task, _) ->
+                queue.getTaskStateMap().updateTaskState(task) { state ->
+                    val completed = state.downloadState as? com.plugin.queue.PluginTask.DownloadState.Completed
+                    if (completed == null || path !in completed.filePaths) state else {
+                        val remaining = completed.filePaths.filterNot { it == path }
+                        state.copy(downloadState = com.plugin.queue.PluginTask.DownloadState.Completed(
+                            remaining.firstOrNull(), remaining, remaining.isEmpty()))
+                    }
+                }
+            }
+        }
     }
 
     /** 전체 다운로드 이력 목록을 조회합니다. */
@@ -87,7 +107,10 @@ object PluginDatabaseUtil {
             }.isSuccess
         }
         DatabaseUtil.deleteInfoList(removable)
-        removable.forEach { PluginMediaMetadataStore.delete(it.videoPath) }
+        removable.forEach {
+            PluginMediaMetadataStore.delete(it.videoPath)
+            if (deleteFile) removeCompletedPath(it.videoPath)
+        }
     }
 }
 

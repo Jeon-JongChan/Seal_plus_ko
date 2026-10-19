@@ -276,8 +276,8 @@ class VideoEnhancementTest {
             val source = fixture(context, root, vfr = true)
             val hash = EnhancementModels.hash(source); val original = VideoEnhancer.inspect(source)
             val gpu = InstrumentationRegistry.getArguments().getString("rife_gpu") == "true"
-            for (fps in listOf(0, 24)) {
-                val work = File(root, "fps-$fps").apply { mkdirs() }; source.copyTo(File(work, "source"))
+            for ((option, fps) in listOf(2 to 0, 2 to 24, 1 to 24)) {
+                val work = File(root, "option-$option-fps-$fps").apply { mkdirs() }; source.copyTo(File(work, "source"))
                 EnhancementModels.stage(context, EnhancementModels.SMALL_MODEL, File(work, "model.tflite"))
                 if (fps > 0) {
                     val supplied = InstrumentationRegistry.getArguments().getString("rife_models") ?: error("보간 검사 모델 경로가 필요합니다.")
@@ -285,14 +285,15 @@ class VideoEnhancementTest {
                     for (name in listOf("flownet.param", "flownet.bin")) File(supplied, name).copyTo(File(destination, name))
                 }
                 val data = Bundle().apply {
-                    putInt("option", 2); putInt("fps", fps); putBoolean("accelerated", gpu); putInt("cpu_threads", 1)
+                    putInt("option", option); putInt("fps", fps); putBoolean("accelerated", gpu); putInt("cpu_threads", 1)
                     putInt("sampling", EnhancementSampling.BILINEAR); putBoolean("rife_reference_test", !gpu)
                 }
                 VideoEnhancer.process(context, work, data) {}
                 if (gpu) assertTrue(data.getString("engine").orEmpty().contains("GPU"))
                 if (fps > 0) assertTrue(data.getString("engine").orEmpty().contains(if (gpu) "RIFE Vulkan GPU" else "RIFE CPU 기준 검사"))
                 val output = VideoEnhancer.inspect(File(work, "preview.mp4"))
-                assertEquals(128, output.width); assertEquals(96, output.height); assertEquals(1, output.audioTracks)
+                assertEquals(64 * option, output.width); assertEquals(48 * option, output.height); assertEquals(1, output.audioTracks)
+                assertTrue(data.getString("engine").orEmpty().contains(if (option == 1) "화질 개선 → 보간" else "보간 → 화질 개선"))
                 assertEquals(if (fps == 0) original.fps else fps.toDouble(), output.fps, 0.1)
                 assertEquals(original.duration.toDouble(), output.duration.toDouble(), 150_000.0)
                 assertEquals(hash, EnhancementModels.hash(source))

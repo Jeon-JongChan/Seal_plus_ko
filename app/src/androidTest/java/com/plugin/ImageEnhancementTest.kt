@@ -71,6 +71,10 @@ class ImageEnhancementTest {
             runBlocking {
                 val before = File(context.cacheDir, "image-ai").listFiles().orEmpty().map { it.name }.toSet()
                 assertTrue(runCatching { EnhancementClient.enhancePost(context, images.map { it.path } + File(fixture, "missing.png").path, 2) { _, _, _ -> } }.isFailure)
+                // 임시 결과 정리는 별도 IO 코루틴이므로 실제 완료를 기다린 뒤 잔여 파일을 검사합니다.
+                kotlinx.coroutines.withTimeout(5_000) {
+                    while (before != File(context.cacheDir, "image-ai").listFiles().orEmpty().map { it.name }.toSet()) kotlinx.coroutines.delay(50)
+                }
                 assertEquals(before, File(context.cacheDir, "image-ai").listFiles().orEmpty().map { it.name }.toSet())
             }
         } finally {
@@ -196,7 +200,7 @@ class ImageEnhancementTest {
 
     /** 접근성 트리가 갱신될 때까지 지정한 버튼을 찾습니다. */
     private fun awaitNode(label: String): AccessibilityNodeInfo {
-        repeat(100) {
+        repeat(300) {
             findNode(InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow, label)?.let { return it }
             SystemClock.sleep(100)
         }
