@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 프레임워크 없이 실제 Android 디코더·AI·삭제 경계를 실행하는 디버그 전용 검사입니다. -->
+    <instrumentation android:name="com.plugin.duplicates.DuplicateCheck"
+        android:targetPackage="${applicationId}" android:label="중복 분석 회귀 검사" />
+    <instrumentation android:name="com.plugin.duplicates.DuplicateAccelerationCheck"
+        android:targetPackage="${applicationId}" android:label="중복 분석 가속 검사" />
+</manifest>

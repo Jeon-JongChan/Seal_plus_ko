@@ -9,15 +9,15 @@ import com.plugin.compatibility.*
 
 /** 서로 독립적으로 활성화할 수 있는 내장 확장 기능입니다. */
 enum class PluginId {
-    SOCIAL, LIST, MEDIA, LIBRARY, QUEUE, INTERACTION, IMAGE_AI, ACCOUNTS, POST_INFO, FOLDERS, FACE_SORT, VIDEO_AI, SHARE_MENU, HIDDEN;
+    SOCIAL, MEDIA, LIBRARY, QUEUE, INTERACTION, IMAGE_AI, ACCOUNTS, POST_INFO, FOLDERS, FACE_SORT, VIDEO_AI, SHARE_MENU, HIDDEN, DUPLICATES;
 
     val preferenceKey: String get() = "plugin_enabled_${name.lowercase()}"
 
     /** 기능과 저장된 활성화 값은 유지하고 관리 화면의 관련 항목만 같은 분류로 묶습니다. */
     val category: String get() = when (this) {
-        SOCIAL, LIST, INTERACTION, SHARE_MENU -> "다운로드·입력"
+        SOCIAL, INTERACTION, SHARE_MENU -> "다운로드·입력"
         MEDIA, LIBRARY, QUEUE, FOLDERS -> "파일·대기열 관리"
-        IMAGE_AI, VIDEO_AI, FACE_SORT -> "AI 미디어 처리"
+        IMAGE_AI, VIDEO_AI, FACE_SORT, DUPLICATES -> "AI 미디어 처리"
         ACCOUNTS, POST_INFO -> "게시글·계정 정보"
         HIDDEN -> "임시 공간"
     }
@@ -56,9 +56,9 @@ object PluginPolicy {
     /** 비활성화한 기능의 저장값을 지우지 않고 요청 사본에서만 배제합니다. */
     fun preferences(value: DownloadPreferences, enabled: Set<PluginId>): DownloadPreferences =
         value.copyPluginOptions(
-            mediaSelection = if (PluginId.SOCIAL in enabled || (PluginId.LIST in enabled && value.listProcessing)) value.mediaSelection else 0,
-            imageResolution = if (PluginId.SOCIAL in enabled || (PluginId.LIST in enabled && value.listProcessing)) value.imageResolution else 0,
-            downloadAllMedia = (PluginId.LIST in enabled || PluginId.SOCIAL in enabled) && value.downloadAllMedia,
+            mediaSelection = if (PluginId.SOCIAL in enabled) value.mediaSelection else 0,
+            imageResolution = if (PluginId.SOCIAL in enabled) value.imageResolution else 0,
+            downloadAllMedia = PluginId.SOCIAL in enabled && value.downloadAllMedia,
             selectedFolder = if (PluginId.FOLDERS in enabled) value.selectedFolder else null,
             classificationUpperFirst = PluginId.LIBRARY in enabled && value.classificationUpperFirst,
             classifyMedia = PluginId.LIBRARY in enabled && value.classifyMedia,
@@ -72,7 +72,6 @@ object PluginPolicy {
             reuseExisting = PluginId.MEDIA in enabled,
             queueEnhancements = PluginId.QUEUE in enabled,
             socialProcessing = PluginId.SOCIAL in enabled,
-            listProcessing = PluginId.LIST in enabled && value.listProcessing,
             videoContainer = if (PluginId.MEDIA in enabled) value.videoContainer else "mp4",
             cookieProfileId = if (PluginId.INTERACTION in enabled || value.cookieProfileExplicit) value.cookieProfileId else -1,
         )

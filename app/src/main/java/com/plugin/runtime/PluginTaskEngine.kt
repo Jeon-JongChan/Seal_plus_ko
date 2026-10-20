@@ -11,7 +11,6 @@ import com.plugin.compatibility.isDuplicateOf
 import com.plugin.compatibility.refreshCompletedFiles
 import com.plugin.compatibility.quality
 import com.plugin.compatibility.sourceQuality
-import com.plugin.compatibility.listProcessing
 import com.plugin.compatibility.withStoredPluginOptions
 import com.plugin.compatibility.TemporarySession
 import androidx.compose.runtime.snapshots.Snapshot
@@ -316,8 +315,7 @@ class PluginTaskEngine(private val appContext: Context) : PluginTaskDownloader, 
             .launch(Dispatchers.Default, start = CoroutineStart.LAZY) {
                 (if (taskInfo is TypeInfo.SocialMedia)
                         runCatching {
-                            (if (preferences.listProcessing) com.plugin.listdownload.ListMediaUtil.fetch(taskInfo.media.postUrl, preferences, id)
-                             else InstagramUtil.fetch(taskInfo.media.postUrl, preferences, id))
+                            InstagramUtil.fetch(taskInfo.media.postUrl, preferences, id)
                                 .first { it.id == taskInfo.media.id }
                                 .copy(pageIndex = taskInfo.media.pageIndex, pageCount = taskInfo.media.pageCount)
                                 .videoInfo()
@@ -388,8 +386,7 @@ class PluginTaskEngine(private val appContext: Context) : PluginTaskDownloader, 
                     }
                 }
                 (if (type is TypeInfo.SocialMedia && type.media.image)
-                        if (preferences.listProcessing) com.plugin.listdownload.ListMediaUtil.download(type.media, preferences, id, callback)
-                        else InstagramUtil.download(type.media, preferences, id, callback)
+                        InstagramUtil.download(type.media, preferences, id, callback)
                     else
                         PluginDownloadUtil.downloadVideo(
                             videoInfo = info,
@@ -471,7 +468,6 @@ class PluginTaskEngine(private val appContext: Context) : PluginTaskDownloader, 
                 // 외부 작업 종료보다 먼저 코루틴을 취소해 늦은 콜백을 차단합니다.
                 preState.job.cancel()
                 InstagramUtil.cancel(preState.taskId)
-                com.plugin.listdownload.ListMediaUtil.cancel(preState.taskId)
                 MediaLibrary.cancel(preState.taskId)
                 YoutubeDL.destroyProcessById(preState.taskId)
                 val progress = if (preState is Running) preState.progress else null

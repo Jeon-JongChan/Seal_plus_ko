@@ -108,7 +108,7 @@ object PluginDownloadUtil {
 
     /** 쿠키 프로필·미디어 설정은 등록한 작업의 사본을 기준으로 적용합니다. */
     fun handles(preferences: DownloadPreferences): Boolean =
-        preferences.cookies || preferences.selectedFolder != null || preferences.listProcessing || preferences.socialProcessing || preferences.mediaProcessing || preferences.reuseExisting || preferences.cookieProfileId >= 0
+        preferences.cookies || preferences.selectedFolder != null || preferences.socialProcessing || preferences.mediaProcessing || preferences.reuseExisting || preferences.cookieProfileId >= 0
 
     /** CookieScheme의 독립 플러그인 처리를 제공합니다. */
     object CookieScheme {

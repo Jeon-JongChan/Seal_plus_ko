@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="plugin_duplicates">AI 이미지·영상 중복 제거</string>
+    <string name="plugin_duplicates_desc">온디바이스 AI로 중복 후보를 검토하고 보존 우선순위와 제외 기록에 따라 정리합니다.</string>
+</resources>

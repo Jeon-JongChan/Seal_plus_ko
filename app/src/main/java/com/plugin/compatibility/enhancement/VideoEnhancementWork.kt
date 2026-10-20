@@ -132,6 +132,7 @@ class VideoEnhancementWork : Service() {
                     data.getInt("width"), data.getInt("height"), data.getString("format"), data.getString("engine"), 0,
                     true, data.getDouble("fps"), data.getDouble("duration"), data.getString("codec"))
                 state.value = State(source = preview.source, preview = preview, progress = 100)
+                com.plugin.compatibility.AiMediaFilter.begin(listOf(preview.source))
             }.onFailure { context.getSharedPreferences(CHANNEL, Context.MODE_PRIVATE).edit().remove("preview").apply() }
         }
 

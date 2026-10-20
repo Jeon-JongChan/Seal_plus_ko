@@ -8,6 +8,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.update
 
 /**
  * 플러그인 전용 미디어 확장 메타데이터를 관리합니다.
@@ -21,19 +23,21 @@ data class MediaMetadataRecord(
     val postPageCount: Int = 1,
     val excludedFromProcessing: Boolean = false,
     val aiDuplicate: Boolean = false,
+    val aiReplaced: Boolean = false,
 )
 
 /**
  * MMKV 기반의 메타데이터 저장소입니다.
  */
 object PluginMediaMetadataStore {
+    val revision = MutableStateFlow(0L)
     private val mmkv get() = runCatching { TemporarySession.storage("plugin_media_metadata") }.getOrNull()
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val memoryCache = ConcurrentHashMap<String, MediaMetadataRecord>()
     private val duplicateName = Regex("-AI-[0-9a-f]{8}(?: \\[[^]]+])?\\.(?:png|mp4)$")
 
     /** 저장소 전환 후 이전 세션의 메모리 자료를 표시하지 않습니다. */
-    fun clearMemory() { memoryCache.clear() }
+    fun clearMemory() { memoryCache.clear(); revision.update { it + 1 } }
 
     /** 경로에 해당하는 메타데이터를 조회합니다. */
     fun get(videoPath: String): MediaMetadataRecord? {
@@ -54,6 +58,7 @@ object PluginMediaMetadataStore {
         postPageCount: Int = 1,
         excludedFromProcessing: Boolean? = null,
         aiDuplicate: Boolean? = null,
+        aiReplaced: Boolean? = null,
     ) {
         if (videoPath.isBlank()) return
         val existing = get(videoPath)
@@ -64,9 +69,11 @@ object PluginMediaMetadataStore {
             postPageCount = maxOf(postPageCount, existing?.postPageCount ?: 1),
             excludedFromProcessing = excludedFromProcessing ?: existing?.excludedFromProcessing ?: false,
             aiDuplicate = aiDuplicate ?: existing?.aiDuplicate ?: false,
+            aiReplaced = aiReplaced ?: existing?.aiReplaced ?: false,
         )
         memoryCache[videoPath] = record
         mmkv?.encode(videoPath, json.encodeToString(record))
+        revision.update { it + 1 }
     }
 
     /** 파일 이동 시 메타데이터 키를 갱신합니다. */
@@ -77,6 +84,7 @@ object PluginMediaMetadataStore {
         memoryCache.remove(oldPath)
         memoryCache[newPath] = record
         mmkv?.encode(newPath, json.encodeToString(record))
+        revision.update { it + 1 }
     }
 
     /** 메타데이터를 삭제합니다. */
@@ -84,6 +92,7 @@ object PluginMediaMetadataStore {
         if (videoPath.isBlank()) return
         memoryCache.remove(videoPath)
         mmkv?.removeValueForKey(videoPath)
+        revision.update { it + 1 }
     }
 
     /** 불투명 SAF ID는 실제 부모 이름을 읽을 때 저장한 표지를 사용하고 일반 경로는 현재 이름을 따릅니다. */

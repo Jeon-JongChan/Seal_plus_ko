@@ -57,10 +57,13 @@ object EnhancementFiles {
         val codec = if (preview.video) preview.codec.ifBlank { VideoEnhancer.inspect(preview.image).format.getString(android.media.MediaFormat.KEY_MIME).orEmpty() }
             else if (!replace) "image/png" else when (preview.format) { "jpg", "jpeg" -> "image/jpeg"; "webp" -> "image/webp"; else -> "image/png" }
         val quality = VideoQuality(preview.width, preview.height, preview.frameRate, preview.duration, input.length(), codec)
-        PluginMediaMetadataStore.save(result, quality = quality, sourceQuality = saved?.sourceQuality ?: saved?.quality,
-            postPageIndex = saved?.postPageIndex ?: 0, postPageCount = saved?.postPageCount ?: 1,
-            aiDuplicate = !replace || PluginMediaMetadataStore.isAiDuplicate(preview.source))
+        val originalMetadata = saved?.let { PluginMediaMetadataStore.get(it.videoPath) } ?: PluginMediaMetadataStore.get(preview.source)
+        val duplicate = !replace || originalMetadata?.aiDuplicate == true || PluginMediaMetadataStore.isAiDuplicate(preview.source)
+        // SAF 교체의 경로 이전이 이전 메타데이터로 새 결과를 덮어쓰지 않도록 먼저 이전합니다.
         if (replace && result != preview.source) PluginDatabaseUtil.updateMediaPath(saved?.videoPath ?: preview.source, result)
+        PluginMediaMetadataStore.save(result, quality = quality, sourceQuality = originalMetadata?.sourceQuality ?: originalMetadata?.quality,
+            postPageIndex = originalMetadata?.postPageIndex ?: 0, postPageCount = originalMetadata?.postPageCount ?: 1,
+            aiDuplicate = duplicate, aiReplaced = replace)
         // 저장과 동시에 폴더 검사가 같은 복제를 먼저 등록했다면 이력을 두 번 넣지 않습니다.
         if (!replace && saved != null && PluginDatabaseUtil.getDownloadHistory().none { it.videoPath == result })
             PluginDatabaseUtil.insertInfoImmediately(saved.copy(id = 0, videoPath = result))
@@ -75,6 +78,7 @@ object EnhancementFiles {
                 }
             }
         }
+        AiMediaFilter.end(listOf(preview.source))
         result
         }
         } finally { saves.decrementAndGet(); preview.release() }

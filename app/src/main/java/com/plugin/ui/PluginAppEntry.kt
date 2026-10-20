@@ -176,6 +176,16 @@ fun PluginAppEntry(dialogViewModel: com.plugin.runtime.PluginDownloadDialogViewM
                 animatedComposable(PLUGINS_ROUTE) {
                     PluginsPage(onNavigateBack) { navController.navigate(it) { launchSingleTop = true } }
                 }
+                // 이전 버전의 저장된 목록 화면도 복원할 수 있게 경로만 남기고 기능은 홈으로 이전합니다.
+                animatedComposable(com.plugin.PluginRoutes.INSTAGRAM) {
+                    LaunchedEffect(Unit) {
+                        android.util.Log.i("PluginNavigation", "제거한 목록 경로를 홈으로 전환")
+                        navController.navigate(Route.HOME) {
+                            popUpTo(com.plugin.PluginRoutes.INSTAGRAM) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                }
                 featurePlugins.forEach { plugin ->
                     animatedComposable(plugin.route) {
                         if (!PluginState.isEnabled(plugin.id)) {

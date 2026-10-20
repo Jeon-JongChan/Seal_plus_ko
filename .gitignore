@@ -35,4 +35,5 @@ local.properties
 !.build/README.md
 !.build/Check-Optimizations.ps1
 !.build/Check-Optimizations.java
+!.build/Check-DuplicateAcceleration.ps1
 /Start-App.ps1

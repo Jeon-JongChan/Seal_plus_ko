@@ -4,7 +4,6 @@ import android.database.sqlite.SQLiteDatabase
 import com.junkfood.seal.App
 import com.junkfood.seal.database.objects.DownloadedVideoInfo
 import com.junkfood.seal.util.DatabaseUtil
-import com.junkfood.seal.util.FileUtil
 import com.junkfood.seal.util.ToastUtil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -103,7 +102,7 @@ object PluginDatabaseUtil {
     /** 파일 삭제 실패 시 DB 이력을 보존하며 안전하게 이력을 삭제합니다. */
     suspend fun deleteInfoListSafe(infoList: List<DownloadedVideoInfo>, deleteFile: Boolean = false) = withContext(Dispatchers.IO) {
         val removable = if (!deleteFile) infoList else infoList.filter { info ->
-            FileUtil.deleteFile(info.videoPath).onFailure {
+            CompatibilityFiles.deleteFile(info.videoPath).onFailure {
                 ToastUtil.makeToastSuspend(App.context.getString(com.junkfood.seal.R.string.loc_file_delete_failed))
             }.isSuccess
         }

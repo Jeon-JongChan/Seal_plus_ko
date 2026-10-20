@@ -38,8 +38,7 @@ fun UnifiedInputPage(
     var kind by rememberSaveable { mutableStateOf(runCatching {
         PluginDownloadKind.valueOf("plugin_download_kind".getString("Auto"))
     }.getOrDefault(PluginDownloadKind.Auto)) }
-    val imageAvailable = PluginState.isEnabled(PluginId.SOCIAL) ||
-        (PluginState.isEnabled(PluginId.LIST) && preferences.listProcessing)
+    val imageAvailable = PluginState.isEnabled(PluginId.SOCIAL)
     val activeKind = if (kind == PluginDownloadKind.Image && !imageAvailable) PluginDownloadKind.Auto else kind
     val inputType = activeKind.formatType
     EnhancedInputUrlPage(

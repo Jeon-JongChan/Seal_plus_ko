@@ -4,7 +4,6 @@
     <string name="plugin_open">Abrir ajustes y función</string>
     <string name="plugin_social">Publicaciones sociales e imágenes</string>
     <string name="plugin_social_desc">Analiza imágenes, vídeos y publicaciones de varias páginas de Instagram y TikTok. Al desactivarlo se utiliza el motor de vídeo original.</string>
-    <string name="plugin_list_desc">Pantalla propia para cuentas, medios y listas normales. Funciona sin activar el complemento social.</string>
     <string name="plugin_media_desc">Reutilización de archivos, conversión AV1 y contenedor. La clasificación se configura en Carpetas multimedia y archivos.</string>
     <string name="plugin_library_desc">Carpetas de imágenes y vídeos, niveles por resolución, filtros del historial y gestión de archivos. Funciona sin codificación de vídeo.</string>
     <string name="plugin_queue">Cola ampliada</string>

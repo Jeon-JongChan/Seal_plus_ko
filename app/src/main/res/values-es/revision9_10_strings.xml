@@ -20,7 +20,6 @@
     <string name="download_folder_quick_hint">Marca una carpeta como rápida. Tócala al descargar para aplicarla; tócala de nuevo para restaurar las reglas predeterminadas.</string>
     <string name="plugin_face_sort">Clasificar fotos sin rostro</string>
     <string name="plugin_face_sort_desc">Examina imágenes con YuNet o MediaPipe y reúne las fotos sin rostro en NOFACE.</string>
-    <string name="loc_profile_download_hint">Esta función aún está incompleta. Introduce una cuenta o una dirección de perfil de Instagram para cargar las publicaciones.</string>
     <string name="loc_frequent_accounts">Cuentas frecuentes</string>
     <string name="loc_frequent_accounts_desc">Consulta las cuentas frecuentes de Instagram y sus publicaciones o perfiles.</string>
     <string name="loc_post_info_plugin">Detalles de las publicaciones</string>

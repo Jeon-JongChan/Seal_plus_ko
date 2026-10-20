@@ -37,7 +37,6 @@ data class PluginPreferencesRecord(
     val reuseExisting: Boolean = false,
     val queueEnhancements: Boolean = false,
     val socialProcessing: Boolean = false,
-    val listProcessing: Boolean = false,
 )
 
 // 이미 설치된 Guava의 약한 식별 키로 동일 값의 요청을 구별하고 소멸한 화면 설정을 회수합니다.
@@ -108,7 +107,6 @@ val DownloadPreferences.mediaProcessing: Boolean get() = getRecord().mediaProces
 val DownloadPreferences.reuseExisting: Boolean get() = getRecord().reuseExisting
 val DownloadPreferences.queueEnhancements: Boolean get() = getRecord().queueEnhancements
 val DownloadPreferences.socialProcessing: Boolean get() = getRecord().socialProcessing
-val DownloadPreferences.listProcessing: Boolean get() = getRecord().listProcessing
 
 /** 플러그인 옵션을 복사하여 갱신합니다. */
 fun DownloadPreferences.copyPluginOptions(
@@ -138,7 +136,6 @@ fun DownloadPreferences.copyPluginOptions(
     reuseExisting: Boolean = this.reuseExisting,
     queueEnhancements: Boolean = this.queueEnhancements,
     socialProcessing: Boolean = this.socialProcessing,
-    listProcessing: Boolean = this.listProcessing,
 ): DownloadPreferences {
     val newRecord = PluginPreferencesRecord(
         videoContainer = videoContainer,
@@ -167,7 +164,6 @@ fun DownloadPreferences.copyPluginOptions(
         reuseExisting = reuseExisting,
         queueEnhancements = queueEnhancements,
         socialProcessing = socialProcessing,
-        listProcessing = listProcessing,
     )
     val copy = this.copy()
     copy.attachPluginOptions(newRecord)

@@ -205,7 +205,7 @@ fun MediaSettingsButton(preferences: DownloadUtil.DownloadPreferences,
 /** 모두 다운로드 선택을 공통 저장하고 여러 페이지 선택창의 생략 여부에 사용합니다. */
 @Composable
 fun DownloadAllChip(preferences: DownloadUtil.DownloadPreferences, onUpdate: (DownloadUtil.DownloadPreferences) -> Unit) {
-    if (!(com.plugin.PluginState.isEnabled(com.plugin.PluginId.SOCIAL) || com.plugin.PluginState.isEnabled(com.plugin.PluginId.LIST))) return
+    if (!com.plugin.PluginState.isEnabled(com.plugin.PluginId.SOCIAL)) return
     FilterChip(selected = preferences.downloadAllMedia, onClick = {
         DOWNLOAD_ALL_MEDIA.updateBoolean(!preferences.downloadAllMedia)
         onUpdate(preferences.copyPluginOptions(downloadAllMedia = !preferences.downloadAllMedia))

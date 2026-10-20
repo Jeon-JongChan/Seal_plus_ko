@@ -4,7 +4,6 @@
     <string name="plugin_open">Open settings and feature</string>
     <string name="plugin_social">Social posts and images</string>
     <string name="plugin_social_desc">Analyze Instagram and TikTok images, videos and multi-page posts. When disabled, use the original video engine.</string>
-    <string name="plugin_list_desc">Load and select posts and reels from an Instagram profile. Works independently of the social plugin.</string>
     <string name="plugin_media_desc">Saved-file reuse, AV1 conversion and container settings. Folder classification is configured in Media folders and file manager.</string>
     <string name="plugin_library_desc">Image/video folders, individual resolution tiers, history filters, grouped posts and file management. Works without video encoding.</string>
     <string name="plugin_queue">Enhanced queue</string>

@@ -7,5 +7,5 @@ import com.plugin.compatibility.*
 object PluginExecutionPolicy {
     /** 소셜 작업 또는 등록 시 켜진 대기열·미디어 처리는 확장 엔진이 담당합니다. */
     fun usesEnhancedEngine(task: Task): Boolean = task.type is Task.TypeInfo.SocialMedia ||
-        task.preferences.cookies || task.preferences.selectedFolder != null || task.preferences.listProcessing || task.preferences.socialProcessing || task.preferences.queueEnhancements || task.preferences.mediaProcessing || task.preferences.reuseExisting
+        task.preferences.cookies || task.preferences.selectedFolder != null || task.preferences.socialProcessing || task.preferences.queueEnhancements || task.preferences.mediaProcessing || task.preferences.reuseExisting
 }

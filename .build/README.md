@@ -40,4 +40,21 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .build/Start-App.ps1
 powershell -NoProfile -ExecutionPolicy Bypass -File .build/Check-Optimizations.ps1
 ```
 
-앱의 실제 JVM 클래스에서 정렬 순서·키 조회 수, 게시물 집계·재시도·AI 복제·삭제 수, 진행률·취소·해시 계약을 검사합니다. 별도 테스트 프레임워크를 설치하지 않으며 Android UI·실기기 성능 검사를 대신하지 않습니다.
+앱의 실제 JVM 클래스에서 정렬 순서·키 조회 수, 게시물 집계·재시도·AI 복제·삭제 수, 진행률·취소·해시 계약, 중복 판정·보존 우선순위·BK 인덱스를 검사합니다. 별도 테스트 프레임워크를 설치하지 않으며 Android UI·실기기 성능 검사를 대신하지 않습니다.
+
+디버그 APK를 에뮬레이터에 설치한 뒤 실제 모델·디코더·삭제 경계도 검사할 수 있습니다. 앱 소유 외부 폴더 아래 `duplicate-check/duplicate-check-*`에 검사 자료를 생성하고 그 자료만 조작하므로 모든 파일 접근 권한을 부여할 필요가 없습니다. 검사 중 저장 루트는 이 폴더로 바꾸고 기본 실행은 완료 후 복원합니다. `keepUi=true`는 후보·필터 화면 확인용 자료와 설정을 보존합니다.
+
+```powershell
+adb -s emulator-5556 shell am instrument -w -e keepUi true com.junkfood.seal.debug/com.plugin.duplicates.DuplicateCheck
+adb -s emulator-5556 shell am instrument -w -e restoreSettings true com.junkfood.seal.debug/com.plugin.duplicates.DuplicateCheck
+```
+
+첫 명령은 UI 확인용 실행이며 확인이 끝나면 두 번째 명령으로 저장 루트·기능 스위치를 복원하고 생성한 검사 대기열·이력만 정리합니다. 파일은 앱 소유 검사 폴더에 남습니다. 기존 제외 기록이 있는 기기에서는 검사를 중단합니다.
+
+검사는 MobileNetV3 Small/Large, 이미지 재압축·영상 해상도 변형, 다른 이미지·길이 오탐 방어, 캐시 복원·제외 기록, 변경된 삭제 대상 거절, 승인 삭제와 실패 시 이력 보존을 실행합니다. 이 검사 진입점은 릴리스 APK에 포함되지 않습니다.
+
+중복 비교 가속 옵션과 두 모델의 LiteRT 전처리 동등성·실행 실패 대체는 다음 명령으로 확인합니다. 디버그 APK를 빌드한 뒤 지정된 검증 에뮬레이터를 확인하고 필요하면 시작합니다. 실제 사용자 기기는 사용하지 않으며 NPU 런타임은 다운로드하지 않습니다.
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .build/Check-DuplicateAcceleration.ps1
+```

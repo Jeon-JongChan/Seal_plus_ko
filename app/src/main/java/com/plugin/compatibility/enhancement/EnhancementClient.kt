@@ -6,6 +6,7 @@ import android.os.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import java.io.File
+import com.plugin.compatibility.AiMediaFilter
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
@@ -27,6 +28,7 @@ object EnhancementClient {
         check(!com.plugin.compatibility.PluginMediaMetadataStore.isProcessingExcluded(source)) { "NOFACE 폴더는 보정 대상에서 제외됩니다." }
         check(running.tryLock()) { "다른 미디어 보정이 진행 중입니다." }
         val directory = File(context.cacheDir, "image-ai/${java.util.UUID.randomUUID()}")
+        AiMediaFilter.begin(listOf(source))
         try {
             check(!com.plugin.compatibility.TemporarySession.changing) { "저장소 전환이 진행 중입니다." }
             check(directory.mkdirs()) { "영상 작업 폴더를 만들 수 없습니다." }
@@ -72,7 +74,7 @@ object EnhancementClient {
                 (if (source.startsWith("content://")) androidx.documentfile.provider.DocumentFile.fromSingleUri(context, Uri.parse(source))?.name.orEmpty()
                     else File(source).name).substringAfterLast('.', "").lowercase(),
                 result.getString("engine").orEmpty(), result.getInt("worker_pid"), true, result.getDouble("frame_rate"), result.getDouble("duration"), result.getString("codec").orEmpty())
-        } catch (failure: Throwable) { directory.deleteRecursively(); throw failure }
+        } catch (failure: Throwable) { AiMediaFilter.end(listOf(source)); directory.deleteRecursively(); throw failure }
         finally { stage.value = ""; running.unlock() }
     }
 
@@ -82,6 +84,7 @@ object EnhancementClient {
         val images = EnhancementRules.postImages(paths)
         require(images.isNotEmpty()) { "보정할 이미지가 없습니다." }
         val previews = mutableListOf<Preview>()
+        AiMediaFilter.begin(images)
         try {
             for ((index, image) in images.withIndex()) {
                 currentCoroutineContext().ensureActive()
@@ -89,7 +92,7 @@ object EnhancementClient {
                 previews += enhance(context, image, option, onEngine) { progress(index + 1, images.size, it) }
             }
             return previews
-        } catch (failure: Throwable) { previews.forEach(::discard); throw failure }
+        } catch (failure: Throwable) { AiMediaFilter.end(images); previews.forEach(::discard); throw failure }
     }
 
     /** 응답으로 전달된 일반 오류와 프로세스 자체의 종료를 구별합니다. */
@@ -113,7 +116,7 @@ object EnhancementClient {
         /** 마지막 저장이 끝난 뒤 미뤄둔 정리를 수행합니다. */
         internal fun release() {
             val remove = synchronized(this) { check(saves > 0); --saves == 0 && discarded }
-            if (remove) directory.deleteRecursively()
+            if (remove) { AiMediaFilter.end(listOf(source)); directory.deleteRecursively() }
         }
 
         /** 화면 종료는 저장 중인 결과의 삭제를 마지막 저장 완료까지 미룹니다. */
@@ -122,7 +125,7 @@ object EnhancementClient {
                 if (discarded) false else { discarded = true; saves == 0 }
             }
             // UI 종료에서 큰 작업 사본을 지우느라 메인 스레드를 막지 않습니다.
-            if (remove) cleanup.launch { directory.deleteRecursively() }
+            if (remove) { AiMediaFilter.end(listOf(source)); cleanup.launch { directory.deleteRecursively() } }
         }
     }
 
@@ -135,6 +138,7 @@ object EnhancementClient {
             EnhancementSampling.normalized(EnhancementSampling.KEY.getInt(EnhancementSampling.BILINEAR))
         }
         val directory = File(context.cacheDir, "image-ai/${java.util.UUID.randomUUID()}")
+        AiMediaFilter.begin(listOf(source))
         try {
             check(!com.plugin.compatibility.TemporarySession.changing) { "저장소 전환이 진행 중입니다." }
             check(directory.mkdirs()) { "보정 임시 폴더를 만들 수 없습니다." }
@@ -197,7 +201,7 @@ object EnhancementClient {
             } }
             return Preview(source, directory, withContext(Dispatchers.IO) { EnhancementModels.hash(snapshot) },
                 result.getInt("width"), result.getInt("height"), format, result.getString("engine").orEmpty(), result.getInt("worker_pid"))
-        } catch (failure: Throwable) { directory.deleteRecursively(); throw failure }
+        } catch (failure: Throwable) { AiMediaFilter.end(listOf(source)); directory.deleteRecursively(); throw failure }
         finally { stage.value = ""; running.unlock() }
     }
 

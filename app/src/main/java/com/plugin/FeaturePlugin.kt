@@ -3,7 +3,6 @@ package com.plugin
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.plugin.image.ImageDownloadPlugin
-import com.plugin.listdownload.ListDownloadPlugin
 import com.plugin.media.MediaSettingsPlugin
 import com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel
 
@@ -43,13 +42,14 @@ val featurePlugins: List<FeaturePlugin> get() = PluginFactory.all
 
 /** 등록·조회·활성 전략 선택을 담당하며 플러그인 인스턴스는 재생성하지 않습니다. */
 object PluginFactory {
-    val all: List<FeaturePlugin> by lazy { listOf(ImageDownloadPlugin, ListDownloadPlugin, MediaSettingsPlugin,
+    val all: List<FeaturePlugin> by lazy { listOf(ImageDownloadPlugin, MediaSettingsPlugin,
     com.plugin.library.LibraryPlugin, com.plugin.interaction.InteractionPlugin,
     com.plugin.enhancement.ImageEnhancementPlugin,
     com.plugin.videoenhancement.VideoEnhancementPlugin,
     com.plugin.instagram.FrequentAccountsPlugin,
     com.plugin.instagram.PostInfoPlugin, com.plugin.folders.DownloadFoldersPlugin,
-    com.plugin.faces.FaceSortPlugin, com.plugin.sharemenu.ShareMenuPlugin, com.plugin.temporary.TemporaryPlugin) }
+    com.plugin.faces.FaceSortPlugin, com.plugin.duplicates.DuplicatePlugin,
+    com.plugin.sharemenu.ShareMenuPlugin, com.plugin.temporary.TemporaryPlugin) }
 
     /** 설정 화면도 같은 등록 목록에서 기능의 파사드를 찾습니다. */
     fun create(id: PluginId): FeaturePlugin? = all.firstOrNull { it.id == id }

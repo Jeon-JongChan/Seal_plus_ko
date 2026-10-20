@@ -68,7 +68,6 @@ fun PluginsPage(onBack: () -> Unit, onNavigate: (String) -> Unit) {
             items(ids, key = { it.name }) { id ->
                 val (title, description) = when (id) {
                     PluginId.SOCIAL -> R.string.plugin_social to R.string.plugin_social_desc
-                    PluginId.LIST -> R.string.loc_list_downloads to R.string.plugin_list_desc
                     PluginId.MEDIA -> R.string.loc_media_tools to R.string.plugin_media_desc
                     PluginId.LIBRARY -> R.string.plugin_library to R.string.plugin_library_desc
                     PluginId.QUEUE -> R.string.plugin_queue to R.string.plugin_queue_desc
@@ -80,6 +79,7 @@ fun PluginsPage(onBack: () -> Unit, onNavigate: (String) -> Unit) {
                     PluginId.ACCOUNTS -> R.string.loc_frequent_accounts to R.string.loc_frequent_accounts_desc
                     PluginId.FOLDERS -> R.string.plugin_download_folders to R.string.plugin_download_folders_desc
                     PluginId.FACE_SORT -> R.string.plugin_face_sort to R.string.plugin_face_sort_desc
+                    PluginId.DUPLICATES -> R.string.plugin_duplicates to R.string.plugin_duplicates_desc
                     PluginId.POST_INFO -> R.string.loc_post_info_plugin to R.string.loc_post_info_plugin_desc
                 }
                 val enabled = PluginState.isEnabled(id)

@@ -2,6 +2,9 @@ package com.plugin.queue
 
 import com.plugin.compatibility.PluginPreferences
 import com.plugin.compatibility.sortMedia
+import com.plugin.compatibility.AiMediaFilter
+import com.plugin.compatibility.PluginMediaMetadataStore
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.plugin.compatibility.refreshCompletedFiles
 
 import com.junkfood.seal.ui.page.downloadv2.*
@@ -298,12 +301,15 @@ fun DownloadPageImplV2(
 ) {
     var sortByName by rememberSaveable { mutableStateOf(PluginPreferences.queueSortByName) }
     var activeFilter by remember { mutableStateOf(Filter.All) }
+    var aiOnly by rememberSaveable { mutableStateOf(false) }
+    val pendingAi by AiMediaFilter.pending.collectAsStateWithLifecycle()
+    val metadataRevision by PluginMediaMetadataStore.revision.collectAsStateWithLifecycle()
     val selectedIds = remember { mutableStateListOf<String>() }
     var selecting by remember { mutableStateOf(false) }
     var deletionTargets by remember { mutableStateOf<List<Task>>(emptyList()) }
     var deleteFiles by remember { mutableStateOf(false) }
     var incrementalLoading by rememberSaveable { mutableStateOf(PluginPreferences.queueIncrementalLoading) }
-    var visibleCount by remember(activeFilter, sortByName, incrementalLoading) { mutableIntStateOf(5) }
+    var visibleCount by remember(activeFilter, sortByName, incrementalLoading, aiOnly) { mutableIntStateOf(5) }
     var groupedSnapshot by remember(taskDownloadStateMap) {
         mutableStateOf(QueueMedia.Snapshot())
     }
@@ -316,8 +322,11 @@ fun DownloadPageImplV2(
             }
         }
     }
-    val filteredMap = remember(groupedSnapshot.states, activeFilter) {
-        groupedSnapshot.states.filter { activeFilter.predict(it.toPair()) }
+    val filteredMap = remember(groupedSnapshot.states, activeFilter, aiOnly, pendingAi, metadataRevision) {
+        groupedSnapshot.states.filter { (task, state) ->
+            activeFilter.predict(task to state) &&
+                (!aiOnly || AiMediaFilter.matches((state.downloadState as? Completed)?.filePaths.orEmpty(), pendingAi))
+        }
     }
     val sortedTasks = remember(filteredMap, sortByName) {
         filteredMap.toList().sortMedia(sortByName, { it.first.timeCreated }, { it.second.viewState.title.ifBlank { it.first.url } })
@@ -455,6 +464,7 @@ fun DownloadPageImplV2(
                     // 데이터가 바뀌는 다음 배치에서 이전 항목 키의 스크롤 앵커를 해제합니다.
                     // 정렬·불러오기 선택도 상태 필터와 같은 그룹 칩 모양으로 맞추고, 좁은 화면에서는 가로 스크롤합니다.
                     SelectionGroupRow(modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 4.dp)) {
+                        SelectionGroupItem(selected = aiOnly, onClick = { aiOnly = !aiOnly; selectedIds.clear(); lazyListState.requestScrollToItem(0) }) { Text("복제·교체") }
                         SelectionGroupItem(selected = !sortByName, onClick = { sortByName = false; PluginPreferences.queueSortByName = false; lazyListState.requestScrollToItem(0) }) { Text("시간순") }
                         SelectionGroupItem(selected = sortByName, onClick = { sortByName = true; PluginPreferences.queueSortByName = true; lazyListState.requestScrollToItem(0) }) { Text("이름순") }
                         SelectionGroupItem(selected = incrementalLoading, onClick = {

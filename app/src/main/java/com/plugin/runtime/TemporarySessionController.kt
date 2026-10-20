@@ -32,6 +32,7 @@ object TemporarySessionController {
     /** 작업 중 저장 루트가 바뀌어 파일·이력이 다른 저장소로 넘어가는 것을 막습니다. */
     private fun requireIdle(engine: PluginTaskEngine) {
         check(engine.restored && !EnhancementClient.busy && !EnhancementFiles.busy && !FaceScanService.state.value.running && !MediaScanService.state.value.running &&
+            !com.plugin.duplicates.DuplicateScanService.state.value.running && !com.plugin.duplicates.DuplicateScanService.editing.value &&
             engine.getTaskStateMap().values.none { it.downloadState is PluginTask.DownloadState.Cancelable ||
                 it.downloadState == PluginTask.DownloadState.Idle || it.downloadState == PluginTask.DownloadState.ReadyWithInfo }) {
             "진행 중인 다운로드·분류·보정 작업을 마친 후 변경하세요."

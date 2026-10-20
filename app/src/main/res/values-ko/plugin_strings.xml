@@ -4,7 +4,6 @@
     <string name="plugin_open">하위 설정 및 기능 열기</string>
     <string name="plugin_social">소셜 게시물·이미지 다운로드</string>
     <string name="plugin_social_desc">인스타그램·틱톡의 이미지, 영상과 여러 페이지 게시물을 분석합니다. 끄면 기존 영상 다운로드 엔진을 사용합니다.</string>
-    <string name="plugin_list_desc">인스타그램 프로필의 게시물·릴스를 조회하고 선택해 다운로드합니다. 소셜 플러그인을 켜지 않아도 독립적으로 작동합니다.</string>
     <string name="plugin_media_desc">저장 파일 재사용, AV1 변환과 컨테이너 설정입니다. 폴더 분류는 미디어 폴더·파일 관리에서 설정합니다.</string>
     <string name="plugin_library_desc">이미지·영상 폴더와 해상도별 분류, 이력 필터, 게시물 묶음·파일 관리를 제공합니다. 영상 인코딩 없이 작동합니다.</string>
     <string name="plugin_queue">대기열 확장</string>

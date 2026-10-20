@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<resources>
-    <string name="loc_list_downloads">Descargas de listas</string>
-    <string name="loc_playlist_tab">URL de listas</string>
-    <string name="loc_playlist_description">Carga una lista de YouTube u otro sitio compatible y selecciona todos o algunos elementos para descargarlos.</string>
-    <string name="loc_playlist_url">URL de la lista</string>
-    <string name="loc_load_playlist">Cargar lista</string>
-    <string name="loc_invalid_playlist_url">Introduce una URL de lista HTTP o HTTPS válida.</string>
-</resources>

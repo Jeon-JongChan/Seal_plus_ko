@@ -6,7 +6,6 @@
 | --- | --- | --- | --- |
 | 필수 | 호환 기반 | 기존 데이터 형식, 파일 검증·저장소·이력, 공통 설정·옵션 UI, 원본과 확장 실행 연결 | `compatibility/`, `runtime/` |
 | 선택 | SOCIAL | 게시물 이미지·영상 분석, 혼합 게시물 선택, 인스타그램·틱톡 | `image/`, `instagram/`, `tiktok/` |
-| 선택 | LIST | 별도 목록 화면, 계정 조회, 이미지·영상 선택, 전체 다운로드 | `listdownload/` |
 | 선택 | MEDIA | 파일 재사용, AV1 변환, 컨테이너 선택 | `media/` |
 | 선택 | LIBRARY | 미디어 폴더, 이미지·영상 해상도별 분류, 이력 필터·파일 관리·자체 뷰어 | `library/` |
 | 선택 | QUEUE | 대기열 묶음·상세 정보, 5개씩 표시, 선택·삭제, 자체 뷰어 | `queue/` |
@@ -19,12 +18,13 @@
 | 선택 | POST_INFO | 게시글 설명·링크·저장 메타데이터 | `instagram/` |
 | 선택 | FOLDERS | 기본 디렉터리 안의 기존 저장폴더 등록·요청별 선택 | `folders/` |
 | 선택 | FACE_SORT | YuNet·MediaPipe 얼굴 판별과 얼굴 없는 이미지의 NOFACE 분류 | `faces/` |
+| 선택 | DUPLICATES | MobileNetV3 이미지·영상 중복 후보, 보존 우선순위·제외 기록·승인 삭제 | `duplicates/` |
 
 ## 원본 보존
 
 비교 기준은 JunkFood 원본 커밋 `7677f61a20fda4210e84215fef9e9b51d25daa47`이다. 원본 `DownloaderV2Impl`에는 선택 기능 구현·참조를 두지 않는다. 원본 다운로드 설정 창과 탐색 메뉴도 복원하고 앞쪽에서 확장 화면에 전달한다. 추가 설명·주석·README는 원본 폴더에 두지 않는다.
 
-`App`에서 주입하는 `PluginDownloaderV2`는 원본 엔진과 확장 엔진이 같은 작업 저장소·코루틴을 쓰도록 연결한다. 새 요청은 `PluginPolicy`로 제한하고, 실행 경로는 작업 사본의 `socialProcessing`, `listProcessing`, `queueEnhancements`, 미디어 설정 및 기존 소셜 작업 유형으로 결정한다. 스위치 변경 시 객체나 진행 중인 작업의 설정을 교체하지 않는다.
+`App`에서 주입하는 `PluginDownloaderV2`는 원본 엔진과 확장 엔진이 같은 작업 저장소·코루틴을 쓰도록 연결한다. 새 요청은 `PluginPolicy`로 제한하고, 실행 경로는 작업 사본의 `socialProcessing`, `queueEnhancements`, 미디어 설정 및 기존 소셜 작업 유형으로 결정한다. 스위치 변경 시 객체나 진행 중인 작업의 설정을 교체하지 않는다. 제거한 목록 플러그인의 구형 `listProcessing` JSON 필드는 역직렬화 시 무시하며 기존 소셜 작업은 공통 소셜 엔진으로 처리한다.
 
 원본 경로에는 설정·작업·상태 모델과 Room 스키마, 데이터 접근 API가 호환 계약으로 남는다. 설정 생성·파일 처리·이력 복구의 확장 구현은 필수 기반에 전달한다. DB 모델까지 이전 버전으로 되돌리거나 타입 이름을 임의 변경하면 기존 데이터를 읽지 못하므로 이를 원본 복원의 대상으로 삼지 않는다.
 

@@ -103,6 +103,12 @@
                 android:value="User initiated local media folder scan and classification" />
         </service>
 
+        <service android:name="com.plugin.duplicates.DuplicateScanService" android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User initiated offline duplicate image and video analysis" />
+        </service>
+
         <service android:name="com.plugin.faces.FaceScanService" android:exported="false"
             android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"

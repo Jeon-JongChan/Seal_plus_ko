@@ -8,6 +8,7 @@ import androidx.documentfile.provider.DocumentFile
 import com.junkfood.seal.App.Companion.context
 import com.junkfood.seal.R
 import java.io.File
+import com.plugin.runtime.pluginQueue
 
 /** 기존 파일 API의 삭제 검증·SAF 보존 동작을 항상 제공합니다. */
 object CompatibilityFiles {
@@ -17,6 +18,8 @@ object CompatibilityFiles {
 
     /** 삭제 성공 후에만 같은 파일의 완료 대기열 항목을 파일 없음으로 표시합니다. */
     fun deleteFile(path: String): Result<Unit> = runCatching {
+        // 런타임 연결 실패를 파일 삭제 전에 확인해 파일만 사라진 실패 결과를 만들지 않습니다.
+        val queue = org.koin.core.context.GlobalContext.get().get<com.junkfood.seal.download.DownloaderV2>().pluginQueue()
         val uri = Uri.parse(path)
         val deleted = if (uri.scheme == "content") {
             val document = DocumentFile.fromSingleUri(context, uri)
@@ -26,7 +29,7 @@ object CompatibilityFiles {
             !file.exists() || file.delete()
         }
         check(deleted) { context.getString(R.string.loc_file_delete_failed) }
-        org.koin.core.context.GlobalContext.get().get<com.junkfood.seal.download.DownloaderV2>().removeCompletedFile(path)
+        queue.removeCompletedFile(path)
     }
 
     @CheckResult

@@ -11,5 +11,5 @@ fun usePluginDialog(
     state: Any,
     enabled: Set<PluginId> = PluginId.entries.filter(PluginState::isEnabled).toSet(),
 ): Boolean =
-    listOf(PluginId.SOCIAL, PluginId.LIST, PluginId.MEDIA, PluginId.LIBRARY, PluginId.INTERACTION, PluginId.FOLDERS).any { it in enabled } ||
+    listOf(PluginId.SOCIAL, PluginId.MEDIA, PluginId.LIBRARY, PluginId.INTERACTION, PluginId.FOLDERS).any { it in enabled } ||
         state is InstagramSelectionState || state is DownloadDialogViewModel.SheetState.Error

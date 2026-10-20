@@ -35,11 +35,6 @@ class PluginDialogController(
             { mSheetStateFlow.value = it }, hideDialog, ::downloadWithPreset)
     }
 
-    private val listController by lazy {
-        com.plugin.listdownload.ListDownloadController(scope, downloader,
-            { mSheetStateFlow.value = it }, hideDialog, ::downloadWithPreset)
-    }
-
     /** 새 요청 사본에 현재 활성 기능만 적용합니다. */
     fun filter(action: Any): Any {
         return when (action) {
@@ -57,14 +52,9 @@ class PluginDialogController(
     fun handle(action: Any): Boolean {
         val social = PluginState.isEnabled(PluginId.SOCIAL)
         when (action) {
-            is InspectInstagramAction -> if (action.preferences.listProcessing) listController.inspect(action) else socialController.inspect(action)
-            is DownloadInstagramAction -> if (action.preferences.listProcessing) listController.download(action) else socialController.download(action)
+            is InspectInstagramAction -> socialController.inspect(action)
+            is DownloadInstagramAction -> socialController.download(action)
             is Action.FetchPlaylist -> {
-                if (action.preferences.listProcessing && (MediaRules.instagramAccount(action.url) != null ||
-                    MediaRules.usesSocialMediaApi(action.url, action.preferences.extractAudio))) {
-                    listController.inspect(InspectInstagramAction(action.url, action.preferences))
-                    return true
-                }
                 if (!action.preferences.downloadAllMedia && action.preferences.mediaSelection != 2 &&
                     !(social && (MediaRules.instagramAccount(action.url) != null ||
                         MediaRules.usesSocialMediaApi(action.url, action.preferences.extractAudio)))) return false
@@ -87,7 +77,6 @@ class PluginDialogController(
     /** 소셜 HTTP 조회도 일반 엔진 취소와 함께 중단합니다. */
     fun cancel(taskKey: String) {
         InstagramUtil.cancel(taskKey)
-        com.plugin.listdownload.ListMediaUtil.cancel(taskKey)
     }
 
     /** 일반 재생목록은 기존 엔진, 이미지·계정 목록은 전용 API로 조회합니다. */

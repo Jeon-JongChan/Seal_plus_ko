@@ -145,6 +145,9 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
     if (showFileManager) MediaFileManagerDialog { showFileManager = false }
     val viewState by viewModel.stateFlow.collectAsStateWithLifecycle()
     var mediaFilter by remember { mutableIntStateOf(0) }
+    var aiOnly by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    val pendingAi by AiMediaFilter.pending.collectAsStateWithLifecycle()
+    val metadataRevision by PluginMediaMetadataStore.revision.collectAsStateWithLifecycle()
     var sortByName by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(enhanced && PluginPreferences.historySortByName) }
     var folderMode by remember { mutableStateOf(false) }
     var folderFilter by remember { mutableStateOf<String?>(null) }
@@ -185,7 +188,7 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
         if (viewState.isSearching) fullVideoList.filter { it.id in searchedIds } else fullVideoList
     }
     val posts by produceState<List<List<DownloadedVideoInfo>>>(emptyList(), videoList,
-        listOf(mediaFilter, folderFilter, sortByName, enhanced)) {
+        listOf(mediaFilter, folderFilter, sortByName, enhanced, aiOnly, pendingAi, metadataRevision, if (aiOnly) fullVideoList else null)) {
         // 대량 이력의 필터·그룹·정렬은 UI 스레드 밖에서 한 번만 계산합니다.
         value = withContext(Dispatchers.Default) {
         val visible = videoList.filter { it.filterSort(mediaFilter, folderFilter) }
@@ -193,7 +196,8 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
         fun keyOf(info: DownloadedVideoInfo) =
             if (enhanced && info.extractor.lowercase() in setOf("instagram", "tiktok")) MediaRules.identity(info.videoUrl.substringBefore('#'))
             else info.videoPath
-        val (duplicates, originals) = visible.partition { PluginMediaMetadataStore.isAiDuplicate(it.videoPath) }
+        val basis = if (aiOnly) fullVideoList else visible
+        val (duplicates, originals) = basis.partition { PluginMediaMetadataStore.isAiDuplicate(it.videoPath) }
         val byUrl = originals.associateBy { it.videoUrl }
         // AI 복제는 원본과 같은 키를 써야 한 게시글로 묶입니다.
         // 같은 폴더의 원본 파일 이름(정확한 원본 페이지)을 먼저 보고, 이름이 바뀐 경우에만 URL로 찾습니다.
@@ -201,12 +205,18 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
         val duplicateKeys = duplicates.associate { dup ->
             dup.id to ((byName?.invoke(dup.videoPath) ?: byUrl[dup.videoUrl])?.let(::keyOf) ?: keyOf(dup))
         }
+        // 종류·폴더 필터에 가려진 페이지도 게시물의 복제·교체 자격 판정에는 포함합니다.
+        val aiPosts = if (aiOnly) basis.asSequence()
+            .filter { AiMediaFilter.matches(listOf(it.videoPath), pendingAi) }
+            .map { duplicateKeys[it.id] ?: keyOf(it) }.toSet() else emptySet()
         visible.groupBy { duplicateKeys[it.id] ?: keyOf(it) }
-            .values.map { it.sortedBy { page -> page.postPageIndex } }
+            .filterKeys { !aiOnly || it in aiPosts }.values
+            .map { it.sortedBy { page -> page.postPageIndex } }
         // 원본 이력에 시각 필드가 없어 증가하는 등록 ID로 최신 등록 순서를 유지합니다.
         .sortMedia(sortByName, { post -> post.maxOf { it.id }.toLong() }, { post -> post.first().videoTitle }) }
     }
-    var visibleCount by remember(mediaFilter, folderFilter, sortByName, viewState.isSearching, searchedIds) { mutableIntStateOf(30) }
+    val filteredIds = remember(posts) { posts.flatten().map { it.id }.toSet() }
+    var visibleCount by remember(mediaFilter, folderFilter, sortByName, viewState.isSearching, searchedIds, aiOnly) { mutableIntStateOf(30) }
     var openedPost by remember { mutableStateOf<Pair<List<String>, String?>?>(null) }
     openedPost?.let { (paths, initial) -> PostMediaViewer(paths, initial) { openedPost = null } }
     var wallpaperPages by remember { mutableStateOf<List<com.plugin.ui.WallpaperPageItem>?>(null) }
@@ -267,7 +277,7 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
         }.collect { reachedEnd -> if (reachedEnd) visibleCount = minOf(visibleCount + 30, posts.size) }
     }
     // 정렬·폴더·유형이 바뀌면 이전 항목의 위치 대신 새 목록의 처음을 표시합니다.
-    LaunchedEffect(folderFilter, mediaFilter) { lazyListState.requestScrollToItem(0) }
+    LaunchedEffect(folderFilter, mediaFilter, aiOnly) { lazyListState.requestScrollToItem(0) }
 
     @Composable
     /** FilterChips에 필요한 화면 구성 또는 처리 규칙을 제공합니다. */
@@ -282,6 +292,7 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
             }
             Row(Modifier.horizontalScroll(rememberScrollState())) {
                 if (enhanced) {
+                    VideoFilterChip(selected = aiOnly, onClick = { aiOnly = !aiOnly }, label = "복제·교체")
                     VideoFilterChip(selected = !folderMode, onClick = { folderMode = false; folderFilter = null }, label = "전체보기")
                     VideoFilterChip(selected = folderMode, onClick = { folderMode = true; folderFilter = folderRoot }, label = "폴더별")
                     VideoFilterChip(selected = !sortByName, onClick = { sortByName = false; PluginPreferences.historySortByName = false; lazyListState.requestScrollToItem(0) }, label = "시간순")
@@ -300,7 +311,8 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
         }
     }
 
-    val selectedItemIds = remember(videoList, viewState, mediaFilter, folderFilter) { mutableStateListOf<Int>() }
+    val selectedItemIds = remember(videoList, viewState, mediaFilter, folderFilter, aiOnly) { mutableStateListOf<Int>() }
+    LaunchedEffect(filteredIds) { selectedItemIds.retainAll(filteredIds) }
     val selectedIds by remember(selectedItemIds) { derivedStateOf { selectedItemIds.toSet() } }
 
     val visiblePostIds by remember(lazyListState) { derivedStateOf {
@@ -345,8 +357,8 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
         }
 
     val visibleItemCount =
-        remember(videoList, viewState, mediaFilter, folderFilter) {
-            mutableIntStateOf(videoList.count { it.filterSort(mediaFilter, folderFilter) })
+        remember(filteredIds) {
+            mutableIntStateOf(filteredIds.size)
         }
 
     val checkBoxState by
@@ -508,7 +520,7 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
                                 else -> {
                                     // 선택 여부를 집합으로 조회해 대량 전체 선택의 반복 선형 탐색을 없앱니다.
                                     selectedItemIds.addAll(videoList.filter {
-                                        it.id !in selectedIds && it.filterSort(mediaFilter, folderFilter)
+                                        it.id !in selectedIds && it.id in filteredIds
                                     }.map { it.id })
                                 }
                             }
@@ -770,7 +782,7 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
             if (selectedItemIds.isNotEmpty()) {
                 videoList.filter { it.id in selectedIds }
             } else {
-                videoList.filter { it.filterSort(mediaFilter, folderFilter) }
+                videoList.filter { it.id in filteredIds }
             }
 
         ExportDialog(onDismissRequest = { showExportDialog = false }, itemCount = list.size) {
