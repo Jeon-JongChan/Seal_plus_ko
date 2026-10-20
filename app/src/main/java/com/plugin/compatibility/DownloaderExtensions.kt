@@ -28,14 +28,28 @@ fun PluginTaskDownloader.enqueueBatch(tasks: Map<Task, Task.State>) {
     if (this is PluginTaskEngine) enqueueBatch(tasks) else putBatch(tasks)
 }
 
+/**
+ * 같은 ID의 요청이 대기·조회·진행·정상 완료 상태이면 중복으로 봅니다.
+ * 실패·취소·삭제된 완료 작업은 다시 추가해 교체할 수 있습니다.
+ */
+internal fun Map<Task, Task.State>.isDuplicateOf(task: Task): Boolean = any { (old, state) ->
+    old.id == task.id && when (val s = state.downloadState) {
+        is DownloadState.Error, is DownloadState.Canceled -> false
+        is Completed -> !s.missing
+        else -> true
+    }
+}
+
 /** 한 게시물의 모든 페이지를 함께 등록하고 추가 토스트는 게시물당 한 번 표시합니다. */
 internal fun PluginTaskDownloader.putBatch(tasks: Map<Task, Task.State>) {
         val states = getTaskStateMap()
         val snapshot = states.toMap()
         // 갱신된 CDN 주소가 달라도 같은 작업 ID는 교체하고 이미 실행 중인 작업은 유지합니다.
-        val pending = tasks.filterKeys { task -> snapshot.none { (old, state) ->
-            old.id == task.id && state.downloadState is DownloadState.Cancelable
-        } }
+        val pending = tasks.filterKeys { task -> !snapshot.isDuplicateOf(task) }
+        if (pending.isEmpty() && tasks.isNotEmpty()) {
+            ToastUtil.makeToastSuspend(App.context.getString(R.string.loc_task_duplicate))
+            return
+        }
         val ids = pending.keys.map { it.id }.toSet()
         androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot {
             states.keys.filter { it.id in ids }.forEach { states.remove(it) }
@@ -66,7 +80,9 @@ fun Task.State.withoutCompletedFile(path: String): Task.State {
     return copy(
         downloadState = if (remaining.isEmpty()) completed.copy(missing = true)
             else Completed(remaining.first(), remaining),
-        viewState = viewState.copy(mediaCount = maxOf(viewState.mediaCount, completed.filePaths.distinct().size)),
+        // 원본 페이지 삭제는 전체 수를 보존하지만 AI 복제는 원본 페이지 수에 포함하지 않아 삭제하면 개수도 줄어야 합니다.
+        viewState = viewState.copy(mediaCount = maxOf(viewState.mediaCount,
+            completed.filePaths.distinct().count { !PluginMediaMetadataStore.isAiDuplicate(it) })),
     )
 }
 

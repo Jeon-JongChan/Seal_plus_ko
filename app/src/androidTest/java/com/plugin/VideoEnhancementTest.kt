@@ -73,6 +73,10 @@ class VideoEnhancementTest {
         val root = File(context.cacheDir, "video-codecs-${java.util.UUID.randomUUID()}").apply { mkdirs() }
         try {
             for ((codec, expected) in listOf("libx264" to "video/avc", "libx265" to "video/hevc", "libvpx" to "video/av01")) {
+                // 기기에 해당 인코더가 없으면 다른 코덱으로 대체되는 것이 올바른 동작이므로 유지 검증을 건너뜁니다(에뮬레이터 등).
+                val available = android.media.MediaCodecList(android.media.MediaCodecList.REGULAR_CODECS).codecInfos
+                    .any { it.isEncoder && expected in it.supportedTypes && runCatching { it.getCapabilitiesForType(expected).videoCapabilities.isSizeSupported(640, 480) }.getOrDefault(false) }
+                if (!available) continue // 출력 크기(최대 640x480)를 인코딩할 수 있는 해당 코덱이 없으면 대체가 정상입니다.
                 val work = File(root, codec).apply { mkdirs() }
                 val source = fixture(context, work, codec = codec, size = if (codec == "libx265") "320x240" else "64x48")
                 val hash = EnhancementModels.hash(source); source.copyTo(File(work, "source"))

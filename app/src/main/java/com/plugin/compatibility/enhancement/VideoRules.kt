@@ -6,18 +6,24 @@ import kotlin.math.roundToLong
 object VideoRules {
     val frameRates = listOf(0, 24, 25, 30, 50, 60)
 
-    /** 기본은 AV1 우선이며 원본 유지 선택과 플랫폼 지원 범위에 따라 대체 순서를 정합니다. */
+    /**
+     * 기본은 AV1 우선이며 원본 유지 선택과 플랫폼 지원 범위에 따라 대체 순서를 정합니다.
+     * H.264 인코더는 기기마다 최대 해상도(1080p·2K 등)가 달라 업스케일 결과를 처리하지 못하는 일이 흔하므로,
+     * 선택·원본 코덱이 실패해도 H.265(MP4 기록 가능) → H.264 → AV1 순으로 항상 저장 가능한 대체를 이어 붙입니다.
+     */
     fun encoderMimes(source: String, sdk: Int, preserveOriginal: Boolean = false, selected: String = "auto"): List<String> = buildList {
-        if (selected == "h264" || selected == "h265") {
-            add(if (selected == "h264") "video/avc" else "video/hevc")
-            return@buildList
+        if (selected == "h264" || selected == "h265") add(if (selected == "h264") "video/avc" else "video/hevc")
+        else {
+            val original = source in listOf("video/avc", "video/hevc", "video/mp4v-es", "video/3gpp", "video/x-vnd.on2.vp9") ||
+                source == "video/av01" && sdk >= 34
+            if (preserveOriginal && original) add(source)
+            // 플랫폼 MP4 기록기의 AV1 지원은 Android 14부터입니다.
+            if (sdk >= 34 && "video/av01" !in this) add("video/av01")
+            if (original && source !in this) add(source)
         }
-        val original = source in listOf("video/avc", "video/hevc", "video/mp4v-es", "video/3gpp", "video/x-vnd.on2.vp9") ||
-            source == "video/av01" && sdk >= 34
-        if (preserveOriginal && original) add(source)
-        // 플랫폼 MP4 기록기의 AV1 지원은 Android 14부터입니다.
+        // 마지막 대체: 큰 해상도는 HEVC가 더 넓게 지원되고, 작은 해상도는 H.264가 지원됩니다.
+        for (fallback in listOf("video/hevc", "video/avc")) if (fallback !in this) add(fallback)
         if (sdk >= 34 && "video/av01" !in this) add("video/av01")
-        if (original && source !in this) add(source)
     }
 
     /** 프레임 증가 선택은 원본보다 낮은 프레임률로 줄이지 않습니다. */
@@ -26,9 +32,12 @@ object VideoRules {
         return frames > 1 && requested > 0 && requested > original + 0.01
     }
 
-    /** 크기를 유지하는 보정은 원본만 보정하고 확대는 저해상도에서 먼저 보간합니다. */
-    fun enhanceFirst(width: Int, height: Int, target: Pair<Int, Int>): Boolean =
-        target.first <= width && target.second <= height
+    /**
+     * 크기를 유지하는 보정은 원본만 보정하고 확대는 저해상도에서 먼저 보간합니다.
+     * [interpolateLow]가 true(보간 시 사용자 선택)면 크기와 무관하게 저해상도에서 먼저 보간한 뒤 모든 프레임을 보정합니다.
+     */
+    fun enhanceFirst(width: Int, height: Int, target: Pair<Int, Int>, interpolateLow: Boolean = false): Boolean =
+        !interpolateLow && target.first <= width && target.second <= height
 
     /** 원본보다 낮거나 같은 FPS를 선택했을 때 보간을 생략한 이유를 표시합니다. */
     fun frameNote(requested: Int, original: Double, frames: Long): String = when {

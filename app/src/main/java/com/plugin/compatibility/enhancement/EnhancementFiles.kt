@@ -39,6 +39,11 @@ object EnhancementFiles {
         check(input.isFile && input.length() > 0) { "보정 결과가 없습니다." }
         // 파일 확정부터 이력·완료 대기열 갱신까지는 함께 끝내 경로 불일치를 방지합니다.
         withContext(kotlinx.coroutines.NonCancellable) {
+        // 파일을 쓰기 전에 원본 이력을 찾아, 저장 직후 폴더 검사가 복제를 외부 파일로 먼저 등록하지 않게 합니다.
+        // 이력이 file URI·정규화 전 경로로 저장된 경우도 같은 파일로 인정해야 복제가 원본 게시글에 묶입니다.
+        val saved = PluginDatabaseUtil.getDownloadHistory().let { history ->
+            history.firstOrNull { it.videoPath == preview.source } ?: history.firstOrNull { MediaRules.sameFilePath(it.videoPath, preview.source) }
+        }
         val extension = if (preview.video) "mp4" else "png"
         val result = if (preview.source.startsWith("content://")) saveDocument(context, preview.source, input, replace, extension)
             else {
@@ -49,21 +54,22 @@ object EnhancementFiles {
                 android.media.MediaScannerConnection.scanFile(context, arrayOf(output.absolutePath), null, null)
                 output.absolutePath
             }
-        val saved = PluginDatabaseUtil.getDownloadHistory().firstOrNull { it.videoPath == preview.source }
         val codec = if (preview.video) preview.codec.ifBlank { VideoEnhancer.inspect(preview.image).format.getString(android.media.MediaFormat.KEY_MIME).orEmpty() }
             else if (!replace) "image/png" else when (preview.format) { "jpg", "jpeg" -> "image/jpeg"; "webp" -> "image/webp"; else -> "image/png" }
         val quality = VideoQuality(preview.width, preview.height, preview.frameRate, preview.duration, input.length(), codec)
         PluginMediaMetadataStore.save(result, quality = quality, sourceQuality = saved?.sourceQuality ?: saved?.quality,
             postPageIndex = saved?.postPageIndex ?: 0, postPageCount = saved?.postPageCount ?: 1,
             aiDuplicate = !replace || PluginMediaMetadataStore.isAiDuplicate(preview.source))
-        if (replace && result != preview.source) PluginDatabaseUtil.updateMediaPath(preview.source, result)
-        if (!replace && saved != null) PluginDatabaseUtil.insertInfoImmediately(saved.copy(id = 0, videoPath = result))
+        if (replace && result != preview.source) PluginDatabaseUtil.updateMediaPath(saved?.videoPath ?: preview.source, result)
+        // 저장과 동시에 폴더 검사가 같은 복제를 먼저 등록했다면 이력을 두 번 넣지 않습니다.
+        if (!replace && saved != null && PluginDatabaseUtil.getDownloadHistory().none { it.videoPath == result })
+            PluginDatabaseUtil.insertInfoImmediately(saved.copy(id = 0, videoPath = result))
         val downloader = org.koin.core.context.GlobalContext.get().get<com.junkfood.seal.download.DownloaderV2>().pluginQueue()
         downloader.getTaskStateMap().toMap().forEach { (task, _) ->
             downloader.getTaskStateMap().updateTaskState(task) { state ->
                 val completed = state.downloadState as? PluginTask.DownloadState.Completed
-                if (completed == null || preview.source !in completed.filePaths) state else {
-                    val paths = if (replace) completed.filePaths.map { if (it == preview.source) result else it }
+                if (completed == null || completed.filePaths.none { MediaRules.sameFilePath(it, preview.source) }) state else {
+                    val paths = if (replace) completed.filePaths.map { if (MediaRules.sameFilePath(it, preview.source)) result else it }
                         else (completed.filePaths + result).distinct()
                     state.copy(downloadState = PluginTask.DownloadState.Completed(paths.firstOrNull(), paths, completed.missing))
                 }

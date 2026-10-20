@@ -7,7 +7,15 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -117,9 +125,10 @@ private fun ResumeButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
 
 @Composable
 /** ErrorReportButton의 전용 대기열 처리 또는 화면 동작을 제공합니다. */
-private fun ErrorReportButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
+private fun ErrorReportButton(modifier: Modifier = Modifier, onLongClick: () -> Unit = {}, onClick: () -> Unit) {
     ActionSheetPrimaryButton(
-        modifier = modifier,
+        // 0.5초 이상 누르면 복사 대신 미리보기를 열도록 초기 패스에서 길게 누름을 감지하고 뒤따르는 클릭을 소비합니다.
+        modifier = modifier.longPressFirst(onLongClick),
         containerColor = ErrorTonalPalettes.accent1(80.0),
         contentColor = ErrorTonalPalettes.accent1(10.0),
         imageVector = Icons.Outlined.ErrorOutline,
@@ -312,9 +321,25 @@ fun LazyListScope.ActionButtons(
                 }
             }
             item(key = "ErrorReportButton") {
-                ErrorReportButton(modifier = Modifier.animateItem()) {
+                var preview by remember { mutableStateOf(false) }
+                ErrorReportButton(modifier = Modifier.animateItem(), onLongClick = { preview = true }) {
                     onActionPost(task, UiAction.CopyErrorReport(downloadState.throwable))
                 }
+                if (preview) androidx.compose.material3.AlertDialog(
+                    onDismissRequest = { preview = false },
+                    title = { Text(stringResource(R.string.loc_report_preview_title)) },
+                    text = {
+                        androidx.compose.foundation.text.selection.SelectionContainer {
+                            Text(com.junkfood.seal.util.getErrorReport(downloadState.throwable, task.url),
+                                modifier = Modifier.heightIn(max = 360.dp)
+                                    .verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                                style = MaterialTheme.typography.bodySmall.copy(
+                                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace))
+                        }
+                    },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = { preview = false }) { Text(stringResource(R.string.confirm)) }
+                    })
             }
         }
         is FetchingInfo,
@@ -545,6 +570,19 @@ fun ActionSheetInfo(modifier: Modifier = Modifier, task: Task, viewState: ViewSt
                 },
                 leadingIcon = { Icon(imageVector = Icons.Outlined.Link, contentDescription = null) },
             )
+        }
+    }
+}
+
+/** 자식 클릭보다 먼저 0.5초 길게 누름을 감지하고, 성립하면 손을 뗄 때의 클릭을 소비해 중복 동작을 막습니다. */
+private fun Modifier.longPressFirst(onLongPress: () -> Unit): Modifier = pointerInput(onLongPress) {
+    awaitEachGesture {
+        awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        var timedOut = true
+        withTimeoutOrNull(500L) { waitForUpOrCancellation(PointerEventPass.Initial); timedOut = false }
+        if (timedOut) {
+            onLongPress()
+            waitForUpOrCancellation(PointerEventPass.Initial)?.consume()
         }
     }
 }

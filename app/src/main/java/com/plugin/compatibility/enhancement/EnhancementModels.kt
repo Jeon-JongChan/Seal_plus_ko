@@ -24,6 +24,22 @@ object EnhancementModels {
     const val SELECTED = "image_ai_model"
     const val VIDEO_SELECTED = "video_ai_model"
     const val VIDEO_FPS = "video_ai_fps"
+    /** 노이즈 제거 전처리 모드(auto/off/always) 설정 키입니다. */
+    const val VIDEO_DENOISE = "video_ai_denoise"
+    /** 이미지 노이즈 제거 전처리 모드 설정 키입니다. */
+    const val IMAGE_DENOISE = "image_ai_denoise"
+    /** 노이즈 제거 강도(light/normal/strong) 설정 키이며 영상·이미지가 공유합니다. */
+    const val DENOISE_STRENGTH = "ai_denoise_strength"
+    /** 내장 노이즈 제거의 거리 가중치 사용 여부(기본 켬) 설정 키입니다. */
+    const val DENOISE_DISTANCE = "ai_denoise_distance_weight"
+    /** 프레임 보간을 AI 보정 전 저해상도에서 먼저 하는지(기본 끔) 설정 키입니다. */
+    const val VIDEO_INTERP_LOW = "video_ai_interp_low"
+    /** 영상 노이즈 제거 엔진(builtin/ffmpeg) 설정 키입니다. 이미지는 항상 내장 필터를 씁니다. */
+    const val VIDEO_DENOISE_ENGINE = "video_ai_denoise_engine"
+    /** 저화질 영상 선 축소 모드(off/auto/always) 설정 키입니다. */
+    const val VIDEO_SHRINK = "video_ai_shrink"
+    /** 업스케일 후 샤프닝 강도(off/light/normal/strong) 설정 키이며 영상·이미지가 공유합니다. */
+    const val SHARPEN = "ai_sharpen"
     const val VIDEO_ORIGINAL_CODEC = "video_ai_original_codec"
     const val SMALL_MODEL = "asset://image-ai/quicksrnet-small.tflite"
     const val MEDIUM_MODEL = "asset://image-ai/quicksrnet-medium.tflite"

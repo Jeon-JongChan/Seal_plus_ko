@@ -259,7 +259,18 @@ object PluginDownloadUtil {
     }
 
     /** 전체 쿠키는 매번 WebView에서, 명시적 프로필은 매번 해당 DB 레코드에서 최신 값을 읽습니다. */
-    fun cookieContent(profileId: Int = -1): String {
+    fun cookieContent(profileId: Int = -1, fresh: Boolean = false): String {
+        // 재시도·게시물 다중 페이지는 짧은 시간에 같은 쿠키를 반복 요청하므로 5초 캐시로 WebView flush·DB 스캔을 줄입니다.
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (!fresh) cookieCache[profileId]?.let { (at, cached) -> if (now - at < COOKIE_CACHE_MS) return cached }
+        return readCookieContent(profileId).also { cookieCache[profileId] = now to it }
+    }
+
+    private val cookieCache = java.util.concurrent.ConcurrentHashMap<Int, Pair<Long, String>>()
+    private const val COOKIE_CACHE_MS = 5_000L
+
+    /** 캐시 없이 쿠키를 WebView·DB에서 직접 읽어 정규화합니다. */
+    private fun readCookieContent(profileId: Int): String {
         val content = if (profileId < 0) getCookiesContentFromDatabase().getOrThrow() else {
             val profile = kotlinx.coroutines.runBlocking { DatabaseUtil.getCookieById(profileId) }
                 ?: error(context.getString(R.string.loc_cookie_login_hint))
@@ -277,7 +288,7 @@ object PluginDownloadUtil {
     /** UI 준비 파일도 검증 후 원자적으로 교체하고 실패하면 이전 파일을 보존합니다. */
     @Synchronized
     fun prepareCookies(profileId: Int = -1): java.io.File {
-        val content = cookieContent(profileId)
+        val content = cookieContent(profileId, fresh = true)
         val file = CompatibilityFiles.cookiesFile(context, profileId)
         val atomic = android.util.AtomicFile(file)
         val stream = atomic.startWrite()
@@ -334,6 +345,8 @@ object PluginDownloadUtil {
                         CookieScheme.SECURE,
                     )
                 val cookieList = mutableListOf<Cookie>()
+                // 암호화된 값은 호스트·경로별로 한 번만 WebView에서 조회합니다.
+                val headerCache = HashMap<String, List<String>>()
                 query("cookies", projection, null, null, null, null, null).run {
                     while (moveToNext()) {
                         val expiry = getLong(getColumnIndexOrThrow(CookieScheme.EXPIRY))
@@ -346,8 +359,9 @@ object PluginDownloadUtil {
                         if (hostKey.isBlank()) continue
                         val host = hostKey.removePrefix(".")
                         val value = storedValue.ifEmpty {
-                            CookieManager.getInstance().getCookie("https://$host$path").orEmpty().split(';')
-                                .map(String::trim).firstOrNull { it.substringBefore('=') == name }?.substringAfter('=', "").orEmpty()
+                            headerCache.getOrPut("$host$path") {
+                                CookieManager.getInstance().getCookie("https://$host$path").orEmpty().split(';').map(String::trim)
+                            }.firstOrNull { it.substringBefore('=') == name }?.substringAfter('=', "").orEmpty()
                         }
                         cookieList.add(
                             Cookie(

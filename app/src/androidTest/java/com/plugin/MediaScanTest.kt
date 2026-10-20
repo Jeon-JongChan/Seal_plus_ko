@@ -38,7 +38,7 @@ class MediaScanTest {
             ActivityScenario.launch(PluginMainActivity::class.java).use { scenario ->
                 scenario.onActivity { activity -> activity.setContent { SealTheme { MediaFileManagerDialog {} } } }
                 // 비어 있고 읽을 수 있는 폴더에서도 권한 화면이 즉시 열려야 합니다.
-                if (android.os.Build.VERSION.SDK_INT >= 30 && !android.os.Environment.isExternalStorageManager()) {
+                if (permissionPromptExpected()) {
                     awaitPermissionSettings()
                     instrumentation.uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
                 }
@@ -46,7 +46,7 @@ class MediaScanTest {
                 awaitDialog(context.getString(R.string.revision5_rescan))
                 awaitDialog(context.getString(R.string.close))
                 // 읽을 수 있는 캐시 폴더에서도 권한 미부여 안내가 오류 발생 전에 표시되어야 합니다.
-                if (android.os.Build.VERSION.SDK_INT >= 30 && !android.os.Environment.isExternalStorageManager())
+                if (permissionPromptExpected())
                     awaitDialog(context.getString(R.string.revision6_storage_permission))
                 val window = instrumentation.uiAutomation.rootInActiveWindow
                 assertFalse(containsLabel(window, "목록 보기"))
@@ -199,14 +199,14 @@ class MediaScanTest {
             assertEquals(restored, MediaLibrary.classify(file.copy(path = restored), disabled))
             val repeated = MediaLibrary.classify(file.copy(path = restored), preferences)
             assertEquals(moved, repeated)
-            // 다른 실제 파일이 같은 이름을 차지하면 두 파일 모두 보존합니다.
+            // 다른 실제 파일이 같은 이름을 차지하면 덮어쓰지 않고 이동하는 파일에 새 이름을 붙여 두 파일 모두 보존합니다.
             File(restored).writeBytes(byteArrayOf(4, 5, 6))
-            try {
-                MediaLibrary.classify(file.copy(path = moved), disabled)
-                fail("기존 파일을 덮어썼습니다.")
-            } catch (_: IllegalStateException) { /* 실제 이름 충돌의 예상 결과입니다. */ }
+            val renamed = MediaLibrary.classify(file.copy(path = moved), disabled)
+            assertNotEquals(restored, renamed)
+            assertEquals(parent.path, File(renamed).parent)
             assertArrayEquals(byteArrayOf(4, 5, 6), File(restored).readBytes())
-            assertArrayEquals(byteArrayOf(1, 2, 3), File(moved).readBytes())
+            assertArrayEquals(byteArrayOf(1, 2, 3), File(renamed).readBytes())
+            assertFalse(File(moved).exists())
             assertFalse(root.resolve("Videos").exists())
             assertFalse(root.resolve("Images").exists())
         } finally { App.videoDownloadDir = previousRoot }
@@ -231,7 +231,7 @@ class MediaScanTest {
                 scenario.onActivity { activity ->
                     activity.setContent { SealTheme { MediaFileManagerDialog {} } }
                 }
-                if (android.os.Build.VERSION.SDK_INT >= 30 && !android.os.Environment.isExternalStorageManager()) {
+                if (permissionPromptExpected()) {
                     awaitPermissionSettings()
                     InstrumentationRegistry.getInstrumentation().uiAutomation.performGlobalAction(
                         android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
@@ -302,7 +302,9 @@ class MediaScanTest {
             App.videoDownloadDir = root.absolutePath
             val quality = com.junkfood.seal.database.objects.VideoQuality(1280, 720, 30.0, 60.0, 120_000_000, "video/avc")
             val preferences = DownloadPreferences.EMPTY.copyPluginOptions(classifyMedia = true,
-                platformFolders = false, videoFolderName = "Videos", videoTiers = MediaRules.DEFAULT_VIDEO_TIERS)
+                platformFolders = false, videoFolderName = "Videos", videoTiers = MediaRules.DEFAULT_VIDEO_TIERS,
+                // 비활성 구간의 파일은 아래 구간으로 내려가는 분류(상위 우선)를 명시합니다. 기본값은 위 구간으로 올림입니다.
+                classificationUpperFirst = true)
             val file = MediaLibrary.MediaFile(source.path, source.name, source.length(), 60.0, quality = quality)
             val moved = MediaLibrary.classify(file, preferences)
             assertEquals(root.resolve("720p/sample.mp4").path, moved)
@@ -337,7 +339,9 @@ class MediaScanTest {
             App.videoDownloadDir = root.absolutePath
             val preferences = DownloadPreferences.EMPTY.copyPluginOptions(mediaProcessing = true,
                 classifyMedia = true, imageFolderName = "Images", videoFolderName = "", platformFolders = false,
-                imageTiers = MediaRules.DEFAULT_IMAGE_TIERS, videoTiers = MediaRules.DEFAULT_VIDEO_TIERS)
+                imageTiers = MediaRules.DEFAULT_IMAGE_TIERS, videoTiers = MediaRules.DEFAULT_VIDEO_TIERS,
+                // 비활성 구간의 파일이 위 구간으로 올라가지 않고 기본 폴더로 돌아오는 규칙(상위 우선)을 명시합니다.
+                classificationUpperFirst = true)
             ActivityScenario.launch(PluginMainActivity::class.java).use { scenario ->
                 instrumentation.runOnMainSync { MediaScanService.start(context, preferences, all = false) }
                 val first = awaitScan()
@@ -374,7 +378,7 @@ class MediaScanTest {
                     activity.setContent { SealTheme { MediaFileManagerDialog {} } }
                 }
                 // 파일 관리자 진입 시 자동 권한 화면을 거절하고 앱 화면으로 돌아옵니다.
-                if (android.os.Build.VERSION.SDK_INT >= 30 && !android.os.Environment.isExternalStorageManager()) {
+                if (permissionPromptExpected()) {
                     awaitPermissionSettings()
                     instrumentation.uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
                 }
@@ -407,6 +411,15 @@ class MediaScanTest {
     private fun awaitScan(): MediaScanService.ScanProgress = runBlocking {
         withTimeout(20_000) { MediaScanService.state.first { !it.running } }
     }
+
+    /**
+     * 앱 소유 폴더(캐시 등)는 모든 파일 접근 권한이 필요 없으므로 권한 화면이 열리지 않는 것이 올바른 동작입니다.
+     * 권한이 없고 앱 소유 폴더 밖을 분류할 때만 권한 화면을 기대합니다.
+     */
+    private fun permissionPromptExpected(): Boolean = android.os.Build.VERSION.SDK_INT >= 30 &&
+        !android.os.Environment.isExternalStorageManager() &&
+        com.plugin.compatibility.StorageDirectories.requiresManagementPermission(
+            InstrumentationRegistry.getInstrumentation().targetContext, createPluginPreferences())
 
     /** 접근 실패 직후 시스템의 모든 파일 접근 설정이 자동으로 열리는지 확인합니다. */
     private fun awaitPermissionSettings() {

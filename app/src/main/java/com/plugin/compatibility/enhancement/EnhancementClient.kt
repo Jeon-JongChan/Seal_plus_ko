@@ -14,6 +14,9 @@ object EnhancementClient {
     private val running = Mutex()
     /** 저장 루트 변경 중 실행 중인 보정을 보호합니다. */
     val busy: Boolean get() = running.isLocked
+
+    /** 지금 처리 중인 단계(전처리·AI 업스케일 등)입니다. [running] 잠금으로 보정은 한 번에 하나만 실행되어 하나의 값을 공유합니다. */
+    val stage = kotlinx.coroutines.flow.MutableStateFlow("")
     private val cleanup = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /** 영상도 이미지와 같은 작업 잠금·격리 프로세스·검증 후 저장 절차를 사용합니다. */
@@ -27,7 +30,7 @@ object EnhancementClient {
         try {
             check(!com.plugin.compatibility.TemporarySession.changing) { "저장소 전환이 진행 중입니다." }
             check(directory.mkdirs()) { "영상 작업 폴더를 만들 수 없습니다." }
-            onEngine("원본과 모델 준비 중")
+            onEngine("원본과 모델 준비 중"); stage.value = "준비 · 원본 사본과 모델 복사"
             val snapshot = File(directory, "source")
             val digest = java.security.MessageDigest.getInstance("SHA-256")
             EnhancementModels.stage(context, source, snapshot, VideoEnhancer.MAX_SOURCE_BYTES, digest)
@@ -42,12 +45,14 @@ object EnhancementClient {
                 com.junkfood.seal.util.PreferenceUtil.run { EnhancementModels.BACKEND.getString("litert") } else "onnx"
             EnhancementModels.stage(context, model, File(directory, if (lite) "model.tflite" else "model.onnx"))
             if (model == EnhancementModels.DEFAULT_MODEL && backend == "litert") EnhancementModels.stage(context, EnhancementModels.LITERT_MODEL, File(directory, "model.tflite"))
-            if (VideoRules.increases(fps, info.fps, info.frames)) RifeModels.prepare(context, File(directory, "rife"), onEngine)
+            if (VideoRules.increases(fps, info.fps, info.frames)) { stage.value = "준비 · 프레임 보간 모델(RIFE)"; RifeModels.prepare(context, File(directory, "rife"), onEngine) }
             val request = com.junkfood.seal.util.PreferenceUtil.run { Bundle().apply {
                 putString("directory", directory.path); putBoolean("video", true); putInt("option", option); putInt("fps", fps)
                 putInt("sampling", EnhancementSampling.normalized(EnhancementSampling.KEY.getInt(EnhancementSampling.BILINEAR)))
                 putBoolean("original_codec", EnhancementModels.VIDEO_ORIGINAL_CODEC.getBoolean(false))
                 putString("video_codec", EnhancementModels.VIDEO_CODEC.getString("auto"))
+                putString("denoise", PreDenoise.mode()); putFloat("denoise_sigma", PreDenoise.sigma()); putBoolean("denoise_distance", PreDenoise.distanceWeight()); putFloat("sharpen", PostSharpen.amount())
+                putString("shrink", EnhancementModels.VIDEO_SHRINK.getString(PreDenoise.OFF)); putBoolean("interp_low", EnhancementModels.VIDEO_INTERP_LOW.getBoolean(false)); putString("denoise_engine", PreDenoise.engine())
                 putBoolean("accelerated", EnhancementModels.ACCELERATED.getBoolean(true))
                 putInt("cpu_threads", EnhancementModels.CPU_THREADS.getInt(2)); putString("backend", backend)
             } }
@@ -68,7 +73,7 @@ object EnhancementClient {
                     else File(source).name).substringAfterLast('.', "").lowercase(),
                 result.getString("engine").orEmpty(), result.getInt("worker_pid"), true, result.getDouble("frame_rate"), result.getDouble("duration"), result.getString("codec").orEmpty())
         } catch (failure: Throwable) { directory.deleteRecursively(); throw failure }
-        finally { running.unlock() }
+        finally { stage.value = ""; running.unlock() }
     }
 
     /** 전체 게시글도 한 장씩 처리하며 실패·취소 시 이미 만든 미확정 결과를 정리합니다. */
@@ -133,6 +138,7 @@ object EnhancementClient {
         try {
             check(!com.plugin.compatibility.TemporarySession.changing) { "저장소 전환이 진행 중입니다." }
             check(directory.mkdirs()) { "보정 임시 폴더를 만들 수 없습니다." }
+            stage.value = "준비 · 원본 사본과 모델 복사"
             val google = com.junkfood.seal.util.PreferenceUtil.run { EnhancementModels.GOOGLE_FIRST.getBoolean() }
             val model = EnhancementModels.selectedSource(context)
             check(google || model.isNotBlank()) { "플러그인 설정에서 모델을 먼저 선택하세요." }
@@ -152,7 +158,7 @@ object EnhancementClient {
                     putInt("sampling", sampling)
                     putBoolean("accelerated", com.junkfood.seal.util.PreferenceUtil.run { EnhancementModels.ACCELERATED.getBoolean(true) });
                     putInt("cpu_threads", com.junkfood.seal.util.PreferenceUtil.run { EnhancementModels.CPU_THREADS.getInt(2) })
-                    putString("backend", backend)
+                    putString("backend", backend); putString("denoise", PreDenoise.mode(image = true)); putFloat("denoise_sigma", PreDenoise.sigma()); putBoolean("denoise_distance", PreDenoise.distanceWeight()); putFloat("sharpen", PostSharpen.amount())
                     putBoolean("google", google); putString("format", format)
                 }
                 var recovered: Bundle? = null
@@ -192,7 +198,7 @@ object EnhancementClient {
             return Preview(source, directory, withContext(Dispatchers.IO) { EnhancementModels.hash(snapshot) },
                 result.getInt("width"), result.getInt("height"), format, result.getString("engine").orEmpty(), result.getInt("worker_pid"))
         } catch (failure: Throwable) { directory.deleteRecursively(); throw failure }
-        finally { running.unlock() }
+        finally { stage.value = ""; running.unlock() }
     }
 
     /** 화면의 코루틴 취소·바인더 단절·프로세스 강제 종료를 모두 연결 해제로 마무리합니다. */
@@ -205,6 +211,8 @@ object EnhancementClient {
                 val replies = Messenger(Handler(Looper.getMainLooper()) { message ->
                     if (continuation.isActive) when (message.what) {
                         EnhancementService.PROGRESS -> {
+                            // 진행률 콜백(알림 등)이 새 단계를 읽을 수 있게 단계를 먼저 갱신합니다.
+                            message.data.getString("stage")?.let { stage.value = it }
                             progress(message.data.getInt("progress"))
                             message.data.getString("engine")?.let(onEngine)
                         }

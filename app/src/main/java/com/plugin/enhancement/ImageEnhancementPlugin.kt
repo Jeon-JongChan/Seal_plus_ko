@@ -76,7 +76,6 @@ private fun ImageAiAction(paths: List<String>, batch: Boolean, onSaved: (String,
     val scope = rememberCoroutineScope()
     var open by remember(stateKey) { mutableStateOf(false) }
     var advanced by remember(stateKey) { mutableStateOf(false) }
-    var upscale by remember(stateKey) { mutableStateOf(false) }
     var previews by remember(stateKey) { mutableStateOf(listOf<EnhancementClient.Preview>()) }
     var selectedPreview by remember(stateKey) { mutableIntStateOf(0) }
     var completed by remember(stateKey) { mutableIntStateOf(0) }
@@ -132,14 +131,16 @@ private fun ImageAiAction(paths: List<String>, batch: Boolean, onSaved: (String,
         }
     }
     DisposableEffect(stateKey) { onDispose { job?.cancel(); previews.forEach(EnhancementClient::discard) } }
-    FilledTonalIconButton(onClick = { advanced = false; upscale = false; error = ""; open = true }) {
+    FilledTonalIconButton(onClick = { advanced = false; error = ""; open = true }) {
         Icon(if (batch) Icons.Rounded.Collections else Icons.Rounded.AutoFixHigh, contentDescription = if (batch) "게시글 전체 화질 개선" else "이미지 AI 보정")
     }
     if (open) Dialog(onDismissRequest = {}, properties = DialogProperties(usePlatformDefaultWidth = false,
         dismissOnBackPress = false, dismissOnClickOutside = false)) {
         Surface(Modifier.fillMaxWidth().padding(12.dp), shape = MaterialTheme.shapes.extraLarge) {
-            Column(Modifier.heightIn(max = 720.dp).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.heightIn(max = 720.dp).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(if (batch) "게시글 전체 화질 개선" else "이미지 AI 보정", style = MaterialTheme.typography.titleLarge)
+                // 제목과 아래 오류·닫기 버튼은 고정하고 본문만 스크롤해, 옵션이 길어져도 닫기·취소가 항상 보이게 합니다.
+                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 val result = previews.getOrNull(selectedPreview.coerceIn(0, (previews.size - 1).coerceAtLeast(0)))
                 if (result != null) {
                     if (batch) Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
@@ -162,32 +163,26 @@ private fun ImageAiAction(paths: List<String>, batch: Boolean, onSaved: (String,
                     if (!EnhancementFiles.canReplace(result)) Text("이 파일 형식은 PNG 복제로 저장할 수 있습니다.", style = MaterialTheme.typography.bodySmall)
                 } else if (processing) {
                     LinearProgressIndicator(progress = { if (batch) ((page - 1) + percent / 100f) / count.coerceAtLeast(1) else percent / 100f }, modifier = Modifier.fillMaxWidth())
-                    Text(if (batch) "보정 중 · $page / ${count}장 · $percent%" else "보정 중 · $percent%"); Text(engine, style = MaterialTheme.typography.bodySmall)
+                    Text(if (batch) "보정 중 · $page / ${count}장 · $percent%" else "보정 중 · $percent%")
+                    ProcessingStage(); Text(engine, style = MaterialTheme.typography.bodySmall)
                     Text("다운로드는 계속 실행됩니다. 닫으면 보정을 취소합니다.", style = MaterialTheme.typography.bodySmall)
-                } else if (upscale) {
-                    TextButton(onClick = { upscale = false }) { Text("간편 설정으로") }
-                    Text("원본 비율을 유지할 목표 해상도 또는 배율을 선택하세요.")
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(-720 to "720p", -1080 to "1080p", -1440 to "2K (1440p)", -2160 to "4K (2160p)",
-                            2 to "2배", 4 to "4배", 8 to "8배").forEach { (option, label) ->
-                            OutlinedButton(onClick = { start(option) }) { Text(label) }
-                        }
-                    }
                 } else {
                     Text(if (batch) "게시글 이미지 ${paths.size}장을 보정합니다. 동영상·NOFACE는 제외하며 결과 확인 후 전체 저장을 선택하세요."
-                        else "보정 강도를 선택하세요. 결과를 확인한 뒤 저장할 수 있습니다.")
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { start(EnhancementRules.MINIMUM) }, modifier = Modifier.weight(1f)) { Text("최소") }
-                        Button(onClick = { start(EnhancementRules.MAXIMUM) }, modifier = Modifier.weight(1f)) { Text("최대") }
-                    }
-                    Text("최소: 2배 · 최대: 4K에 가깝게. 원본 비율과 출력 제한을 유지하며 이미 큰 사진은 확대하지 않습니다.", style = MaterialTheme.typography.bodySmall)
-                    TextButton(onClick = { advanced = !advanced }) { Text(if (advanced) "직접 설정 접기" else "직접 설정") }
+                        else "결과를 확인한 뒤 저장할 수 있습니다.")
+                    // 스크롤 없이 바로 누를 수 있게 단계 버튼(누르면 시작) → 출력 크기 → 현재 옵션 순서이며, 영상 창과 같은 구성입니다.
+                    PresetStartButtons(image = true) { start(savedSize(true)) }
+                    SizeSettings(image = true)
+                    SelectedOptionsSummary(image = true)
+                    TextButton(onClick = { advanced = !advanced }) { Text(if (advanced) "상세 조정 접기 ▴" else "상세 조정 ▾") }
                     if (advanced) {
-                        SamplingSettings()
-                        OutlinedButton(onClick = { start(1) }, modifier = Modifier.fillMaxWidth()) { Text("크기 유지 · 화질 개선") }
-                        OutlinedButton(onClick = { upscale = true }, modifier = Modifier.fillMaxWidth()) { Text("해상도·배율 선택") }
+                        // 옵션은 실제 처리 순서(전처리 → 업스케일 → 후처리)대로 배치합니다.
+                        PresetSettings(image = true)
+                        StageHeader("1. 전처리 · 디코드 직후"); DenoiseSettings(image = true)
+                        StageHeader("2. AI 업스케일"); SamplingSettings()
+                        StageHeader("3. 후처리 · 저장 직전"); SharpenSettings()
                     }
                     Text("먼저 플러그인 설정에서 모델을 준비하세요. 지원 기기는 Google 보정도 선택할 수 있습니다.", style = MaterialTheme.typography.bodySmall)
+                }
                 }
                 if (saving) { LinearProgressIndicator(Modifier.fillMaxWidth()); if (batch) Text("저장 중 · ${completed}장 완료") }
                 if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)

@@ -23,13 +23,14 @@ open class EnhancementService : Service() {
             job = scope.launch {
                 try {
                     if (Build.VERSION.SDK_INT >= 26) foregroundMedia(data.getBoolean("video"), 0)
-                    var lastProgress = -1; var lastEngine: String? = null
+                    var lastProgress = -1; var lastEngine: String? = null; var lastStage: String? = null
                     process(data) { percent ->
-                        val engine = data.getString("engine")
-                        if (percent != lastProgress || engine != lastEngine) {
+                        val engine = data.getString("engine"); val stage = data.getString("stage")
+                        // 진행률·엔진·현재 처리 단계 중 하나라도 바뀌면 화면에 알립니다.
+                        if (percent != lastProgress || engine != lastEngine || stage != lastStage) {
                             if (!data.getBoolean("video") && Build.VERSION.SDK_INT >= 26 && percent != lastProgress) foregroundMedia(false, percent)
-                            lastProgress = percent; lastEngine = engine
-                            send(reply, PROGRESS, Bundle().apply { putInt("progress", percent); putString("engine", engine) })
+                            lastProgress = percent; lastEngine = engine; lastStage = stage
+                            send(reply, PROGRESS, Bundle().apply { putInt("progress", percent); putString("engine", engine); putString("stage", stage) })
                         }
                     }
                     send(reply, DONE, data)
@@ -62,12 +63,19 @@ open class EnhancementService : Service() {
         require(directory.path.startsWith(root.path + File.separator)) { "잘못된 보정 작업 경로입니다." }
         if (data.getBoolean("video")) { VideoEnhancer.process(this, directory, data, progress); return }
         val sourceFile = File(directory, "source")
+        data.putString("stage", "디코드 · 원본 이미지 읽기"); progress(0)
         val decoded = ImageDecoder.decodeDrawable(ImageDecoder.createSource(sourceFile)) { decoder, info, _ ->
             check(info.size.width.toLong() * info.size.height <= EnhancementRules.MAX_PIXELS) { "원본 이미지가 너무 큽니다." }
             decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
             decoder.setTargetColorSpace(android.graphics.ColorSpace.get(android.graphics.ColorSpace.Named.SRGB))
         }
-        val source = (decoded as? BitmapDrawable)?.bitmap ?: error("움직이는 이미지는 보정하지 않습니다.")
+        val decodedBitmap = (decoded as? BitmapDrawable)?.bitmap ?: error("움직이는 이미지는 보정하지 않습니다.")
+        // 사용자 옵션에 따라 확대 전에 압축 노이즈를 줄입니다. 이후 모든 경로는 필터링된 비트맵을 원본으로 씁니다.
+        val source = if (PreDenoise.imageEnabled(data.getString("denoise", PreDenoise.AUTO), sourceFile.length(),
+                decodedBitmap.width, decodedBitmap.height)) {
+                data.putString("stage", "1. 전처리 · 노이즈 제거 (내장 3x3 양방향 필터)"); progress(0)
+                PreDenoise.apply(decodedBitmap, data.getFloat("denoise_sigma", 14f), data.getBoolean("denoise_distance", true)).also { decodedBitmap.recycle() }
+            } else decodedBitmap
         var output: Bitmap? = null
         try {
             val sampling = EnhancementSampling.normalized(data.getInt("sampling", EnhancementSampling.BILINEAR))
@@ -75,6 +83,7 @@ open class EnhancementService : Service() {
             check((source.width.toLong() * source.height + target.first.toLong() * target.second) * 4 + 32 * 1024 * 1024 <=
                 Runtime.getRuntime().maxMemory() * 7 / 10) { "이 기기의 메모리로 처리하기에는 큽니다. 더 낮은 배율을 선택하세요." }
             val model = File(directory, "model.onnx")
+            data.putString("stage", "2. AI 업스케일 · ${source.width}x${source.height} → ${target.first}x${target.second}"); progress(0)
             // CPU 전용 선택은 Google의 자동 가속 우선 설정보다 우선합니다.
             val googleAvailable = if (data.getBoolean("google") && data.getBoolean("accelerated")) {
                 try { GoogleEnhancer.availability(this).let { it.first && it.second } }
@@ -132,7 +141,12 @@ open class EnhancementService : Service() {
                     { data.putString("engine", if (liteRtFallback) "LiteRT 대체 · $it" else it); progress(0) }, cpuThreads = data.getInt("cpu_threads", 2), sampling = sampling)
             }
             currentCoroutineContext().ensureActive()
-            val image = checkNotNull(output)
+            val raw = checkNotNull(output)
+            // 사용자가 선택한 경우에만 업스케일 결과의 윤곽을 세웁니다. 새 비트맵으로 교체하고 이전 결과는 즉시 해제합니다.
+            val sharpness = data.getFloat("sharpen", 0f)
+            if (sharpness > 0f) { data.putString("stage", "3. 후처리 · 샤프닝"); progress(100) }
+            val image = if (sharpness > 0f) PostSharpen.apply(raw, sharpness).also { if (raw !== source) raw.recycle(); output = it } else raw
+            data.putString("stage", "저장 준비 · 미리보기 기록"); progress(100)
             write(image, File(directory, "preview.png"), Bitmap.CompressFormat.PNG)
             val format = when (data.getString("format")) {
                 "jpg", "jpeg" -> Bitmap.CompressFormat.JPEG

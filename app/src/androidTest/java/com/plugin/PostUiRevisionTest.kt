@@ -84,7 +84,7 @@ class PostUiRevisionTest {
                     var ai = await("이미지 AI 보정")
                     while (!ai.isClickable) ai = checkNotNull(ai.parent)
                     assertTrue(ai.performAction(AccessibilityNodeInfo.ACTION_CLICK))
-                    await("최소")
+                    await("균형")
                     var close = await("닫기")
                     while (!close.isClickable) close = checkNotNull(close.parent)
                     assertTrue(close.performAction(AccessibilityNodeInfo.ACTION_CLICK))

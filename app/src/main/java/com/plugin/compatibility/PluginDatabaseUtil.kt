@@ -84,8 +84,9 @@ object PluginDatabaseUtil {
             queue.getTaskStateMap().toMap().forEach { (task, _) ->
                 queue.getTaskStateMap().updateTaskState(task) { state ->
                     val completed = state.downloadState as? com.plugin.queue.PluginTask.DownloadState.Completed
-                    if (completed == null || path !in completed.filePaths) state else {
-                        val remaining = completed.filePaths.filterNot { it == path }
+                    // 뷰어가 복구한 경로는 작업에 저장된 경로와 표기가 다를 수 있어 동일 파일 비교를 사용합니다.
+                    if (completed == null || completed.filePaths.none { MediaRules.sameFilePath(it, path) }) state else {
+                        val remaining = completed.filePaths.filterNot { MediaRules.sameFilePath(it, path) }
                         state.copy(downloadState = com.plugin.queue.PluginTask.DownloadState.Completed(
                             remaining.firstOrNull(), remaining, remaining.isEmpty()))
                     }

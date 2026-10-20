@@ -12,5 +12,7 @@
     <string name="loc_file_delete_failed">Could not delete the file. The history was kept.</string>
     <string name="loc_image_plugin_description">Download images from an Instagram post or account.</string>
     <string name="loc_image_url">Instagram post or account URL</string>
+    <string name="loc_task_duplicate">Already in the queue.</string>
+    <string name="loc_report_preview_title">Error report</string>
     <string name="loc_fetch_images">Download images</string>
 </resources>

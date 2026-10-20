@@ -37,7 +37,9 @@ class HistoryNavigationTest {
                     scenario.onActivity { it.setContent { SealTheme {
                         com.plugin.library.EnhancedVideoListPage(enhanced = enhanced, onNavigateBack = {})
                     } } }
-                    val total = originalCount + 65
+                    // 화면의 전체 수는 AI 중복 등을 묶은 게시글 수이므로 DB 행 수가 아니라 화면에 표시된 값을 기준으로 삼습니다.
+                    val total = shownTotal(instrumentation, 65)
+                    assertTrue("게시글 수 $total > ${originalCount + 65}", total <= originalCount + 65)
                     awaitNode("표시 30 / $total")
                     for (attempt in 0 until 12) {
                         val automation = instrumentation.uiAutomation
@@ -49,7 +51,7 @@ class HistoryNavigationTest {
                         SystemClock.sleep(200)
                     }
                     awaitNode("표시 60 / $total")
-                    assertEquals(total, PluginDatabaseUtil.getDownloadHistory().size)
+                    assertEquals(originalCount + 65, PluginDatabaseUtil.getDownloadHistory().size)
                 }
             }
         } finally { paths.forEach { PluginDatabaseUtil.deleteInfoByPath(it) } }
@@ -185,22 +187,35 @@ class HistoryNavigationTest {
     }
     /** 비동기 목록 갱신이 끝날 때까지 텍스트를 기다립니다. */
     private fun awaitNode(label: String): AccessibilityNodeInfo {
-        var forward = true
         repeat(100) { attempt ->
             val automation = InstrumentationRegistry.getInstrumentation().uiAutomation
             if (android.os.Build.VERSION.SDK_INT >= 33) automation.clearCache()
             findNode(automation.rootInActiveWindow, label)?.let { return it }
             if (attempt > 0 && attempt % 10 == 0) findVerticalScroll(automation.rootInActiveWindow)?.let { scroll ->
-                var action = if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
-                if (scroll.actionList.none { it.id == action }) {
-                    forward = !forward
-                    action = if (forward) AccessibilityNodeInfo.ACTION_SCROLL_FORWARD else AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD
-                }
-                scroll.performAction(action)
+                // 처음 못 찾으면 맨 위로 돌아가 머리글(필터·정렬 칩)을 확인하고, 이후 한 화면씩 아래로 탐색합니다.
+                if (attempt == 10) repeat(60) { if (!scroll.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)) return@repeat }
+                else scroll.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
             }
             SystemClock.sleep(100)
         }
-        error("화면에 없습니다: $label")
+        error("화면에 없습니다: $label (현재 텍스트: ${texts(InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow).take(60)})")
+    }
+    /** 제목 아래 "표시 N / M" 문구가 나타날 때까지 기다린 뒤 M(전체 게시글 수)을 반환합니다. */
+    private fun shownTotal(instrumentation: android.app.Instrumentation, minimum: Int): Int {
+        repeat(100) {
+            val automation = instrumentation.uiAutomation
+            if (android.os.Build.VERSION.SDK_INT >= 33) automation.clearCache()
+            texts(automation.rootInActiveWindow).firstNotNullOfOrNull { Regex("표시 \\d+ / (\\d+)").matchEntire(it)?.groupValues?.get(1)?.toInt() }
+                ?.takeIf { it >= minimum }?.let { return it }
+            SystemClock.sleep(100)
+        }
+        error("표시 개수 문구가 없거나 $minimum 미만입니다.")
+    }
+    /** 실패 원인 분석을 위해 현재 화면의 모든 텍스트를 수집합니다. */
+    private fun texts(node: AccessibilityNodeInfo?): List<String> {
+        if (node == null) return emptyList()
+        val own = listOfNotNull(node.text?.toString(), node.contentDescription?.toString())
+        return own + (0 until node.childCount).flatMap { texts(node.getChild(it)) }
     }
     /** 텍스트와 설명으로 현재 화면의 접근성 노드를 탐색합니다. */
     private fun findNode(node: AccessibilityNodeInfo?, label: String): AccessibilityNodeInfo? {

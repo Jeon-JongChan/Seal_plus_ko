@@ -11,12 +11,15 @@ class EnhancementRulesTest {
         val rules = com.plugin.compatibility.enhancement.VideoRules
         assertTrue(rules.enhanceFirst(1280, 720, 1280 to 720))
         assertFalse(rules.enhanceFirst(1280, 720, 2560 to 1440))
+        // 저해상도 보간을 고르면 크기를 유지해도 보정을 보간 뒤로 미룬다.
+        assertFalse(rules.enhanceFirst(1280, 720, 1280 to 720, interpolateLow = true))
         assertTrue(rules.frameNote(24, 30.0, 300).contains("보간 생략"))
         assertTrue(rules.frameNote(30, 30.0, 300).contains("보간 생략"))
         assertTrue(rules.frameNote(60, 30.0, 300).contains("프레임 보간"))
-        assertEquals(listOf("video/avc"), rules.encoderMimes("video/hevc", 35, selected = "h264"))
-        assertEquals(listOf("video/hevc"), rules.encoderMimes("video/avc", 35, selected = "h265"))
-        assertEquals(listOf("video/avc", "video/av01"), rules.encoderMimes("video/avc", 35, true))
+        // 선택한 코덱이 첫 후보이고, 해상도 한계에 대비한 대체가 뒤따릅니다.
+        assertEquals(listOf("video/avc", "video/hevc", "video/av01"), rules.encoderMimes("video/hevc", 35, selected = "h264"))
+        assertEquals(listOf("video/hevc", "video/avc", "video/av01"), rules.encoderMimes("video/avc", 35, selected = "h265"))
+        assertEquals(listOf("video/avc", "video/av01", "video/hevc"), rules.encoderMimes("video/avc", 35, true))
     }
     /** 전체 보정은 순서·중복 제거를 유지하며 영상과 NOFACE 폴더를 제외합니다. */
     @Test fun postImagesExcludeVideosAndNoFace() {
@@ -80,6 +83,20 @@ class EnhancementRulesTest {
         }
         assertEquals("사진-AI-abcd [123456].png", EnhancementRules.duplicateName("사진 [123456].jpg", "abcd"))
         assertEquals("사진-AI-abcd.png", EnhancementRules.duplicateName("사진.webp", "abcd"))
+    }
+
+    /** 이력 링크가 끊긴 AI 복제(복제의 복제 포함)도 같은 폴더의 원본 파일 이름으로 원본을 찾습니다. */
+    @Test
+    fun duplicateFindsOriginalByName() {
+        val once = EnhancementRules.duplicateName("사진 [123].jpg", "0a1b2c3d")
+        val twice = EnhancementRules.duplicateName(once, "11112222")
+        assertEquals("사진 [123]", EnhancementRules.duplicateOrigin(once))
+        assertEquals(null, EnhancementRules.duplicateOrigin("사진 [123].jpg"))
+        val origin = com.plugin.compatibility.MediaRules.duplicateOrigins(listOf("/d/a/사진 [123].jpg", "/d/b/사진 [123].jpg")) { it }
+        assertEquals("/d/a/사진 [123].jpg", origin("/d/a/$twice"))
+        assertEquals(null, origin("/d/c/$once"))
+        assertTrue(com.plugin.compatibility.PluginMediaMetadataStore.isAiDuplicate(
+            "content://x/document/primary%3ADownload%2F" + java.net.URLEncoder.encode(once, "UTF-8").replace("+", "%20")))
     }
 
     /** 삭제 경계가 단일 모델 파일만 허용하고 폴더·상위 경로·다른 형식을 거부합니다. */

@@ -475,20 +475,18 @@ fun DownloadPageImplV2(
                         }
                     }
                     // 데이터가 바뀌는 다음 배치에서 이전 항목 키의 스크롤 앵커를 해제합니다.
-                    Row(Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        androidx.compose.material3.FilterChip(selected = !sortByName, onClick = { sortByName = false; PluginPreferences.queueSortByName = false; lazyListState.requestScrollToItem(0) }, label = { Text("시간순") })
-                        androidx.compose.material3.FilterChip(selected = sortByName, onClick = { sortByName = true; PluginPreferences.queueSortByName = true; lazyListState.requestScrollToItem(0) }, label = { Text("이름순") })
-                    }
-                    Row(Modifier.padding(horizontal = 20.dp)) {
-                        androidx.compose.material3.FilterChip(selected = incrementalLoading, onClick = {
+                    // 정렬·불러오기 선택도 상태 필터와 같은 그룹 칩 모양으로 맞추고, 좁은 화면에서는 가로 스크롤합니다.
+                    SelectionGroupRow(modifier = Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 4.dp)) {
+                        SelectionGroupItem(selected = !sortByName, onClick = { sortByName = false; PluginPreferences.queueSortByName = false; lazyListState.requestScrollToItem(0) }) { Text("시간순") }
+                        SelectionGroupItem(selected = sortByName, onClick = { sortByName = true; PluginPreferences.queueSortByName = true; lazyListState.requestScrollToItem(0) }) { Text("이름순") }
+                        SelectionGroupItem(selected = incrementalLoading, onClick = {
                             incrementalLoading = !incrementalLoading
                             PluginPreferences.queueIncrementalLoading = incrementalLoading
                             lazyListState.requestScrollToItem(0)
-                        }, label = { Text("5개씩 불러오기") })
-                        Text("표시 ${visibleTasks.size} / ${sortedTasks.size}",
-                            modifier = Modifier.align(Alignment.CenterVertically).padding(start = 8.dp),
-                            style = MaterialTheme.typography.labelMedium)
+                        }) { Text("5개씩 불러오기") }
                     }
+                    Text("표시 ${visibleTasks.size} / ${sortedTasks.size}",
+                        modifier = Modifier.padding(horizontal = 24.dp), style = MaterialTheme.typography.labelMedium)
                     Spacer(Modifier.height(8.dp))
                     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         TextButton(onClick = { selecting = !selecting; selectedIds.clear() }) {
@@ -524,6 +522,15 @@ fun DownloadPageImplV2(
                             PaddingValues(start = 20.dp, end = 20.dp, bottom = 80.dp),
                     horizontalArrangement = Arrangement.spacedBy(24.dp),
                 ) {
+                    if (filteredMap.isEmpty()) {
+                        // 빈 화면 안내는 필터·정렬 머리글 아래의 목록 영역에 배치해 작은 화면에서도 겹치지 않게 합니다.
+                        item(key = "queue_empty", span = { GridItemSpan(maxLineSpan) }) {
+                            Box(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 80.dp), contentAlignment = Alignment.Center) {
+                                // 240dp 이상일 때 일러스트를 표시하는 원본 규칙을 지키며 하단 FAB 영역은 비웁니다.
+                                DownloadQueuePlaceholder(modifier = Modifier.height(240.dp).widthIn(max = 360.dp))
+                            }
+                        }
+                    }
                     if (filteredMap.isNotEmpty()) {
                         item(span = { GridItemSpan(maxLineSpan) }) {
                             val videoCount =
@@ -621,14 +628,6 @@ fun DownloadPageImplV2(
                         }
                     }
                 }
-            }
-        }
-        if (filteredMap.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                DownloadQueuePlaceholder(
-                    modifier =
-                        Modifier.fillMaxHeight(0.4f).widthIn(max = 360.dp).align(Alignment.Center)
-                )
             }
         }
     }

@@ -7,6 +7,7 @@ import com.plugin.compatibility.requireTaskState
 import com.plugin.compatibility.updateTaskState
 import com.plugin.compatibility.removeTaskState
 import com.plugin.compatibility.putBatch
+import com.plugin.compatibility.isDuplicateOf
 import com.plugin.compatibility.refreshCompletedFiles
 import com.plugin.compatibility.quality
 import com.plugin.compatibility.sourceQuality
@@ -188,6 +189,11 @@ class PluginTaskEngine(private val appContext: Context) : PluginTaskDownloader, 
     @Synchronized override fun enqueue(task: Task, state: Task.State) {
         if (TemporarySession.changing || (TemporarySession.root != null && task.type is TypeInfo.CustomCommand)) {
             ToastUtil.makeToastSuspend("저장소 전환 중이거나 임시 숨기기에서 사용할 수 없는 요청입니다.")
+            return
+        }
+        // 이미 대기·진행·완료된 동일 요청은 추가하지 않고 중복임을 알립니다.
+        if (taskStateMap.toMap().isDuplicateOf(task)) {
+            ToastUtil.makeToastSuspend(appContext.getString(R.string.loc_task_duplicate))
             return
         }
         completedNotifications.remove(QueueMedia.postKey(task))

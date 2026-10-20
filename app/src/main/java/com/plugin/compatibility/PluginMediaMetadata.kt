@@ -92,7 +92,7 @@ object PluginMediaMetadataStore {
 
     /** 이전 버전의 AI 복제도 앱이 생성한 파일명 표식으로 인식합니다. */
     fun isAiDuplicate(path: String): Boolean = get(path)?.aiDuplicate == true ||
-        duplicateName.containsMatchIn(path.substringAfterLast('/'))
+        duplicateName.containsMatchIn(MediaRules.fileName(path))
 }
 
 /** DownloadedVideoInfo의 품질 정보 확장 프로퍼티 */

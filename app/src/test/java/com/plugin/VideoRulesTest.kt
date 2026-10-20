@@ -19,13 +19,14 @@ class VideoRulesTest {
     }
     /** 원본 우선·AV1 대체·구형 플랫폼의 저장 경계를 검사합니다. */
     @Test fun originalCodecThenAv1() {
-        assertEquals(listOf("video/av01", "video/hevc"), VideoRules.encoderMimes("video/hevc", 34))
-        assertEquals(listOf("video/hevc", "video/av01"), VideoRules.encoderMimes("video/hevc", 34, true))
-        assertEquals(listOf("video/av01"), VideoRules.encoderMimes("video/x-vnd.on2.vp8", 34))
-        assertEquals(listOf("video/av01"), VideoRules.encoderMimes("video/av01", 34))
-        assertEquals(listOf("video/avc"), VideoRules.encoderMimes("video/avc", 28))
-        assertTrue(VideoRules.encoderMimes("video/av01", 33).isEmpty())
-        assertTrue(VideoRules.encoderMimes("video/unknown", 28).isEmpty())
+        assertEquals(listOf("video/av01", "video/hevc", "video/avc"), VideoRules.encoderMimes("video/hevc", 34))
+        assertEquals(listOf("video/hevc", "video/av01", "video/avc"), VideoRules.encoderMimes("video/hevc", 34, true))
+        assertEquals(listOf("video/av01", "video/hevc", "video/avc"), VideoRules.encoderMimes("video/x-vnd.on2.vp8", 34))
+        assertEquals(listOf("video/av01", "video/hevc", "video/avc"), VideoRules.encoderMimes("video/av01", 34))
+        assertEquals(listOf("video/avc", "video/hevc"), VideoRules.encoderMimes("video/avc", 28))
+        // 지원하지 않는 원본도 H.265·H.264로 저장할 수 있어 인코더 후보가 비지 않습니다.
+        assertEquals(listOf("video/hevc", "video/avc"), VideoRules.encoderMimes("video/av01", 33))
+        assertEquals(listOf("video/hevc", "video/avc"), VideoRules.encoderMimes("video/unknown", 28))
     }
     /** 프레임 하나를 복제해 AI 보간으로 표시하지 않습니다. */
     @Test fun singleFrameKeepsOriginal() {

@@ -43,7 +43,7 @@ object VideoEnhancementPlugin : FeaturePlugin() {
     override fun VideoAction(path: String, onSaved: (String, Boolean) -> Unit) = VideoAiAction(path, onSaved)
 }
 
-/** 간편 선택은 Small·Medium을 고정 사용하고 직접 선택은 공유 모델 설정을 따릅니다. */
+/** 설정 단계 버튼으로 시작하며, 모델은 단계가 채운(또는 직접 고른) 공유 모델 설정을 따릅니다. */
 @OptIn(ExperimentalLayoutApi::class, ExperimentalPermissionsApi::class)
 @Composable
 private fun VideoAiAction(path: String, onSaved: (String, Boolean) -> Unit) {
@@ -90,29 +90,35 @@ private fun VideoAiAction(path: String, onSaved: (String, Boolean) -> Unit) {
     if (open) Dialog(onDismissRequest = {}, properties = DialogProperties(usePlatformDefaultWidth = false,
         dismissOnBackPress = false, dismissOnClickOutside = false)) {
         Surface(Modifier.fillMaxWidth().padding(12.dp), shape = MaterialTheme.shapes.extraLarge) {
-            Column(Modifier.heightIn(max = 720.dp).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(Modifier.heightIn(max = 720.dp).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("AI 동영상 화질개선", style = MaterialTheme.typography.titleLarge)
+                // 제목과 아래 오류·닫기 버튼은 고정하고 본문만 스크롤해, 옵션이 길어져도 닫기·취소가 항상 보이게 합니다.
+                Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (processing) {
                     LinearProgressIndicator(progress = { work.progress / 100f }, modifier = Modifier.fillMaxWidth())
-                    Text("영상 처리 중 · ${work.progress}%"); Text(work.engine, style = MaterialTheme.typography.bodySmall)
+                    Text("영상 처리 중 · ${work.progress}%")
+                    ProcessingStage(); Text(work.engine, style = MaterialTheme.typography.bodySmall)
                     OutlinedButton(onClick = { open = false }) { Text("백그라운드에서 계속") }
                 } else {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { start(EnhancementRules.MINIMUM, EnhancementModels.SMALL_MODEL) }, modifier = Modifier.weight(1f)) { Text("최소") }
-                        Button(onClick = { start(EnhancementRules.MAXIMUM, EnhancementModels.MEDIUM_MODEL) }, modifier = Modifier.weight(1f)) { Text("최대") }
+                    // 스크롤 없이 바로 누를 수 있게 단계 버튼(누르면 시작) → 출력 크기 → 현재 옵션 순서로, 상세 옵션은 펼쳐서 조정합니다.
+                    // 단계를 적용한 뒤의 모델(속도·균형 Small, 품질·최고 Medium 또는 저장값)로 시작합니다.
+                    PresetStartButtons(image = false) {
+                        start(savedSize(false), EnhancementModels.VIDEO_SELECTED.getString(EnhancementModels.SMALL_MODEL).ifBlank { EnhancementModels.SMALL_MODEL })
                     }
-                    Text("최소: QuickSRNet Small · 2배\n최대: QuickSRNet Medium · 4K에 가깝게", style = MaterialTheme.typography.bodySmall)
-                    TextButton(onClick = { advanced = !advanced }) { Text(if (advanced) "상세 조정 접기" else "상세 조정") }
+                    SizeSettings(image = false)
+                    SelectedOptionsSummary()
+                    TextButton(onClick = { advanced = !advanced }) { Text(if (advanced) "상세 조정 접기 ▴" else "상세 조정 ▾") }
                     if (advanced) {
-                        VideoEncodingSettings(); FrameSettings(); SamplingSettings()
-                        Text("직접 선택 모델: ${EnhancementModels.VIDEO_SELECTED.getString(EnhancementModels.SMALL_MODEL).substringAfterLast('/')}", style = MaterialTheme.typography.bodySmall)
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf(1 to "크기 유지", -720 to "720p", -1080 to "1080p", -1440 to "2K", -2160 to "4K", 2 to "2배", 4 to "4배").forEach { (option, label) ->
-                                OutlinedButton(onClick = { start(option, EnhancementModels.VIDEO_SELECTED.getString(EnhancementModels.SMALL_MODEL)) }) { Text(label) }
-                            }
-                        }
+                        // 옵션은 실제 처리 순서(전처리 → 업스케일 → 보간 → 후처리 → 저장)대로 배치합니다.
+                        PresetSettings()
+                        StageHeader("1. 전처리 · 디코드 직후"); DenoiseSettings(); ShrinkSettings()
+                        StageHeader("2. AI 업스케일"); SamplingSettings()
+                        StageHeader("3. 프레임 보간"); FrameSettings()
+                        StageHeader("4. 후처리 · 인코딩 직전"); SharpenSettings()
+                        StageHeader("5. 저장 · 인코딩"); VideoEncodingSettings()
                     }
                     Text("경량 모델도 영상 길이·해상도에 따라 처리 시간이 늘어납니다. 결과 확인 전에는 원본을 바꾸지 않습니다.", style = MaterialTheme.typography.bodySmall)
+                }
                 }
                 val message = error.ifBlank { if (work.source == path) work.error else "" }
                 if (message.isNotBlank()) Text(message, color = MaterialTheme.colorScheme.error)

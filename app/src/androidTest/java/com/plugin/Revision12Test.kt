@@ -55,7 +55,7 @@ class Revision12Test {
                     com.plugin.videoenhancement.VideoEnhancementPlugin.VideoAction(source.path) { _, _ -> }
                     com.plugin.videoenhancement.VideoEnhancementResultHost()
                 } } }
-                tap("AI 동영상 화질개선"); tap("최소"); tap("백그라운드에서 계속")
+                tap("AI 동영상 화질개선"); tap("커스텀"); tap("백그라운드에서 계속")
                 instrumentation.uiAutomation.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_HOME)
                 val deadline = SystemClock.elapsedRealtime() + 120_000
                 while (VideoEnhancementWork.state.value.running && SystemClock.elapsedRealtime() < deadline) SystemClock.sleep(100)

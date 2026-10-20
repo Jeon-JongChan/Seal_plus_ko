@@ -202,10 +202,22 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
     val posts by produceState<List<List<DownloadedVideoInfo>>>(emptyList(), videoList,
         listOf(mediaFilter, folderFilter, sortByName, enhanced)) {
         // 대량 이력의 필터·그룹·정렬은 UI 스레드 밖에서 한 번만 계산합니다.
-        value = withContext(Dispatchers.Default) { videoList.filter { it.filterSort(mediaFilter, folderFilter) }.groupBy {
-        if (enhanced && it.extractor.lowercase() in setOf("instagram", "tiktok")) MediaRules.identity(it.videoUrl.substringBefore('#'))
-        else it.videoPath
-    }.values.map { it.sortedBy { page -> page.postPageIndex } }
+        value = withContext(Dispatchers.Default) {
+        val visible = videoList.filter { it.filterSort(mediaFilter, folderFilter) }
+        /** 원본 이력의 게시글 묶음 키입니다. */
+        fun keyOf(info: DownloadedVideoInfo) =
+            if (enhanced && info.extractor.lowercase() in setOf("instagram", "tiktok")) MediaRules.identity(info.videoUrl.substringBefore('#'))
+            else info.videoPath
+        val (duplicates, originals) = visible.partition { PluginMediaMetadataStore.isAiDuplicate(it.videoPath) }
+        val byUrl = originals.associateBy { it.videoUrl }
+        // AI 복제는 원본과 같은 키를 써야 한 게시글로 묶입니다.
+        // 같은 폴더의 원본 파일 이름(정확한 원본 페이지)을 먼저 보고, 이름이 바뀐 경우에만 URL로 찾습니다.
+        val byName = if (duplicates.isEmpty()) null else MediaRules.duplicateOrigins(originals) { it.videoPath }
+        val duplicateKeys = duplicates.associate { dup ->
+            dup.id to ((byName?.invoke(dup.videoPath) ?: byUrl[dup.videoUrl])?.let(::keyOf) ?: keyOf(dup))
+        }
+        visible.groupBy { duplicateKeys[it.id] ?: keyOf(it) }
+            .values.map { it.sortedBy { page -> page.postPageIndex } }
         // 원본 이력에 시각 필드가 없어 증가하는 등록 ID로 최신 등록 순서를 유지합니다.
         .sortMedia(sortByName, { post -> post.maxOf { it.id }.toLong() }, { post -> post.first().videoTitle }) }
     }

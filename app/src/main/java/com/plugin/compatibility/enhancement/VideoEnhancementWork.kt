@@ -43,7 +43,8 @@ class VideoEnhancementWork : Service() {
                     intent.getIntExtra("fps", 0), { state.value = state.value.copy(engine = it) }) { percent ->
                     if (percent != state.value.progress) {
                         state.value = state.value.copy(progress = percent)
-                        manager.notify(ID, notification(CHANNEL, "영상 처리 중 · $percent%", ongoing = true))
+                        manager.notify(ID, notification(CHANNEL, "영상 처리 중 · $percent%" +
+                            EnhancementClient.stage.value.substringBefore(" · ").let { if (it.isBlank()) "" else " · $it" }, ongoing = true))
                     }
                 }
                 // 원본은 수정하지 않고 완료 결과의 경로·검증값만 앱 전용 저장소에 남깁니다.

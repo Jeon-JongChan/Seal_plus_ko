@@ -65,6 +65,30 @@ object MediaRules {
         runCatching { java.net.URLDecoder.decode(path.replace("+", "%2B"), "UTF-8") }.getOrDefault(path).substringBeforeLast('/', path)
     else File(path).parent.orEmpty()
 
+    /** 일반 경로와 문서 URI에서 디코딩된 파일 이름을 읽습니다. */
+    fun fileName(path: String): String = if (path.startsWith("content://"))
+        runCatching { java.net.URLDecoder.decode(path.replace("+", "%2B"), "UTF-8") }.getOrDefault(path).substringAfterLast('/')
+    else File(path).name
+
+    /**
+     * AI 복제 파일의 원본을 같은 폴더의 이름으로 찾습니다(복제의 복제는 최초 원본까지 거슬러 올라갑니다).
+     * 이력 링크가 끊겨 외부 파일로 등록된 복제도 원본 게시글에 묶기 위해 사용합니다.
+     */
+    fun <T> duplicateOrigins(candidates: List<T>, pathOf: (T) -> String): (String) -> T? {
+        // 후보 색인은 한 번만 만들어 대량 이력에서도 복제마다 전체를 다시 훑지 않습니다.
+        val index = candidates.associateBy { parentFolder(pathOf(it)) to fileName(pathOf(it)).substringBeforeLast('.') }
+        return { path ->
+            val parent = parentFolder(path)
+            var stem = com.plugin.compatibility.enhancement.EnhancementRules.duplicateOrigin(fileName(path))
+            var found: T? = null
+            while (stem != null && found == null) {
+                found = index[parent to stem]
+                stem = com.plugin.compatibility.enhancement.EnhancementRules.duplicateOrigin(stem)
+            }
+            found
+        }
+    }
+
     /** 설정 폴더와 이력 폴더의 공통 상위 위치에서 탐색을 시작합니다. */
     fun historyFolderRoot(preferred: String, folders: List<String>): String {
         val paths = (folders + preferred).filter { it.isNotBlank() }.distinct()

@@ -113,6 +113,24 @@ fun PostMediaViewer(paths: List<String>, initialPath: String?, onDismiss: () -> 
         }
     }
     SideEffect { runCatching { currentVideo?.setVolume(volume, volume) } }
+    // 홈 버튼 등으로 백그라운드에 가면 재생을 멈추고, 복귀 시 직전에 재생 중이던 경우만 이어 재생합니다.
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        var resumeOnStart = false
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_STOP -> runCatching {
+                    currentVideo?.let { resumeOnStart = it.isPlaying; it.pause() }
+                }
+                androidx.lifecycle.Lifecycle.Event.ON_START -> if (resumeOnStart) runCatching {
+                    currentVideo?.start(); resumeOnStart = false
+                }
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
     var showWallpaperDialog by remember { mutableStateOf(false) }

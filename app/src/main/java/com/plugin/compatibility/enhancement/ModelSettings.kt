@@ -73,7 +73,7 @@ internal fun ModelSettings(onBack: () -> Unit, video: Boolean = false) {
             try {
                 val model = action()
                 models = (models + model).distinctBy { it.source }
-                selected = model.source; selectedKey.updateString(selected)
+                selected = model.source; selectedKey.updateString(selected); EnhancementPreset.edited()
                 status = "모델 준비 완료: ${model.name}"
             } catch (cancel: CancellationException) { throw cancel }
             catch (failure: Exception) { status = failure.message.orEmpty() }
@@ -85,7 +85,8 @@ internal fun ModelSettings(onBack: () -> Unit, video: Boolean = false) {
     }
     val permissionSettings = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { refresh() }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { refresh() }
-    LaunchedEffect(Unit) {
+    // 설정 단계가 영상 모델을 바꾸면 선택 표시도 다시 읽습니다.
+    LaunchedEffect(EnhancementPreset.reload) {
         selected = if (video) selectedKey.getString(defaultModel) else EnhancementModels.selectedSource(context)
         runCatching { EnhancementModels.scan(context) }.onSuccess { models = it }.onFailure { status = it.message.orEmpty() }
         if (!video) google = runCatching { GoogleEnhancer.availability(context) }.getOrDefault(false to false)
@@ -131,12 +132,25 @@ internal fun ModelSettings(onBack: () -> Unit, video: Boolean = false) {
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             Text(if (video) "영상 기본: QuickSRNet Small · 최대: Medium · LiteRT · 약 134/244 KB"
                 else "이미지 기본: Real-ESRGAN x4v3 · LiteRT·ONNX · 약 4.9 MB", style = MaterialTheme.typography.bodySmall)
+            // 옵션은 실제 처리 순서(전처리 → 업스케일 → 보간 → 후처리 → 저장)대로 배치합니다.
+            PresetSettings(enabled = !busy, image = !video)
+            StageHeader("1. 전처리 · 디코드 직후")
+            DenoiseSettings(enabled = !busy, image = !video)
+            if (video) ShrinkSettings(enabled = !busy)
+            StageHeader("2. AI 업스케일")
+            Text("사용할 모델은 위 '사용 중' 표시, 변경은 맨 아래 '모델 관리', 장치·엔진은 '실행 환경'에서 설정합니다.", style = MaterialTheme.typography.bodySmall)
+            SamplingSettings(enabled = !busy)
             if (video) {
-                VideoEncodingSettings(enabled = !busy)
+                StageHeader("3. 프레임 보간")
                 FrameSettings(enabled = !busy)
                 Text(if (rifeReady) "RIFE 4.6 보간 모델 설치됨" else "RIFE 4.6은 보간할 때 다운로드합니다.", style = MaterialTheme.typography.bodySmall)
                 if (rifeReady) TextButton(enabled = !busy, onClick = { deleteRife = true }) { Text("보간 모델 삭제") }
             }
+            StageHeader(if (video) "4. 후처리 · 인코딩 직전" else "3. 후처리 · 저장 직전")
+            SharpenSettings(enabled = !busy)
+            if (video) { StageHeader("5. 저장 · 인코딩"); VideoEncodingSettings(enabled = !busy) }
+            // 모델 파일 관리(폴더·목록·추천·링크)는 처리 옵션이 아니므로 처리 순서 뒤 맨 아래에 둡니다.
+            StageHeader("모델 관리 · 업스케일 모델 선택·다운로드")
             Text("모델 폴더", style = MaterialTheme.typography.titleMedium)
             Text("${EnhancementModels.publicRoot()}\nSD 카드 다운로드를 사용하면 선택한 폴더의 models를 검색합니다.", style = MaterialTheme.typography.bodySmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -157,7 +171,7 @@ internal fun ModelSettings(onBack: () -> Unit, video: Boolean = false) {
                             else if (model.source.endsWith(".tflite", true) || model.name.endsWith(".tflite", true)) "LiteRT" else "ONNX"
                         Text("$runtime · ${model.bytes / 1024} KB", style = MaterialTheme.typography.bodySmall)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TextButton(enabled = !busy && selected != model.source, onClick = { selected = model.source; selectedKey.updateString(selected) }) {
+                            TextButton(enabled = !busy && selected != model.source, onClick = { selected = model.source; selectedKey.updateString(selected); EnhancementPreset.edited() }) {
                                 Text(if (selected == model.source) "사용 중" else "사용")
                             }
                             if (!model.source.startsWith("asset://")) TextButton(enabled = !busy, onClick = { deleting = model }) {
@@ -176,7 +190,7 @@ internal fun ModelSettings(onBack: () -> Unit, video: Boolean = false) {
                         Text(recommendation.description, style = MaterialTheme.typography.bodySmall)
                         val existing = models.firstOrNull { it.name == recommendation.name }
                         TextButton(enabled = !busy, onClick = {
-                            if (existing != null) { selected = existing.source; selectedKey.updateString(selected) }
+                            if (existing != null) { selected = existing.source; selectedKey.updateString(selected); EnhancementPreset.edited() }
                             else acquire { EnhancementModels.download(context, recommendation.url, recommendation) { status = it } }
                         }) { Text(if (existing == null) "다운로드" else if (selected == existing.source) "사용 중" else "사용") }
                     }
@@ -184,8 +198,8 @@ internal fun ModelSettings(onBack: () -> Unit, video: Boolean = false) {
             }
             OutlinedTextField(link, onValueChange = { link = it }, modifier = Modifier.fillMaxWidth(), label = { Text("Hugging Face 모델 파일 링크") }, singleLine = true)
             TextButton(enabled = !busy && link.isNotBlank(), onClick = { acquire { EnhancementModels.download(context, link) { status = it } } }) { Text("링크에서 다운로드") }
-            HorizontalDivider()
-            SamplingSettings(enabled = !busy)
+            // 실행 환경(엔진·장치·스레드·Google)은 단계와 무관한 기기 설정이라 페이지 맨 아래에 둡니다.
+            StageHeader("실행 환경 · 엔진과 장치")
             Text("실행 엔진", style = MaterialTheme.typography.titleMedium)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(backend == "litert", enabled = !busy, onClick = { backend = "litert"; EnhancementModels.BACKEND.updateString(backend) }, label = { Text("LiteRT v2 · 기본") })

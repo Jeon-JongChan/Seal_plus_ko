@@ -51,7 +51,7 @@ class ImageEnhancementTest {
                         assertFalse(replace); saved += source to output
                     }
                 } } }
-                tap("게시글 전체 화질 개선"); awaitNode("최소"); tap("최소")
+                tap("게시글 전체 화질 개선"); awaitNode("커스텀"); tap("커스텀")
                 awaitNode("전체 복제"); tap("다음"); awaitNode("2 / 2장")
                 // 두 번째 원본 변경으로 부분 저장 실패를 만들고 성공한 첫 복제가 다시 저장되지 않는지 확인합니다.
                 images[1].appendBytes(byteArrayOf(0))
@@ -178,13 +178,13 @@ class ImageEnhancementTest {
                 activity.setContent { SealTheme { ImageEnhancementPlugin.ImageAction(File(context.cacheDir, "ai-ui.png").path) { _, _ -> } } }
             }
             tap("이미지 AI 보정")
-            awaitNode("최소"); awaitNode("최대")
-            tap("직접 설정")
-            awaitNode("크기 유지 · 화질 개선")
-            tap("해상도·배율 선택")
-            awaitNode("720p"); awaitNode("4K (2160p)"); awaitNode("8배")
-            tap("간편 설정으로")
-            awaitNode("최소")
+            // 최소·최대 대신 현재 옵션 요약, 출력 크기, 설정 단계 시작 버튼이 바로 보여야 합니다.
+            // 화면 위에서 아래 순서로 확인합니다(찾지 못하면 아래로만 스크롤합니다).
+            listOf("커스텀", "속도", "균형", "품질", "최고").forEach(::awaitNode)
+            awaitNode("2배 · 기본"); awaitNode("720p"); awaitNode("4K"); awaitNode("8배"); awaitNode("크기 유지")
+            awaitNode("현재 선택된 옵션")
+            // 상세 조정을 펼치면 단계 칩이 시작 버튼과 같은 선택을 보여 줍니다.
+            tap("상세 조정 ▾"); awaitNode("설정 단계"); tap("상세 조정 접기 ▴")
             val bitmap = instrumentation.uiAutomation.takeScreenshot()
             File(context.cacheDir, "ai-simple-ui.png").outputStream().use { assertTrue(bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)) }
             bitmap.recycle()
@@ -200,11 +200,22 @@ class ImageEnhancementTest {
 
     /** 접근성 트리가 갱신될 때까지 지정한 버튼을 찾습니다. */
     private fun awaitNode(label: String): AccessibilityNodeInfo {
-        repeat(300) {
-            findNode(InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow, label)?.let { return it }
+        repeat(300) { attempt ->
+            val root = InstrumentationRegistry.getInstrumentation().uiAutomation.rootInActiveWindow
+            findNode(root, label)?.let { return it }
+            // 화면 밖 항목은 접근성 트리에 없으므로, 잠시 기다려도 없으면 보정 창 본문을 아래로 스크롤합니다.
+            if (attempt % 5 == 4) scrollable(root)?.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
             SystemClock.sleep(100)
         }
         error("화면에서 찾을 수 없습니다: $label")
+    }
+
+    /** 첫 번째 세로 스크롤 영역을 찾습니다. */
+    private fun scrollable(node: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+        if (node == null) return null
+        if (node.isScrollable) return node
+        for (index in 0 until node.childCount) scrollable(node.getChild(index))?.let { return it }
+        return null
     }
 
     /** 텍스트 또는 콘텐츠 설명으로 Compose 접근성 노드를 찾습니다. */

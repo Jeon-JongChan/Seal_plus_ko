@@ -78,4 +78,12 @@ object EnhancementRules {
         val id = Regex(" \\[[A-Za-z0-9_-]+]$").find(stem)?.value.orEmpty()
         return stem.removeSuffix(id) + "-AI-$suffix" + id + ".$extension"
     }
+
+    /**
+     * [duplicateName]의 역변환으로, 복제 파일 이름에서 바로 앞 원본의 확장자 없는 이름을 돌려줍니다.
+     * 복제의 복제는 한 단계씩 벗겨지므로 null이 나올 때까지 반복하면 최초 원본 이름이 됩니다.
+     */
+    fun duplicateOrigin(name: String): String? =
+        Regex("^(.*)-AI-[0-9a-f]{8}( \\[[A-Za-z0-9_-]+])?(?:\\.(?:png|mp4))?$").find(name)
+            ?.let { it.groupValues[1] + it.groupValues[2] }?.takeIf { it.isNotEmpty() }
 }

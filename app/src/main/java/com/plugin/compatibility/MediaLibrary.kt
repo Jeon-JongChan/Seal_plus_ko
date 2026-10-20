@@ -107,6 +107,7 @@ object MediaLibrary {
         }
         val fileCounts = files.groupingBy { it.name }.eachCount()
         val recorded = history.map { it.videoPath }.toMutableSet()
+        val origins = MediaRules.duplicateOrigins(history.filter { it.extractor != "External" }) { it.videoPath }
         for (file in files) {
             val candidates = byName[file.name].orEmpty()
             val oldPath = MediaRules.reconnectionSource(file.name, candidates)
@@ -119,6 +120,15 @@ object MediaLibrary {
                 recorded.add(file.path)
             }
             if (!recorded.add(file.path)) continue
+            // 이력 연결 없이 발견된 AI 복제는 같은 폴더의 원본 이력을 복사해 원본 게시글에 묶습니다.
+            val origin = if (PluginMediaMetadataStore.isAiDuplicate(file.path)) origins(file.path) else null
+            if (origin != null) {
+                PluginMediaMetadataStore.save(file.path, quality = file.quality, sourceQuality = origin.sourceQuality ?: origin.quality,
+                    postPageIndex = origin.postPageIndex, postPageCount = origin.postPageCount, aiDuplicate = true)
+                PluginDatabaseUtil.insertInfoImmediately(origin.copy(id = 0, videoPath = file.path,
+                    thumbnailUrl = if (origin.thumbnailUrl == origin.videoPath) file.path else origin.thumbnailUrl))
+                continue
+            }
             PluginMediaMetadataStore.save(file.path, quality = file.quality)
             PluginDatabaseUtil.insertInfoImmediately(com.junkfood.seal.database.objects.DownloadedVideoInfo(
                 id = 0, videoTitle = file.name, videoAuthor = "", videoUrl = file.path,

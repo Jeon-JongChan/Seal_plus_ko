@@ -12,5 +12,7 @@
     <string name="loc_file_delete_failed">파일을 삭제하지 못했습니다. 이력을 유지합니다.</string>
     <string name="loc_image_plugin_description">인스타그램 게시물 또는 계정의 이미지를 다운로드합니다.</string>
     <string name="loc_image_url">인스타그램 게시물 또는 계정 URL</string>
+    <string name="loc_task_duplicate">이미 대기열에 있는 항목입니다.</string>
+    <string name="loc_report_preview_title">오류 보고서</string>
     <string name="loc_fetch_images">이미지 다운로드</string>
 </resources>

@@ -152,6 +152,14 @@ FOLDERS 등록 카드의 퀵 표시로 한 폴더를 지정하면 다운로드�
 
 영상 저장: `VideoRules.encoderMimes`의 기본은 AV1→원본 코덱. `VIDEO_ORIGINAL_CODEC`를 선택하면 원본→AV1. `VideoEncodingSettings`를 설정·상세 조정에서 재사용. AV1 MP4는 API 34 이상. 입력은 원본 코덱으로 디코딩. `EnhancementClient.Preview.codec`에 실제 결과 MIME 기록. `VideoTiming` 로그에 읽기·보정·쓰기·전체 시간 표시.
 
+영상 인코더 후보(16차): 선택·원본 코덱 뒤에 항상 H.265→H.264(→AV1)를 이어 붙여 H.264 한계 해상도에서도 저장한다. 어느 후보도 목표 크기를 지원하지 않으면 `VideoEnhancer.fitTarget`이 종횡비를 유지해 5%씩 줄여 지원 크기로 낮추고 결과 화면의 엔진 정보에 코덱 대체·해상도 제한 이유를 남긴다. configure 거부 시 필수 키만으로 재시도한다.
+
+보정 옵션 메뉴(16차, 모두 사용자 선택·옵션별 설명 `OptionHelp`): `DenoiseSettings`(영상·이미지), `ShrinkSettings`(영상 선 축소 75%, 기본 끔), `SharpenSettings`(제한형 언샤프 `PostSharpen`, 기본 끔), `SamplingSettings`, `VideoEncodingSettings`. 영상 YUV↔RGB 변환은 행 단위 병렬 처리.
+
+영상 인코더 후보(16차): 선택·원본 코덱 뒤에 항상 H.265→H.264(→AV1)를 이어 붙여 H.264 한계 해상도에서도 저장한다. 어느 후보도 목표 크기를 지원하지 않으면 `VideoEnhancer.fitTarget`이 종횡비를 유지해 5%씩 줄여 지원 크기로 낮추고 결과 화면의 엔진 정보에 코덱 대체·해상도 제한 이유를 남긴다. configure 거부 시 필수 키만으로 재시도한다.
+
+보정 옵션 메뉴(16차, 모두 사용자 선택·옵션별 설명 `OptionHelp`): `DenoiseSettings`(영상·이미지), `ShrinkSettings`(영상 선 축소 75%, 기본 끔), `SharpenSettings`(제한형 언샤프 `PostSharpen`, 기본 끔), `SamplingSettings`, `VideoEncodingSettings`. 영상 YUV↔RGB 변환은 행 단위 병렬 처리.
+
 영상 코덱: 크기·FPS·YUV 접근을 지원하는 하드웨어 우선. 일반 AV1은 FFmpeg MediaCodec 디코더·지원 CQ 인코더 우선, 실패 시 소프트웨어. `MediaRules.hardwareQuality`는 CRF 상대 수준을 제조사 CQ 범위로 환산. 실제 CQ 품질은 기기별 차이 존재.
 
 다운로드 이력: 기본·확장 화면 모두 같은 페이징 호스트 사용. 5개씩 추가. 보이는 항목만 파일 크기 조회·카드 상세 계산. 전체 선택·삭제 범위는 전체 이력 유지.
@@ -163,3 +171,7 @@ FOLDERS 등록 카드의 퀵 표시로 한 폴더를 지정하면 다운로드�
 | `TemporarySession.storage(name)` | 현재 세션의 MMKV 메타데이터. |
 
 임시 숨기기: 기존 엔진·Room 재사용. 내부 저장소만 지원. 종료 시 통합 또는 폐기 확인.
+
+보정 설정 단계(18차): `EnhancementPreset`(커스텀·속도·균형·품질·최고)를 `PresetSettings`에서 선택. 단계는 모델·노이즈 제거·강도·선 축소·샤프닝·다운샘플링만 채우며 프레임·코덱·크기는 제외. 단계 값은 개별 옵션을 바꾼 뒤 '저장'으로 `ai_preset_{video|image}_{단계}` 키에 보관하고 '되돌리기'로 기본값 복원. 옵션 변경은 `EnhancementPreset.edited()`, 단계 적용은 `reload` 키로 각 옵션 칩을 다시 읽음. `OptionHelp`는 기본 접힘. 노이즈 제거·샤프닝·선 축소·다운샘플링은 직접 구현한 CPU 알고리즘(AI·FFmpeg 아님), 보간만 RIFE AI, 저장은 MediaCodec이며 FFmpeg는 오디오 합치기에만 사용.
+
+노이즈 제거 엔진(19차): 영상 전용 `PreDenoise.engine()`(builtin/ffmpeg, 키 `video_ai_denoise_engine`). ffmpeg 선택 시 `VideoEnhancer.prefilter`가 hqdn3d(+선 축소 scale)를 영상 전체에 한 번 적용한 임시 H.264(`prefiltered.mp4`, CRF 12, passthrough, noautorotate)를 만들고 이후 디코드가 이를 읽음(시각은 `timeOffset`으로 원본 기준 복원). 프레임 수·크기가 어긋나거나 실패하면 내장 필터로 대체하고 사유를 engine 문구에 기록. `runFfmpeg`는 오디오 합치기와 공용. 샤프닝은 재인코딩 손실 때문에 FFmpeg로 옮기지 않음. 설정 화면은 처리 순서(전처리→업스케일→보간→후처리→저장)대로 `StageHeader`로 배치.
