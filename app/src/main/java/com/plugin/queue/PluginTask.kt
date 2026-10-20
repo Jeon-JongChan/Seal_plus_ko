@@ -35,7 +35,13 @@ data class PluginTask(
         url == other.url && type == other.type && preferences == other.preferences && id == other.id
 
     /** 요청의 동등성과 같은 필드만 해시에 포함합니다. */
-    override fun hashCode(): Int = arrayOf(url, type, preferences, id).contentHashCode()
+    override fun hashCode(): Int {
+        // 배열의 기존 해시 계산 순서는 보존하고 대기열 조회마다 생기던 임시 배열만 없앱니다.
+        var result = 31 + url.hashCode()
+        result = 31 * result + type.hashCode()
+        result = 31 * result + preferences.hashCode()
+        return 31 * result + id.hashCode()
+    }
 
     /** 플러그인 전용 입력 유형입니다. */
     @Serializable

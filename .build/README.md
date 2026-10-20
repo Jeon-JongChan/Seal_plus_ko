@@ -33,3 +33,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .build/Start-App.ps1
 공용 스크립트는 프로젝트 위치를 기준으로 경로를 구성하고 `local.properties`의 SDK 경로를 갱신합니다. 도구·캐시는 Git에 포함하지 않습니다. 기존 도구는 자동으로 최신 버전으로 교체하지 않습니다. 에뮬레이터 실행에는 PC의 가상화 지원이 필요하며, 실제 AI 가속 성능은 실제 기기에서 측정해야 합니다.
 
 사용자 지정 JNI는 다운로드 SDK로 복원할 수 없어 소스 4개를 유지합니다. 반복 빌드는 Gradle 데몬과 프로젝트 구성 캐시 설정을 사용하며 출력에는 이번에 갱신된 APK·AAB만 표시합니다.
+
+## 최적화 회귀 검사
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .build/Check-Optimizations.ps1
+```
+
+앱의 실제 JVM 클래스에서 정렬 순서·키 조회 수, 게시물 집계·재시도·AI 복제·삭제 수, 진행률·취소·해시 계약을 검사합니다. 별도 테스트 프레임워크를 설치하지 않으며 Android UI·실기기 성능 검사를 대신하지 않습니다.

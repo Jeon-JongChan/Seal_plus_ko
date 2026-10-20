@@ -21,7 +21,6 @@ import androidx.compose.foundation.LocalOverscrollFactory
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -94,11 +93,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.constraintlayout.compose.ConstraintLayout
 import com.junkfood.seal.R
 import com.junkfood.seal.download.DownloaderV2
 import com.plugin.runtime.pluginQueue
-import com.plugin.queue.QueueMedia
+import com.plugin.compatibility.QueueMedia
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material3.TextButton
 import com.plugin.queue.PluginTask as Task
@@ -125,6 +123,7 @@ import com.junkfood.seal.util.getErrorReport
 import com.junkfood.seal.util.makeToast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
 
@@ -306,19 +305,19 @@ fun DownloadPageImplV2(
     var incrementalLoading by rememberSaveable { mutableStateOf(PluginPreferences.queueIncrementalLoading) }
     var visibleCount by remember(activeFilter, sortByName, incrementalLoading) { mutableIntStateOf(5) }
     var groupedSnapshot by remember(taskDownloadStateMap) {
-        mutableStateOf(emptyMap<Task, Task.State>() to emptyMap<String, Map<Task, Task.State>>())
+        mutableStateOf(QueueMedia.Snapshot())
     }
     // 진행률 변경 시 전체 묶음 계산은 UI 스레드 밖에서 하고 이전 계산은 취소합니다.
     LaunchedEffect(taskDownloadStateMap) {
         snapshotFlow { taskDownloadStateMap.toMap() }.collectLatest { snapshot ->
             groupedSnapshot = kotlinx.coroutines.withContext(Dispatchers.Default) {
-                QueueMedia.grouped(snapshot) to snapshot.entries.groupBy { QueueMedia.key(it.key) }
-                    .mapValues { (_, entries) -> entries.associate { it.key to it.value } }
+                val context = kotlinx.coroutines.currentCoroutineContext()
+                QueueMedia.snapshot(snapshot) { context.ensureActive() }
             }
         }
     }
-    val filteredMap = remember(groupedSnapshot.first, activeFilter) {
-        groupedSnapshot.first.filter { activeFilter.predict(it.toPair()) }
+    val filteredMap = remember(groupedSnapshot.states, activeFilter) {
+        groupedSnapshot.states.filter { activeFilter.predict(it.toPair()) }
     }
     val sortedTasks = remember(filteredMap, sortByName) {
         filteredMap.toList().sortMedia(sortByName, { it.first.timeCreated }, { it.second.viewState.title.ifBlank { it.first.url } })
@@ -444,6 +443,8 @@ fun DownloadPageImplV2(
                                         }
                                     } else {
                                         activeFilter = filter
+                                        // 필터 변경 때만 처음으로 이동해 재진입 시의 스크롤 복원은 유지합니다.
+                                        lazyListState.requestScrollToItem(0)
                                     }
                                 },
                             ) {
@@ -477,7 +478,7 @@ fun DownloadPageImplV2(
                                 deletionTargets = filteredMap.keys.filter { it.id in selectedIds }
                             }) { Text(stringResource(R.string.loc_queue_delete_selected)) }
                         } else TextButton(enabled = taskDownloadStateMap.isNotEmpty(), onClick = {
-                            deletionTargets = groupedSnapshot.first.keys.toList()
+                            deletionTargets = groupedSnapshot.states.keys.toList()
                         }) { Text(stringResource(R.string.loc_queue_delete_all)) }
                     }
                     if (activeFilter == Filter.Deleted && filteredMap.isNotEmpty()) {
@@ -503,8 +504,8 @@ fun DownloadPageImplV2(
                         // 빈 화면 안내는 필터·정렬 머리글 아래의 목록 영역에 배치해 작은 화면에서도 겹치지 않게 합니다.
                         item(key = "queue_empty", span = { GridItemSpan(maxLineSpan) }) {
                             Box(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 80.dp), contentAlignment = Alignment.Center) {
-                                // 240dp 이상일 때 일러스트를 표시하는 원본 규칙을 지키며 하단 FAB 영역은 비웁니다.
-                                DownloadQueuePlaceholder(modifier = Modifier.height(240.dp).widthIn(max = 360.dp))
+                                // 내용의 실제 높이와 하단 여백으로 안내 문구가 FAB에 가리지 않게 합니다.
+                                DownloadQueuePlaceholder(modifier = Modifier.widthIn(max = 360.dp))
                             }
                         }
                     }
@@ -530,7 +531,7 @@ fun DownloadPageImplV2(
                                 visibleTasks,
                             key = { (task, _) -> task.id },
                         ) { (task, state) ->
-                            val members = groupedSnapshot.second[QueueMedia.key(task)].orEmpty()
+                            val missingPages = groupedSnapshot.missingPages[task] ?: 0
                             with(state.viewState) {
                                 VideoCardV2(
                                     selected = selecting && task.id in selectedIds,
@@ -551,9 +552,9 @@ fun DownloadPageImplV2(
                                     stateIndicator = {
                                         Column {
                                             PostMediaDetails(state.viewState, overlay = true,
-                                                missingPages = QueueMedia.missingPages(task, members))
+                                                missingPages = missingPages)
                                             CardStateIndicator(modifier = Modifier, downloadState = state.downloadState)
-                                            if (members.values.any { it.downloadState is Task.DownloadState.Restartable })
+                                            if (task in groupedSnapshot.retryable)
                                                 TextButton(onClick = { onActionPost(task, UiAction.Resume) }) { Text(stringResource(R.string.loc_retry_failed_pages)) }
                                         }
                                     },
@@ -573,7 +574,7 @@ fun DownloadPageImplV2(
                             key = { (task, _) -> task.id },
                             span = { GridItemSpan(maxLineSpan) },
                         ) { (task, state) ->
-                            val members = groupedSnapshot.second[QueueMedia.key(task)].orEmpty()
+                            val missingPages = groupedSnapshot.missingPages[task] ?: 0
                             VideoListItem(
                                 selected = selecting && task.id in selectedIds,
                                 modifier = Modifier.padding(bottom = 16.dp).combinedClickable(onClick = { openItem(task) }, onLongClick = { selecting = true; if (task.id !in selectedIds) selectedIds.add(task.id) }),
@@ -585,9 +586,9 @@ fun DownloadPageImplV2(
                                     Column {
                                         if (selecting) Checkbox(task.id in selectedIds, onCheckedChange = { openItem(task) })
                                         PostMediaDetails(state.viewState,
-                                            missingPages = QueueMedia.missingPages(task, members))
+                                            missingPages = missingPages)
                                         ListItemStateText(modifier = Modifier.padding(top = 3.dp), downloadState = state.downloadState)
-                                        if (members.values.any { it.downloadState is Task.DownloadState.Restartable })
+                                        if (task in groupedSnapshot.retryable)
                                             TextButton(onClick = { onActionPost(task, UiAction.Resume) }) { Text(stringResource(R.string.loc_retry_failed_pages)) }
                                     }
                                 },
@@ -735,47 +736,27 @@ fun FABs(modifier: Modifier = Modifier, downloadCallback: () -> Unit = {}) {
 @Composable
 /** DownloadQueuePlaceholder의 대기열 표시와 사용자 동작을 처리합니다. */
 private fun DownloadQueuePlaceholder(modifier: Modifier = Modifier) {
-    BoxWithConstraints(modifier = modifier) {
-        ConstraintLayout {
-            val (image, text) = createRefs()
-            val showImage =
-                with(LocalDensity.current) {
-                    this@BoxWithConstraints.constraints.maxHeight >= 240.dp.toPx()
-                }
-            if (showImage) {
-                Image(
-                    painter = rememberVectorPainter(image = DynamicColorImageVectors.download()),
-                    contentDescription = null,
-                    modifier =
-                        Modifier.fillMaxHeight(0.5f).widthIn(max = 240.dp).constrainAs(image) {
-                            top.linkTo(parent.top)
-                            bottom.linkTo(parent.bottom)
-                            start.linkTo(parent.start)
-                            end.linkTo(parent.end)
-                        },
-                )
-            } else {
-                Spacer(Modifier.height(72.dp).constrainAs(image) { top.linkTo(parent.top) })
-            }
-            Column(
-                modifier = Modifier.constrainAs(text) { top.linkTo(image.bottom, margin = 36.dp) },
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                Text(
-                    text = stringResource(R.string.you_ll_find_your_downloads_here),
-                    modifier = Modifier.padding(horizontal = 24.dp),
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = stringResource(R.string.download_hint),
-                    modifier = Modifier.padding(top = 4.dp).padding(horizontal = 24.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-            }
-        }
+    // 그림·문구의 실제 높이를 목록에 반영해 작은 화면과 큰 글꼴에서도 FAB 아래로 넘치지 않게 합니다.
+    Column(modifier = modifier.padding(horizontal = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Image(
+            painter = rememberVectorPainter(image = DynamicColorImageVectors.download()),
+            contentDescription = null,
+            modifier = Modifier.height(120.dp).widthIn(max = 240.dp),
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = stringResource(R.string.you_ll_find_your_downloads_here),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = stringResource(R.string.download_hint),
+            modifier = Modifier.padding(top = 4.dp),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 

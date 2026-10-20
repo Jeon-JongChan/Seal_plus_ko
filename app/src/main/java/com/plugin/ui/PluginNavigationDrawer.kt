@@ -55,7 +55,7 @@ fun PluginNavigationDrawer(
     currentRoute: String?,
     currentTopDestination: String?,
     onNavigateToRoute: (String) -> Unit,
-    onDismissRequest: () -> Unit,
+    onDismissRequest: suspend () -> Unit,
     footer: @Composable (() -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
@@ -105,7 +105,7 @@ fun PluginNavigationDrawerSheetContent(
     currentRoute: String?,
     showQuickSettings: Boolean = false,
     onNavigateToRoute: (String) -> Unit,
-    onDismissRequest: () -> Unit,
+    onDismissRequest: suspend () -> Unit,
     footer: @Composable (() -> Unit)? = null,
 ) {
     if (PluginState.isEnabled(PluginId.INTERACTION)) {
@@ -132,8 +132,7 @@ fun PluginNavigationDrawerSheetContent(
                 label = { Text(stringResource(R.string.download_queue)) },
                 icon = { Icon(Icons.Filled.Download, null) },
                 onClick = {
-                    scope.launch { onDismissRequest() }
-                    onNavigateToRoute(Route.HOME)
+                    scope.launch { onDismissRequest(); onNavigateToRoute(Route.HOME) }
                 },
                 selected = currentRoute == Route.HOME,
             )
@@ -141,8 +140,7 @@ fun PluginNavigationDrawerSheetContent(
                 label = { Text(stringResource(R.string.download_history)) },
                 icon = { Icon(Icons.Outlined.Folder, null) },
                 onClick = {
-                    scope.launch { onDismissRequest() }
-                    onNavigateToRoute(Route.DOWNLOADS)
+                    scope.launch { onDismissRequest(); onNavigateToRoute(Route.DOWNLOADS) }
                 },
                 selected = currentRoute == Route.DOWNLOADS,
             )
@@ -150,8 +148,7 @@ fun PluginNavigationDrawerSheetContent(
                 label = { Text(stringResource(R.string.custom_command)) },
                 icon = { Icon(Icons.Outlined.Terminal, null) },
                 onClick = {
-                    scope.launch { onDismissRequest() }
-                    onNavigateToRoute(Route.TASK_LIST)
+                    scope.launch { onDismissRequest(); onNavigateToRoute(Route.TASK_LIST) }
                 },
                 selected = currentRoute == Route.TASK_LIST,
             )
@@ -159,8 +156,7 @@ fun PluginNavigationDrawerSheetContent(
                 label = { Text(stringResource(R.string.settings)) },
                 icon = { Icon(Icons.Outlined.Settings, null) },
                 onClick = {
-                    scope.launch { onDismissRequest() }
-                    onNavigateToRoute(Route.SETTINGS)
+                    scope.launch { onDismissRequest(); onNavigateToRoute(Route.SETTINGS) }
                 },
                 selected = currentRoute == Route.SETTINGS || currentRoute == Route.SETTINGS_PAGE,
             )

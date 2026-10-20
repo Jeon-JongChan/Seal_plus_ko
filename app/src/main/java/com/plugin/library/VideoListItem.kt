@@ -28,8 +28,8 @@ import androidx.compose.ui.unit.dp
 import com.junkfood.seal.R
 import com.junkfood.seal.ui.common.AsyncImageImpl
 import com.junkfood.seal.util.toFileSizeText
+import com.plugin.compatibility.MediaRules
 
-private const val AUDIO_REGEX = "\\.(mp3|aac|opus|m4a|flac|wav)"
 
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -53,7 +53,7 @@ fun MediaListItem(
     onWallpaperClick: (() -> Unit)? = null,
     onInstagramClick: (() -> Unit)? = null,
 ) {
-    val isAudio = videoPath.contains(Regex(AUDIO_REGEX))
+    val isAudio = MediaRules.mediaKind(videoPath) == 3
     val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
     val isFileAvailable = videoFileSize != 0L

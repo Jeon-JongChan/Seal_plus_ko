@@ -131,7 +131,7 @@ fun PluginAppEntry(dialogViewModel: com.plugin.runtime.PluginDownloadDialogViewM
             currentTopDestination = currentTopDestination,
             showQuickSettings = true,
             gesturesEnabled = currentRoute == Route.HOME,
-            onDismissRequest = { scope.launch { drawerState.close() } },
+            onDismissRequest = { drawerState.close() },
             onNavigateToRoute = {
                 if (currentRoute != it) {
                     navController.navigate(it) {

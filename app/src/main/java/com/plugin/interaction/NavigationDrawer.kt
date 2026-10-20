@@ -186,9 +186,7 @@ fun InteractionNavigationDrawerContent(
                 label = { Text(stringResource(R.string.download_queue)) },
                 icon = { Icon(Icons.Filled.Download, null) },
                 onClick = {
-                    scope
-                        .launch { onDismissRequest() }
-                        .invokeOnCompletion { onNavigateToRoute(Route.HOME) }
+                    scope.launch { onDismissRequest(); onNavigateToRoute(Route.HOME) }
                 },
                 selected = currentRoute == Route.HOME,
             )
@@ -196,9 +194,7 @@ fun InteractionNavigationDrawerContent(
                 label = { Text(stringResource(R.string.downloads_history)) },
                 icon = { Icon(Icons.Outlined.Subscriptions, null) },
                 onClick = {
-                    scope
-                        .launch { onDismissRequest() }
-                        .invokeOnCompletion { onNavigateToRoute(Route.DOWNLOADS) }
+                    scope.launch { onDismissRequest(); onNavigateToRoute(Route.DOWNLOADS) }
                 },
                 selected = currentRoute == Route.DOWNLOADS,
             )
@@ -206,9 +202,7 @@ fun InteractionNavigationDrawerContent(
                 label = { Text(stringResource(R.string.custom_command)) },
                 icon = { Icon(Icons.Outlined.Terminal, null) },
                 onClick = {
-                    scope
-                        .launch { onDismissRequest() }
-                        .invokeOnCompletion { onNavigateToRoute(Route.TASK_LIST) }
+                    scope.launch { onDismissRequest(); onNavigateToRoute(Route.TASK_LIST) }
                 },
                 selected = currentRoute == Route.TASK_LIST,
             )
@@ -216,9 +210,7 @@ fun InteractionNavigationDrawerContent(
                 label = { Text(stringResource(R.string.settings)) },
                 icon = { Icon(Icons.Outlined.Settings, null) },
                 onClick = {
-                    scope
-                        .launch { onDismissRequest() }
-                        .invokeOnCompletion { onNavigateToRoute(Route.SETTINGS) }
+                    scope.launch { onDismissRequest(); onNavigateToRoute(Route.SETTINGS) }
                 },
                 selected = currentRoute == Route.SETTINGS_PAGE,
             )
@@ -228,21 +220,21 @@ fun InteractionNavigationDrawerContent(
                 color = MaterialTheme.colorScheme.primary)
             NavigationDrawerItem(label = { Text(stringResource(R.string.plugin_manage)) },
                 icon = { Icon(Icons.Outlined.Settings, null) }, selected = currentRoute == com.plugin.PLUGINS_ROUTE,
-                onClick = { scope.launch { onDismissRequest() }.invokeOnCompletion { onNavigateToRoute(com.plugin.PLUGINS_ROUTE) } })
+                onClick = { scope.launch { onDismissRequest(); onNavigateToRoute(com.plugin.PLUGINS_ROUTE) } })
             com.plugin.PluginFactory.enabled().forEach { plugin ->
                 NavigationDrawerItem(label = { Text(stringResource(plugin.titleResource)) },
                     icon = { Icon(plugin.icon, null) },
                     selected = currentRoute == plugin.route,
-                    onClick = { scope.launch { onDismissRequest() }.invokeOnCompletion { onNavigateToRoute(plugin.route) } })
+                    onClick = { scope.launch { onDismissRequest(); onNavigateToRoute(plugin.route) } })
             }
             if (showQuickSettings && com.plugin.PluginState.isEnabled(com.plugin.PluginId.INTERACTION)) {
                 HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                TextButton(onClick = { scope.launch { onDismissRequest() }.invokeOnCompletion { onNavigateToRoute("plugin_interaction") } }) { Text(stringResource(R.string.loc_edit_favorites)) }
+                TextButton(onClick = { scope.launch { onDismissRequest(); onNavigateToRoute("plugin_interaction") } }) { Text(stringResource(R.string.loc_edit_favorites)) }
                 if (favorites.isEmpty()) Text(stringResource(R.string.loc_favorites_hint), Modifier.padding(16.dp))
                 shortcuts.filter { it.first in favorites }.forEach { (route, title) ->
                     NavigationDrawerItem(label = { Text(stringResource(title)) },
                         selected = currentRoute == route,
-                        onClick = { scope.launch { onDismissRequest() }.invokeOnCompletion { onNavigateToRoute(route) } })
+                        onClick = { scope.launch { onDismissRequest(); onNavigateToRoute(route) } })
                 }
             }
         }

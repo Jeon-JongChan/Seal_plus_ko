@@ -33,4 +33,6 @@ local.properties
 !.build/Emulator.ps1
 !.build/Start-App.ps1
 !.build/README.md
+!.build/Check-Optimizations.ps1
+!.build/Check-Optimizations.java
 /Start-App.ps1

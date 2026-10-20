@@ -30,8 +30,6 @@ import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.produceState
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyGridItemSpanScope
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectableGroup
@@ -65,7 +63,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TriStateCheckbox
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberTopAppBarState
-import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -103,7 +100,6 @@ import com.junkfood.seal.database.backup.BackupUtil.toJsonString
 import com.junkfood.seal.database.backup.BackupUtil.toURLListString
 import com.junkfood.seal.database.objects.DownloadedVideoInfo
 import com.junkfood.seal.ui.common.HapticFeedback.slightHapticFeedback
-import com.junkfood.seal.ui.common.LocalWindowWidthState
 import com.junkfood.seal.ui.component.BackButton
 import com.junkfood.seal.ui.component.CheckBoxItem
 import com.junkfood.seal.ui.component.ConfirmButton
@@ -114,7 +110,6 @@ import com.junkfood.seal.ui.component.SealSearchBar
 import com.junkfood.seal.ui.component.VideoFilterChip
 import com.junkfood.seal.ui.svg.DynamicColorImageVectors
 import com.junkfood.seal.ui.svg.drawablevectors.videoSteaming
-import com.junkfood.seal.util.AUDIO_REGEX
 import com.junkfood.seal.util.FileUtil
 import com.junkfood.seal.util.ToastUtil
 import com.junkfood.seal.util.makeToast
@@ -125,16 +120,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinViewModel
-
-/** filterByType에 필요한 화면 구성 또는 처리 규칙을 제공합니다. */
-fun DownloadedVideoInfo.filterByType(
-    videoFilter: Boolean = false,
-    audioFilter: Boolean = true,
-): Boolean {
-    return if (!(videoFilter || audioFilter)) true
-    else if (audioFilter) this.videoPath.contains(Regex(AUDIO_REGEX))
-    else !this.videoPath.contains(Regex(AUDIO_REGEX))
-}
 
 /** filterSort에 필요한 화면 구성 또는 처리 규칙을 제공합니다. */
 fun DownloadedVideoInfo.filterSort(
@@ -328,8 +313,10 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
         val selected = selectedItemIds.toSet()
         val visible = if (visiblePostIds.isEmpty()) posts.take(8) else posts.filter { it.first().id in visiblePostIds }
         val needed = (visible.flatten() + videoList.filter { it.id in selected }).distinctBy { it.id }
+        // 작업 스레드는 UI가 갱신하는 가변 캐시 대신 필요한 항목의 불변 사본만 읽습니다.
+        val cached = needed.associate { it.id to sizeCache[it.id] }
         val measured = withContext(Dispatchers.IO) {
-            needed.associate { it.id to (sizeCache[it.id] ?: MediaLibrary.fileBytes(it.videoPath)) }
+            needed.associate { it.id to (cached[it.id] ?: MediaLibrary.fileBytes(it.videoPath)) }
         }
         sizeCache.putAll(measured)
         value = sizeCache.toMap()
@@ -342,24 +329,11 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
         }
     }
 
-    val selectedVideoCount =
-        remember(selectedIds, videoList) {
-            mutableIntStateOf(
-                videoList.count { info ->
-                    info.id in selectedIds &&
-                        info.filterByType(videoFilter = true, audioFilter = false)
-                }
-            )
-        }
-    val selectedAudioCount =
-        remember(selectedIds, videoList) {
-            mutableIntStateOf(
-                videoList.count { info ->
-                    info.id in selectedIds &&
-                        info.filterByType(videoFilter = false, audioFilter = true)
-                }
-            )
-        }
+    // 이미지·영상·음원을 한 번만 분류해 선택한 이미지를 영상 수로 표시하지 않습니다.
+    val selectedCounts = remember(selectedIds, videoList) {
+        videoList.filter { it.id in selectedIds }
+            .groupingBy { MediaRules.mediaKind(it.videoPath, it.quality?.codec.orEmpty()) }.eachCount()
+    }
 
     val selectedFileSizeSum by
         remember(selectedItemIds.size) {
@@ -404,6 +378,14 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
     LaunchedEffect(sheetState.targetValue, isSelectEnabled) {
         if (showBottomSheet || isSelectEnabled) {
             softKeyboardController?.hide()
+        }
+    }
+
+    val childFolders = remember(videoList, mediaFilter, folderFilter, folderMode, scan.running) {
+        if (!folderMode) emptyList() else {
+            val folders = videoList.filter { mediaFilter == 0 || MediaRules.mediaKind(it.videoPath, it.quality?.codec.orEmpty()) == mediaFilter }
+                .map { MediaRules.parentFolder(it.videoPath) }.filter { it.isNotBlank() }.distinct()
+            MediaRules.historyFolderChildren(folderFilter.orEmpty(), folders)
         }
     }
 
@@ -536,7 +518,8 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
                         modifier = Modifier.weight(1f),
                         text =
                             stringResource(R.string.multiselect_item_count)
-                                .format(selectedVideoCount.intValue, selectedAudioCount.intValue),
+                                .format(selectedCounts[1] ?: 0, selectedCounts[3] ?: 0) +
+                                if ((selectedCounts[2] ?: 0) > 0) " · " + stringResource(R.string.loc_image_count, selectedCounts[2] ?: 0) else "",
                         style = MaterialTheme.typography.labelLarge,
                     )
                     IconButton(
@@ -580,12 +563,6 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
                 }
             }
 
-        val cellCount =
-            when (LocalWindowWidthState.current) {
-                WindowWidthSizeClass.Expanded -> 2
-                else -> 1
-            }
-        val span: (LazyGridItemSpanScope) -> GridItemSpan = { GridItemSpan(cellCount) }
         LazyColumn(modifier = Modifier, state = lazyListState, contentPadding = innerPadding) {
             if (fullVideoList.isNotEmpty()) {
                 item {
@@ -604,9 +581,7 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
                 }
             }
             if (folderMode) {
-                val folders = videoList.filter { mediaFilter == 0 || MediaRules.mediaKind(it.videoPath, it.quality?.codec.orEmpty()) == mediaFilter }
-                    .map { MediaRules.parentFolder(it.videoPath) }.filter { it.isNotBlank() }.distinct()
-                for (folder in MediaRules.historyFolderChildren(folderFilter.orEmpty(), folders)) {
+                for (folder in childFolders) {
                     item(key = "folder:$folder") {
                         ListItem(modifier = Modifier.clickable(enabled = !isSelectEnabled) { folderFilter = folder },
                             headlineContent = { Text(folder.substringAfterLast('/').ifBlank { "저장소" }) },
@@ -618,22 +593,30 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
             items(posts.take(visibleCount), key = { it.first().id },
                 contentType = { MediaRules.mediaKind(it.first().videoPath, it.first().quality?.codec.orEmpty()) }) { post ->
                 val info = post.first()
-                val successful = post.filter { fileSizeMap.getOrElse(it.id) { 0L } > 0 }
-                val qualities = post.mapNotNull { it.quality }.sortedBy { it.width.toLong() * it.height }
-                val imageCount = successful.filter { it.quality?.codec?.startsWith("image/") == true || it.videoPath.substringAfterLast('.').lowercase() in setOf("jpg", "jpeg", "png", "webp", "avif") }
-                    .distinctBy { if (PluginMediaMetadataStore.isAiDuplicate(it.videoPath)) it.videoPath else it.videoUrl }.size
-                val successCount = successful.distinctBy { if (PluginMediaMetadataStore.isAiDuplicate(it.videoPath)) it.videoPath else it.videoUrl }.size
-                val count = maxOf(post.maxOf { it.postPageCount }, post.filterNot { PluginMediaMetadataStore.isAiDuplicate(it.videoPath) }.distinctBy { it.videoUrl }.size) +
-                    post.count { PluginMediaMetadataStore.isAiDuplicate(it.videoPath) }
-                val details = Task.ViewState(mediaCount = count, completedCount = successCount,
-                    isImage = imageCount == successCount, imageCount = imageCount, videoCount = successCount - imageCount,
-                    width = qualities.lastOrNull()?.width ?: 0, height = qualities.lastOrNull()?.height ?: 0,
-                    minWidth = qualities.firstOrNull()?.width ?: 0, minHeight = qualities.firstOrNull()?.height ?: 0,
-                    averageMbps = qualities.mapNotNull { it.averageMbps }.takeIf { it.isNotEmpty() }?.average(),
-                    originalCodec = post.mapNotNull { (it.sourceQuality ?: it.quality)?.codec }.distinct().joinToString(" / "),
-                    codec = post.mapNotNull { it.quality?.codec }.distinct().joinToString(" / "),
-                    av1Mode = if (post.none { it.sourceQuality != null }) 0 else if (post.any { it.sourceQuality == null && it.videoUrl in post.filter { item -> item.sourceQuality != null }.map { item -> item.videoUrl } }) 2 else 1)
-
+                val postSizes = post.map { fileSizeMap[it.id] ?: 0L }
+                val successful = remember(post, postSizes) { post.filterIndexed { index, _ -> postSizes[index] > 0 } }
+                val details = remember(post, postSizes, scan.running) {
+                    val qualities = post.associate { it.id to it.quality }
+                    val sources = post.associate { it.id to it.sourceQuality }
+                    val duplicatePaths = post.filter { PluginMediaMetadataStore.isAiDuplicate(it.videoPath) }.map { it.videoPath }.toSet()
+                    val uniqueSuccessful = successful.distinctBy { if (it.videoPath in duplicatePaths) it.videoPath else it.videoUrl }
+                    val imageCount = uniqueSuccessful.count { MediaRules.mediaKind(it.videoPath, qualities[it.id]?.codec.orEmpty()) == 2 }
+                    val originalCount = post.filterNot { it.videoPath in duplicatePaths }.distinctBy { it.videoUrl }.size
+                    val count = maxOf(post.maxOf { it.postPageCount }, originalCount) + post.count { it.videoPath in duplicatePaths }
+                    val sizes = qualities.values.filterNotNull().filter { it.width > 0 && it.height > 0 }
+                    val smallest = sizes.minByOrNull { it.width.toLong() * it.height }
+                    val largest = sizes.asReversed().maxByOrNull { it.width.toLong() * it.height }
+                    // 변환된 URL을 한 번 색인해 원본·변환본 혼합 여부의 중첩 순회를 없앱니다.
+                    val sourceUrls = post.filter { sources[it.id] != null }.map { it.videoUrl }.toSet()
+                    Task.ViewState(mediaCount = count, completedCount = uniqueSuccessful.size,
+                        isImage = imageCount == uniqueSuccessful.size, imageCount = imageCount, videoCount = uniqueSuccessful.size - imageCount,
+                        width = largest?.width ?: 0, height = largest?.height ?: 0,
+                        minWidth = smallest?.width ?: 0, minHeight = smallest?.height ?: 0,
+                        averageMbps = qualities.values.filterNotNull().mapNotNull { it.averageMbps }.takeIf { it.isNotEmpty() }?.average(),
+                        originalCodec = post.mapNotNull { (sources[it.id] ?: qualities[it.id])?.codec }.distinct().joinToString(" / "),
+                        codec = qualities.values.filterNotNull().map { it.codec }.distinct().joinToString(" / "),
+                        av1Mode = if (sourceUrls.isEmpty()) 0 else if (post.any { sources[it.id] == null && it.videoUrl in sourceUrls }) 2 else 1)
+                }
 
                     with(info) {
                         AnimatedVisibility(
@@ -660,8 +643,8 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
                                 isSelectEnabled = { isSelectEnabled },
                                 isSelected = { post.all { it.id in selectedIds } },
                                 onSelect = {
-                                    if (post.all { it.id in selectedItemIds }) selectedItemIds.removeAll(post.map { it.id }.toSet())
-                                    else post.forEach { if (it.id !in selectedItemIds) selectedItemIds.add(it.id) }
+                                    if (post.all { it.id in selectedIds }) selectedItemIds.removeAll(post.map { it.id }.toSet())
+                                    else selectedItemIds.addAll(post.filter { it.id !in selectedIds }.map { it.id })
                                 },
                                 onClick = {
                                     if (!enhanced) FileUtil.openFile(videoPath) { context.makeToast(R.string.file_unavailable) }
@@ -670,7 +653,7 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
                                 },
                                 onLongClick = {
                                     isSelectEnabled = true
-                                    post.forEach { if (it.id !in selectedItemIds) selectedItemIds.add(it.id) }
+                                    selectedItemIds.addAll(post.filter { it.id !in selectedIds }.map { it.id })
                                 },
                                 onShowContextMenu = {
                                     view.slightHapticFeedback()
@@ -755,7 +738,7 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
             },
             confirmButton = {
                 ConfirmButton {
-                    val targets = videoList.filter { selectedItemIds.contains(it.id) }
+                    val targets = videoList.filter { it.id in selectedIds }
                     val removeFiles = deleteFile
                     scope.launch { PluginDatabaseUtil.deleteInfoListSafe(targets, deleteFile = removeFiles) }
                     showRemoveMultipleItemsDialog = false
@@ -785,7 +768,7 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
     if (showExportDialog) {
         val list =
             if (selectedItemIds.isNotEmpty()) {
-                videoList.filter { selectedItemIds.contains(it.id) }
+                videoList.filter { it.id in selectedIds }
             } else {
                 videoList.filter { it.filterSort(mediaFilter, folderFilter) }
             }
