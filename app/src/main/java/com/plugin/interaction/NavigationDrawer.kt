@@ -30,13 +30,7 @@ import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Subscriptions
 import androidx.compose.material.icons.outlined.Terminal
-import androidx.compose.material.icons.rounded.BugReport
-import androidx.compose.material.icons.rounded.Cookie
-import com.plugin.featurePlugins
-import androidx.compose.material.icons.rounded.Info
-import androidx.compose.material.icons.rounded.SettingsApplications
 import androidx.compose.material3.DrawerState
-import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -48,33 +42,23 @@ import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
-import com.junkfood.seal.util.PreferenceUtil
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.junkfood.seal.R
 import com.junkfood.seal.ui.common.LocalWindowWidthState
 import com.junkfood.seal.ui.common.Route
-import com.junkfood.seal.ui.page.downloadv2.DownloadPageImplV2
 import kotlinx.coroutines.launch
 
 @Composable
@@ -359,34 +343,5 @@ fun NavigationRailContent(
             selected = currentTopDestination == Route.SETTINGS_PAGE,
             onClick = { onNavigateToRoute(Route.SETTINGS_PAGE) },
         )
-    }
-}
-
-@Preview(device = "spec:width=673dp,height=841dp")
-@Preview(device = "spec:width=1280dp,height=800dp,dpi=240")
-@Composable
-private fun ExpandedPreview() {
-    val widthDp = LocalConfiguration.current.screenWidthDp
-    var currentRoute = remember { mutableStateOf(Route.HOME) }
-
-    CompositionLocalProvider(
-        LocalWindowWidthState provides
-            if (widthDp > 480) WindowWidthSizeClass.Expanded
-            else if (widthDp > 360) WindowWidthSizeClass.Medium else WindowWidthSizeClass.Compact
-    ) {
-        Row {
-            val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
-            NavigationDrawer(
-                currentRoute = currentRoute.value,
-                currentTopDestination = currentRoute.value,
-                drawerState = drawerState,
-                onNavigateToRoute = { currentRoute.value = it },
-                onDismissRequest = {},
-            ) {
-                DownloadPageImplV2(taskDownloadStateMap = remember { mutableStateMapOf() }) { _, _
-                    ->
-                }
-            }
-        }
     }
 }

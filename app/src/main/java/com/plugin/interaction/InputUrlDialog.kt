@@ -1,7 +1,6 @@
 package com.plugin.interaction
 
 import com.junkfood.seal.ui.page.downloadv2.configure.Config
-import com.junkfood.seal.ui.page.downloadv2.configure.Header
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.LocalIndication
@@ -28,7 +27,6 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowForward
-import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.AddLink
 import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material.icons.outlined.ContentPaste
@@ -67,7 +65,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.junkfood.seal.R
@@ -119,20 +116,6 @@ fun EnhancedInputUrlPage(
     }
 }
 
-@Preview
-@Composable
-/** InputUrlPreview에 필요한 화면 구성 또는 처리 규칙을 제공합니다. */
-private fun InputUrlPreview() {
-    val urlList = remember {
-        mutableStateListOf<String>().apply { repeat(20) { add("https://www.example$it.com/") } }
-    }
-    InputUrlPageImpl(
-        urlListFromClipboard = listOf("https://www.example.com"),
-        savedLinks = urlList,
-        onSaveLink = { urlList.add(it) },
-        onRemoveSavedLink = { urlList.remove(it) },
-    ) {}
-}
 
 /** 입력·붙여넣기·저장한 링크를 다운로드 설정 화면으로 전달합니다. */
 @Composable
@@ -460,18 +443,6 @@ private fun DialogSingleChoiceItemVariant(
     }
 }
 
-/** SavedURLsDialog에 필요한 화면 구성 또는 처리 규칙을 제공합니다. */
-@Composable fun SavedURLsDialog(modifier: Modifier = Modifier) {}
-
-@Preview
-@Composable
-/** SavedUrlPreview에 필요한 화면 구성 또는 처리 규칙을 제공합니다. */
-private fun SavedUrlPreview() {
-    val urls = remember {
-        mutableStateListOf<String>().apply { repeat(10) { add("https://www.example$it.com/") } }
-    }
-    SavedUrlDialogImpl(urls = urls, onActionPost = {}, onRemoveLink = { urls.remove(it) }) {}
-}
 
 @Composable
 /** SavedUrlDialogImpl에 필요한 화면 구성 또는 처리 규칙을 제공합니다. */

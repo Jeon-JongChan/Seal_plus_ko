@@ -12,13 +12,10 @@ constraintLayout = "1.1.0"
 androidxLifecycle = "2.8.7"
 androidxNavigation = "2.8.9"
 
-androidxEspresso = "3.6.1"
-androidxTestExt = "1.2.1"
 
 
 coil = "2.7.0"
 
-junit4 = "4.13.2"
 
 kotlin = "2.4.21"
 
@@ -73,7 +70,6 @@ androidx-graphics-shapes = { group = "androidx.graphics", name = "graphics-shape
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okhttp" }
 
 androidx-compose-runtime = { group = "androidx.compose.runtime", name = "runtime" }
-androidx-compose-ui-test = { group = "androidx.compose.ui", name = "ui-test-junit4" }
 androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
 androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 
@@ -81,14 +77,11 @@ androidx-constraintlayout-compose = { group = "androidx.constraintlayout", name 
 
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "androidxNavigation" }
 
-androidx-test-ext = { group = "androidx.test.ext", name = "junit-ktx", version.ref = "androidxTestExt" }
 
-androidx-test-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "androidxEspresso" }
 
 
 coil-kt-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coil" }
 
-junit4 = { group = "junit", name = "junit", version.ref = "junit4" }
 
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-datetime = { group = "org.jetbrains.kotlinx", name = "kotlinx-datetime", version.ref = "datetime" }
@@ -115,7 +108,6 @@ mmkv = { group = "com.tencent", name = "mmkv", version.ref = "mmkv" }
 [plugins]
 android-application = { id = "com.android.application", version.ref = "androidGradlePlugin" }
 android-library = { id = "com.android.library", version.ref = "androidGradlePlugin" }
-android-test = { id = "com.android.test", version.ref = "androidGradlePlugin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }

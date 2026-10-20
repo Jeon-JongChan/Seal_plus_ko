@@ -1,6 +1,5 @@
 package com.plugin.compatibility.enhancement;
 
-import android.content.Context;
 import android.graphics.Bitmap;
 import java.nio.ByteBuffer;
 
@@ -13,17 +12,13 @@ public final class RifeSession implements AutoCloseable {
     private Bitmap cachedFirst, cachedSecond;
 
     /** 실제 장치에서는 소프트웨어 Vulkan을 GPU로 표시하거나 사용하지 않습니다. */
-    public RifeSession(Context context, String modelPath) { this(context, modelPath, false); }
-
-    /** CPU 기준 추론은 별도 검사 패키지의 모델 계약 검사에 한정합니다. */
-    public RifeSession(Context context, String modelPath, boolean referenceTest) {
-        if (referenceTest && !context.getPackageName().endsWith(".devicecheck")) throw new IllegalArgumentException("전용 검사 앱만 허용합니다.");
+    public RifeSession(String modelPath) {
         java.io.File directory = new java.io.File(modelPath);
         if (modelPath.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 200 || !directory.isDirectory()
                 || new java.io.File(directory, "flownet.param").length() != 16532
                 || new java.io.File(directory, "flownet.bin").length() != 10614320)
             throw new IllegalArgumentException("RIFE 4.6 모델 경로·파일이 올바르지 않습니다.");
-        handle = nativeCreate(modelPath, referenceTest);
+        handle = nativeCreate(modelPath);
     }
 
     /** 두 원본 사이 시각의 RGB 보간을 실행하며 호출자의 비트맵은 변경하지 않습니다. */
@@ -65,7 +60,7 @@ public final class RifeSession implements AutoCloseable {
     @Override public void close() { if (handle != 0) { nativeClose(handle); handle = 0; } first = second = output = null; pixels = null; cachedFirst = cachedSecond = null; }
 
     /** 검증된 모델 폴더에서 GPU 세션을 생성합니다. */
-    private static native long nativeCreate(String path, boolean referenceTest);
+    private static native long nativeCreate(String path);
     /** 직접 RGB 버퍼를 Vulkan 모델로 처리합니다. */
     private static native void nativeRun(long handle, ByteBuffer a, ByteBuffer b, ByteBuffer output, int width, int height, float position);
     /** 세션이 소유한 모델을 해제합니다. */

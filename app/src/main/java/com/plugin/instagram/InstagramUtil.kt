@@ -1,5 +1,7 @@
 package com.plugin.instagram
 
+import com.plugin.compatibility.InstagramMedia
+
 import com.plugin.compatibility.selectedFolder
 import com.plugin.compatibility.useWebsiteFolder
 import com.plugin.compatibility.copyPreservingPluginOptions

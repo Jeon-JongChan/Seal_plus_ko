@@ -18,12 +18,11 @@ void fail(JNIEnv* env, const char* message) {
 
 /** 유효한 Vulkan 장치와 실제 RIFE 4.6 모델이 있을 때만 세션을 생성합니다. */
 extern "C" JNIEXPORT jlong JNICALL
-Java_com_plugin_compatibility_enhancement_RifeSession_nativeCreate(JNIEnv* env, jclass, jstring path, jboolean referenceTest) {
+Java_com_plugin_compatibility_enhancement_RifeSession_nativeCreate(JNIEnv* env, jclass, jstring path) {
     std::lock_guard<std::mutex> guard(lifetime);
-    // CPU 기준 추론은 Java에서 별도 검사 패키지만 허용하며 앱의 GPU 대체 경로로 사용하지 않습니다.
-    if (!referenceTest && !gpuReady) { ncnn::create_gpu_instance(); gpuReady = true; }
-    const int gpu = referenceTest ? -1 : ncnn::get_default_gpu_index();
-    if (!referenceTest && (ncnn::get_gpu_count() == 0 || gpu < 0 || ncnn::get_gpu_info(gpu).type() == 3)) {
+    if (!gpuReady) { ncnn::create_gpu_instance(); gpuReady = true; }
+    const int gpu = ncnn::get_default_gpu_index();
+    if (ncnn::get_gpu_count() == 0 || gpu < 0 || ncnn::get_gpu_info(gpu).type() == 3) {
         if (sessions == 0 && gpuReady) { ncnn::destroy_gpu_instance(); gpuReady = false; }
         fail(env, "AI 프레임 보간에 사용할 Vulkan GPU가 없습니다. 프레임 유지를 선택하세요."); return 0;
     }

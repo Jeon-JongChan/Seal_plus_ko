@@ -1,8 +1,6 @@
 ﻿# 새 Android 프로젝트에서 사용하는 기본값입니다. 앱 실행 전 ApplicationId를 지정하세요.
 @{
     BuildTask = ':app:assembleGenericDebug'
-    TestTask = ':app:testGenericDebugUnitTest'
-    TestApkTask = ':app:assembleGenericDebugAndroidTest'
     ApkDirectory = 'app/build/outputs/apk/generic/debug'
     ApplicationId = 'com.junkfood.seal.debug'
     ApiLevel = 35

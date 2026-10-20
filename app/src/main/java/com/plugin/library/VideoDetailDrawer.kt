@@ -6,7 +6,6 @@ import com.plugin.compatibility.*
 import com.junkfood.seal.ui.page.videolist.*
 
 import android.content.Intent
-import android.content.res.Configuration
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -48,7 +47,6 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.junkfood.seal.R
 import com.junkfood.seal.database.objects.DownloadedVideoInfo
@@ -57,7 +55,6 @@ import com.junkfood.seal.ui.component.FilledTonalButtonWithIcon
 import com.junkfood.seal.ui.component.LongTapTextButton
 import com.junkfood.seal.ui.component.OutlinedButtonWithIcon
 import com.junkfood.seal.ui.component.SealModalBottomSheetM2
-import com.junkfood.seal.ui.theme.SealTheme
 import com.junkfood.seal.util.FileUtil
 import com.junkfood.seal.util.ToastUtil
 
@@ -133,21 +130,6 @@ fun VideoDetailDrawer(
     }
 }
 
-@Preview(uiMode = Configuration.UI_MODE_NIGHT_YES)
-@Composable
-/** DrawerPreview에 필요한 파일 표시와 사용자 동작을 연결합니다. */
-private fun DrawerPreview() {
-    SealTheme {
-        VideoDetailDrawerImpl(
-            sheetState =
-                ModalBottomSheetState(
-                    ModalBottomSheetValue.Expanded,
-                    density = LocalDensity.current,
-                ),
-            onReDownload = {},
-        )
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -155,9 +137,9 @@ private fun DrawerPreview() {
 fun VideoDetailDrawerImpl(
     sheetState: ModalBottomSheetState =
         ModalBottomSheetState(ModalBottomSheetValue.Hidden, density = LocalDensity.current),
-    title: String = stringResource(id = R.string.video_title_sample_text),
-    author: String = stringResource(id = R.string.video_creator_sample_text),
-    url: String = "https://www.example.com",
+    title: String,
+    author: String,
+    url: String,
     quality: com.junkfood.seal.database.objects.VideoQuality? = null,
     sourceQuality: com.junkfood.seal.database.objects.VideoQuality? = null,
     onDismissRequest: () -> Unit = {},

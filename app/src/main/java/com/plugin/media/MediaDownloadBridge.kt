@@ -1,5 +1,8 @@
 package com.plugin.media
 
+import com.plugin.compatibility.MediaLibrary
+import com.plugin.compatibility.MediaRules
+
 import com.plugin.compatibility.*
 import com.junkfood.seal.R
 import com.junkfood.seal.database.objects.VideoQuality

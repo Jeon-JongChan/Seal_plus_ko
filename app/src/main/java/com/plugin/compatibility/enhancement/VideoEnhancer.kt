@@ -78,8 +78,7 @@ object VideoEnhancer {
         val enhanceFirst = VideoRules.enhanceFirst(info.width, info.height, target, increase && data.getBoolean("interp_low"))
         val frameNote = VideoRules.frameNote(requested, info.fps, info.frames)
         val orderNote = if (enhanceFirst) "화질 개선 → 보간" else "보간 → 화질 개선"
-        val reference = data.getBoolean("rife_reference_test") && context.packageName.endsWith(".devicecheck")
-        val rifeEngine = if (reference) "RIFE CPU 기준 검사" else "RIFE Vulkan GPU"
+        val rifeEngine = "RIFE Vulkan GPU"
         val sampling = EnhancementSampling.normalized(data.getInt("sampling", EnhancementSampling.BILINEAR))
         val denoise = PreDenoise.enabled(data.getString("denoise", PreDenoise.AUTO), source.length(), info.duration, info.width, info.height, info.fps)
         val denoiseSigma = data.getFloat("denoise_sigma", 14f)
@@ -175,7 +174,7 @@ object VideoEnhancer {
                 catch (failure: Exception) { if (!data.getBoolean("accelerated")) throw failure; newLite(false) }
                 catch (failure: LinkageError) { if (!data.getBoolean("accelerated")) throw failure; newLite(false) }
             } else check(File(directory, "model.onnx").isFile) { "영상 보정 모델이 없습니다." }
-            if (increase) rife = RifeSession(context, File(directory, "rife").path, reference)
+            if (increase) rife = RifeSession(File(directory, "rife").path)
             data.putString("engine", "${lite?.let { "LiteRT ${it.route()}" } ?: "ONNX"}${if (increase) " · $rifeEngine" else " · 프레임 유지"}\n$frameNote · $orderNote")
             val encoderFailures = mutableListOf<String>()
             for (mime in mimes) {

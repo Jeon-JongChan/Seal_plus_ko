@@ -1,7 +1,6 @@
 package com.plugin.queue
 
 import com.junkfood.seal.ui.page.downloadv2.*
-import android.content.res.Configuration
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -10,26 +9,20 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.OpenInNew
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.Cancel
-import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Image
-import androidx.compose.material.icons.outlined.Wallpaper
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Error
 import androidx.compose.material.icons.rounded.Pause
@@ -40,17 +33,13 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,7 +49,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.junkfood.seal.R
@@ -72,18 +60,14 @@ import com.plugin.queue.PluginTask.DownloadState.FetchingInfo
 import com.plugin.queue.PluginTask.DownloadState.Idle
 import com.plugin.queue.PluginTask.DownloadState.ReadyWithInfo
 import com.plugin.queue.PluginTask.DownloadState.Running
-import com.plugin.queue.PluginTask.RestartableAction
 import com.junkfood.seal.ui.common.AsyncImageImpl
 import com.junkfood.seal.ui.common.LocalDarkTheme
 import com.junkfood.seal.ui.common.LocalFixedColorRoles
 import com.junkfood.seal.ui.common.motion.materialSharedAxisY
 import com.junkfood.seal.ui.component.GreenTonalPalettes
-import com.junkfood.seal.ui.theme.SealTheme
 import com.junkfood.seal.util.toDurationText
 import com.junkfood.seal.util.toFileSizeText
 import com.plugin.compatibility.MediaRules
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 
 private val IconButtonSize = 48.dp
 private val IconSize = 28.dp
@@ -218,48 +202,6 @@ fun VideoListItem(
     }
 }
 
-@Preview
-@Composable
-@Preview(name = "Dark Mode", uiMode = Configuration.UI_MODE_NIGHT_YES)
-/** VideoListItemPreview에 필요한 화면 구성 또는 처리 규칙을 제공합니다. */
-private fun VideoListItemPreview() {
-    SealTheme {
-        val fakeStateList =
-            listOf(
-                Running(Job(), "", 0.58f),
-                Error(throwable = Throwable(), RestartableAction.Download),
-                FetchingInfo(Job(), ""),
-                Canceled(RestartableAction.Download),
-                ReadyWithInfo,
-                Idle,
-                Completed(null),
-            )
-
-        var downloadState: Task.DownloadState by remember { mutableStateOf(Idle) }
-
-        LaunchedEffect(Unit) {
-            fakeStateList.forEach {
-                delay(2000)
-                downloadState = it
-            }
-        }
-
-        Surface {
-            VideoListItem(
-                modifier = Modifier.padding(vertical = 8.dp, horizontal = 20.dp),
-                thumbnailModel = R.drawable.sample3,
-                title = stringResource(R.string.video_title_sample_text),
-                uploader = stringResource(R.string.video_creator_sample_text),
-                stateIndicator = {
-                    ListItemStateText(
-                        modifier = Modifier.padding(top = 3.dp),
-                        downloadState = downloadState,
-                    )
-                },
-            ) {}
-        }
-    }
-}
 
 @Composable
 /** VideoCardV2에 필요한 화면 구성 또는 처리 규칙을 제공합니다. */
@@ -321,24 +263,6 @@ fun VideoCardV2(
     }
 }
 
-@Composable
-@Preview
-@Preview(name = "Dark Mode", uiMode = Configuration.UI_MODE_NIGHT_YES)
-/** VideoCardV2Preview에 필요한 화면 구성 또는 처리 규칙을 제공합니다. */
-fun VideoCardV2Preview() {
-    SealTheme {
-        val downloadState = Error(throwable = Throwable(), action = RestartableAction.Download)
-        VideoCardV2(
-            thumbnailModel = R.drawable.sample3,
-            title = stringResource(R.string.video_title_sample_text),
-            uploader = stringResource(R.string.video_creator_sample_text),
-            actionButton = { ActionButton(modifier = Modifier, downloadState = downloadState) {} },
-            stateIndicator = {
-                CardStateIndicator(modifier = Modifier, downloadState = downloadState)
-            },
-        ) {}
-    }
-}
 
 @Composable
 /** CardImage에 필요한 화면 구성 또는 처리 규칙을 제공합니다. */

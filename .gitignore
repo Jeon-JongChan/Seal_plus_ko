@@ -27,17 +27,10 @@ local.properties
 !.build/Environment.ps1
 !.build/Project.psd1
 !.build/Setup-Portable.ps1
-!.build/test/
 !.build/native/
 !.build/Setup.ps1
 !.build/Build.ps1
 !.build/Emulator.ps1
 !.build/Start-App.ps1
-!.build/Test-BuildOptions.ps1
-!.build/Test-PortableOptions.ps1
-!.build/Test-Localization.ps1
-!.build/Test-MediaFolderUi.py
-!.build/Test-PluginUi.py
-!.build/Test-PluginIsolation.py
 !.build/README.md
 /Start-App.ps1

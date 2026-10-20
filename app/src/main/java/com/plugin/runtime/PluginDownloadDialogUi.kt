@@ -3,23 +3,16 @@ package com.plugin.runtime
 import com.plugin.compatibility.copyPreservingPluginOptions
 import androidx.compose.runtime.referentialEqualityPolicy
 import com.plugin.compatibility.*
-import com.plugin.compatibility.PluginPreferences.IMAGE_RESOLUTION
 
 import com.junkfood.seal.ui.page.downloadv2.configure.*
 import com.junkfood.seal.ui.page.downloadv2.configure.Config
 
-import com.plugin.compatibility.MediaRules
 import com.plugin.runtime.PluginSelection
-import com.plugin.image.ImageMediaSelection
 import com.plugin.compatibility.CookieOptions
-import com.plugin.compatibility.MediaSettingsButton
 import com.plugin.compatibility.DownloadAllChip
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.VisibilityThreshold
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -39,7 +32,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -47,8 +39,6 @@ import androidx.compose.material.ModalBottomSheetValue
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.DownloadDone
-import androidx.compose.material.icons.filled.SettingsSuggest
-import androidx.compose.material.icons.filled.VideoFile
 import androidx.compose.material.icons.outlined.Cancel
 import androidx.compose.material.icons.outlined.Code
 import androidx.compose.material.icons.outlined.DoneAll
@@ -56,62 +46,44 @@ import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.FileDownload
-import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.NewLabel
-import androidx.compose.material.icons.outlined.SettingsSuggest
-import androidx.compose.material.icons.outlined.VideoFile
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SheetState
-import androidx.compose.material3.SheetValue
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.junkfood.seal.App
 import com.junkfood.seal.R
 import com.junkfood.seal.ui.common.HapticFeedback.longPressHapticFeedback
-import com.junkfood.seal.ui.common.motion.materialSharedAxisX
 import com.junkfood.seal.ui.component.ButtonChip
 import com.junkfood.seal.ui.component.DrawerSheetSubtitle
 import com.junkfood.seal.ui.component.OutlinedButtonWithIcon
 import com.junkfood.seal.ui.component.SealModalBottomSheet
 import com.junkfood.seal.ui.component.SealModalBottomSheetM2Variant
-import com.junkfood.seal.ui.component.SingleChoiceChip
-import com.junkfood.seal.ui.component.SingleChoiceSegmentedButton
-import com.junkfood.seal.ui.component.VideoFilterChip
 import com.junkfood.seal.ui.page.command.TemplatePickerDialog
 import com.plugin.runtime.ActionButton.Download
 import com.plugin.runtime.ActionButton.FetchInfo
@@ -123,37 +95,16 @@ import com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel.Sh
 import com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel.SheetState.InputUrl
 import com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel.SheetState.Loading
 import com.junkfood.seal.ui.page.settings.command.CommandTemplateDialog
-import com.junkfood.seal.ui.page.settings.format.AudioQuickSettingsDialog
-import com.junkfood.seal.ui.page.settings.format.VideoQuickSettingsDialog
-import com.junkfood.seal.ui.page.settings.network.CookiesQuickSettingsDialog
-import com.junkfood.seal.ui.theme.SealTheme
-import com.junkfood.seal.util.AUDIO_CONVERSION_FORMAT
-import com.junkfood.seal.util.AUDIO_CONVERT
-import com.junkfood.seal.util.AUDIO_FORMAT
-import com.junkfood.seal.util.AUDIO_QUALITY
-import com.junkfood.seal.util.COOKIES
-import com.junkfood.seal.util.CUSTOM_COMMAND
-import com.junkfood.seal.util.DatabaseUtil
 import com.junkfood.seal.util.DownloadType
 import com.junkfood.seal.util.DownloadType.Audio
 import com.junkfood.seal.util.DownloadType.Command
 import com.junkfood.seal.util.DownloadType.Playlist
 import com.junkfood.seal.util.DownloadType.Video
-import com.junkfood.seal.util.DownloadType.entries
 import com.junkfood.seal.util.DownloadUtil
-import com.junkfood.seal.util.FORMAT_SELECTION
-import com.junkfood.seal.util.PreferenceStrings
 import com.junkfood.seal.util.PreferenceUtil
-import com.junkfood.seal.util.PreferenceUtil.getBoolean
-import com.junkfood.seal.util.PreferenceUtil.updateBoolean
 import com.junkfood.seal.util.PreferenceUtil.updateInt
-import com.junkfood.seal.util.SUBTITLE
 import com.junkfood.seal.util.TEMPLATE_ID
-import com.junkfood.seal.util.THUMBNAIL
 import com.junkfood.seal.util.ToastUtil
-import com.junkfood.seal.util.USE_CUSTOM_AUDIO_PRESET
-import com.junkfood.seal.util.VIDEO_FORMAT
-import com.junkfood.seal.util.VIDEO_QUALITY
 import kotlinx.coroutines.launch
 
 @Composable
@@ -168,7 +119,6 @@ private fun DownloadType.label(): String =
         }
     )
 
-val PreferencesMock = DownloadUtil.DownloadPreferences.EMPTY
 
 @OptIn(ExperimentalMaterial3Api::class)
 /** 다운로드 설정과 이미지·영상 선택 흐름을 공통 바텀 시트에 표시합니다. */
@@ -390,38 +340,6 @@ private fun DownloadDialogContent(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Preview
-@Composable
-/** ErrorPreview의 독립 플러그인 처리를 제공합니다. */
-private fun ErrorPreview() {
-    SealModalBottomSheet(
-        onDismissRequest = {},
-        sheetState =
-            with(LocalDensity.current) {
-                SheetState(
-                    initialValue = SheetValue.Expanded,
-                    skipPartiallyExpanded = true,
-                    velocityThreshold = { 56.dp.toPx() },
-                    positionalThreshold = { 125.dp.toPx() },
-                )
-            },
-    ) {
-        ErrorPage(
-            state =
-                Error(
-                    action =
-                        Action.FetchFormats(
-                            url = "",
-                            audioOnly = true,
-                            preferences = PreferencesMock,
-                        ),
-                    throwable = Exception("Not good"),
-                ),
-            onActionPost = {},
-        )
-    }
-}
 
 @Composable
 /** FormatPage의 독립 플러그인 처리를 제공합니다. */
@@ -451,40 +369,6 @@ fun FormatPage(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-/*@Preview(name = "Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
-@Preview(name = "Light", uiMode = Configuration.UI_MODE_NIGHT_NO)*/
-@Composable
-/** ConfigurePagePreview의 독립 플러그인 처리를 제공합니다. */
-private fun ConfigurePagePreview() {
-    SealTheme() {
-        SealModalBottomSheet(
-            sheetState =
-                with(LocalDensity.current) {
-                    SheetState(
-                        initialValue = SheetValue.Expanded,
-                        skipPartiallyExpanded = true,
-                        velocityThreshold = { 56.dp.toPx() },
-                        positionalThreshold = { 125.dp.toPx() },
-                    )
-                },
-            onDismissRequest = {},
-            contentPadding = PaddingValues(),
-        ) {
-            ConfigurePage(
-                config =
-                    Config(
-                        downloadType = Audio,
-                        useFormatSelection = true,
-                        typeEntries = entries - Command,
-                    ),
-                preferences = PreferencesMock,
-                onConfigSave = {},
-                settingChips = {},
-            ) {}
-        }
-    }
-}
 
 /** 원본의 유형·형식 직접 선택과 접을 수 있는 추가 설정을 제공합니다. */
 @Composable

@@ -3,7 +3,7 @@ package com.plugin.library
 import com.junkfood.seal.ui.page.videolist.*
 import com.plugin.compatibility.*
 import com.plugin.library.MediaFileManagerDialog
-import com.plugin.library.PostMediaViewer
+import com.plugin.compatibility.PostMediaViewer
 import com.plugin.library.PostMediaDetails
 import com.plugin.queue.PluginTask as Task
 import com.plugin.compatibility.MediaRules

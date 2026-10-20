@@ -97,18 +97,13 @@ flowchart LR
 
 이 구조는 기능별 실행과 직접 코드 참조의 분리다. 독립 Gradle 모듈·별도 APK·외부 파일 동적 로딩이나 독립 업데이트 구조는 아니다. 기능을 소스에서 제거하려면 조합 진입점의 등록과 호출도 함께 정리해야 한다.
 
-## 검사
+## 빌드
 
 새 체크아웃은 `.build/Setup.ps1`로 Android 도구를 준비하고 NDK `29.0.13846066`·CMake `3.22.1` 설치 뒤 `.build/native/rife/Build.ps1`을 먼저 실행한다. 고정 RIFE/ncnn 소스를 검증하고 네 ABI의 JNI를 `.build/runtime/rife/jniLibs/`에 만든다. 빌드 캐시·SDK·가중치는 Git과 APK에 포함하지 않는다. APK에는 생성한 JNI·작은 QuickSRNet 모델·라이선스만 넣는다.
 
 ```powershell
-python -X utf8 .build/test/Test-PluginIsolation.py
-python -X utf8 .build/test/Test-ShareMenu.py
-powershell -NoProfile -ExecutionPolicy Bypass -File .build/test/Test-Localization.ps1
-powershell -NoProfile -ExecutionPolicy Bypass -File .build/Build.ps1 -Offline -Test :app:assembleGenericDebug :app:assembleGenericDebugAndroidTest
+powershell -NoProfile -ExecutionPolicy Bypass -File .build/Build.ps1 -Offline :app:assembleGenericDebug
 ```
-
-`PluginExecutionPolicyTest`는 원본 경로, 개별 실행 경로, 작업 사본 유지, LIST 단독 사용을 검사한다. `SharedDownloaderStateTest`는 네트워크를 실행하지 않고 원본 엔진의 공유 저장소·취소·재시작을 검사한다. `PluginStateTest`는 MMKV와 필수 활성화를, `.build/test/Test-PluginUi.py`는 변경 불가 호환 항목과 여섯 개 선택 스위치를 검사한다.
 
 번역은 Android 리소스 규칙에 따라 `res/values*/`에 둔다. 소셜 API 접근 제한·로그인 요구, 기기의 인코더·SAF 공급자 차이는 기능 분리만으로 해결되지 않는다.
 

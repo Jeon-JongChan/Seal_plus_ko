@@ -1,6 +1,5 @@
 package com.plugin.queue
 
-import android.content.res.Configuration
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
@@ -35,28 +34,19 @@ import androidx.compose.material.icons.outlined.VideoFile
 import androidx.compose.material.icons.outlined.Wallpaper
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SheetState
-import androidx.compose.material3.SheetValue
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.junkfood.seal.R
 
@@ -72,17 +62,12 @@ import com.plugin.queue.PluginTask.DownloadState.Running
 import com.junkfood.seal.ui.common.LocalFixedColorRoles
 import com.junkfood.seal.ui.component.ActionSheetItem
 import com.junkfood.seal.ui.component.ActionSheetPrimaryButton
-import com.junkfood.seal.ui.component.SealModalBottomSheet
-import com.junkfood.seal.ui.page.downloadv2.configure.PreferencesMock
 import com.junkfood.seal.ui.theme.ErrorTonalPalettes
-import com.junkfood.seal.ui.theme.SealTheme
 import com.junkfood.seal.util.Format
 import com.junkfood.seal.util.toBitrateText
 import com.junkfood.seal.util.toDurationText
 import com.junkfood.seal.util.toFileSizeText
 import com.junkfood.seal.util.toLocalizedString
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 
 @Composable
 /** ShareButton의 전용 대기열 처리 또는 화면 동작을 제공합니다. */
@@ -410,80 +395,6 @@ fun LazyListScope.ActionButtons(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Preview
-@Preview(name = "Dark", uiMode = Configuration.UI_MODE_NIGHT_YES)
-@Composable
-/** SheetPreview의 전용 대기열 처리 또는 화면 동작을 제공합니다. */
-private fun SheetPreview() {
-    val sheetState =
-        with(LocalDensity.current) {
-            SheetState(
-                initialValue = SheetValue.Expanded,
-                skipPartiallyExpanded = true,
-                velocityThreshold = { 56.dp.toPx() },
-                positionalThreshold = { 125.dp.toPx() },
-            )
-        }
-
-    var downloadState: DownloadState by remember { mutableStateOf(Running(Job(), "", 0.58f)) }
-
-    val fakeStateList =
-        listOf(
-            Running(Job(), "", 0.58f),
-            Error(throwable = Throwable(), RestartableAction.Download),
-            FetchingInfo(Job(), ""),
-            Canceled(RestartableAction.Download),
-            ReadyWithInfo,
-            Idle,
-            Completed(null),
-        )
-    LaunchedEffect(Unit) {
-        while (true) {
-            fakeStateList.forEach {
-                downloadState = it
-                kotlinx.coroutines.delay(1000)
-            }
-        }
-    }
-
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-
-    val viewState =
-        ViewState(
-            title = "video title looooooooooooooooooooooooooooong title sample",
-            uploader = "author loooooooooooooooooooooonggggggggggggggggg",
-            videoFormats =
-                listOf(
-                    Format(
-                        vcodec = "vp9",
-                        resolution = "1280x720",
-                        vbr = 129400.0,
-                        fileSize = 11451400.0,
-                    )
-                ),
-            audioOnlyFormats = listOf(Format(acodec = "mp4a", abr = 129.0, fileSize = 114514.0)),
-        )
-
-    SealTheme {
-        Surface() {
-            SealModalBottomSheet(
-                contentPadding = PaddingValues(),
-                onDismissRequest = {},
-                sheetState = sheetState,
-            ) {
-                SheetContent(
-                    task = Task(url = "https://www.example.com", preferences = PreferencesMock),
-                    viewState = viewState,
-                    downloadState = downloadState,
-                    onDismissRequest = { scope.launch { sheetState.hide() } },
-                ) { task, action ->
-                }
-            }
-        }
-    }
-}
 
 @Composable
 /** ActionSheetInfo의 전용 대기열 처리 또는 화면 동작을 제공합니다. */

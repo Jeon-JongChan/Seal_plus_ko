@@ -5,14 +5,12 @@ import com.plugin.compatibility.sortMedia
 import com.plugin.compatibility.refreshCompletedFiles
 
 import com.junkfood.seal.ui.page.downloadv2.*
-import com.plugin.queue.PostMediaViewer
+import com.plugin.compatibility.PostMediaViewer
 import android.content.Intent
-import android.content.res.Configuration
 import androidx.compose.animation.core.AnimationState
 import androidx.compose.animation.core.animateTo
 import androidx.compose.animation.rememberSplineBasedDecay
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.material3.Checkbox
@@ -66,20 +64,16 @@ import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.ReadOnlyComposable
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.flow.collectLatest
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -94,24 +88,18 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.constraintlayout.compose.ConstraintLayout
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.junkfood.seal.R
 import com.junkfood.seal.download.DownloaderV2
-import com.plugin.queue.PluginTaskDownloader
 import com.plugin.runtime.pluginQueue
 import com.plugin.queue.QueueMedia
 import androidx.compose.material.icons.outlined.Image
-import androidx.compose.material3.SmallFloatingActionButton
-import com.junkfood.seal.util.DatabaseUtil
 import androidx.compose.material3.TextButton
 import com.plugin.queue.PluginTask as Task
 import com.plugin.queue.PluginTask.DownloadState.Canceled
@@ -130,23 +118,12 @@ import com.junkfood.seal.ui.component.SelectionGroupDefaults
 import com.junkfood.seal.ui.component.SelectionGroupItem
 import com.junkfood.seal.ui.component.SelectionGroupRow
 import com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel.Action
-import com.junkfood.seal.ui.page.downloadv2.configure.Config
-import com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialog
-import com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel
-import com.junkfood.seal.ui.page.downloadv2.configure.FormatPage
-import com.junkfood.seal.ui.page.downloadv2.configure.PlaylistSelectionPage
-import com.junkfood.seal.ui.page.downloadv2.configure.PreferencesMock
 import com.junkfood.seal.ui.svg.DynamicColorImageVectors
 import com.junkfood.seal.ui.svg.drawablevectors.download
-import com.junkfood.seal.ui.theme.SealTheme
-import com.junkfood.seal.util.DownloadUtil
 import com.junkfood.seal.util.FileUtil
 import com.junkfood.seal.util.getErrorReport
 import com.junkfood.seal.util.makeToast
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.compose.koinInject
@@ -756,7 +733,6 @@ fun FABs(modifier: Modifier = Modifier, downloadCallback: () -> Unit = {}) {
 }
 
 @Composable
-@Preview
 /** DownloadQueuePlaceholder의 대기열 표시와 사용자 동작을 처리합니다. */
 private fun DownloadQueuePlaceholder(modifier: Modifier = Modifier) {
     BoxWithConstraints(modifier = modifier) {
@@ -873,104 +849,6 @@ fun SubHeader(
                 contentDescription = "선택 모드",
                 modifier = Modifier.size(16.dp),
             )
-        }
-    }
-}
-
-/** DownloadPageV2Test의 대기열 표시와 사용자 동작을 처리합니다. */
-internal class DownloadPageV2Test {
-    private val mockDownloader =
-        /** 화면 상태의 대기열 표시와 사용자 동작을 처리합니다. */
-        object : PluginTaskDownloader {
-            private val map = mutableStateMapOf<Task, Task.State>()
-
-            init {
-                val viewState =
-                    Task.ViewState(title = "Sample title", uploader = "dummy video uploader")
-                val list =
-                    listOf(
-                        Task.State(Idle, null, viewState),
-                        Task.State(Canceled(Task.RestartableAction.Download), null, viewState),
-                        Task.State(Completed(null), null, viewState),
-                    )
-                map.run {
-                    repeat(9) {
-                        put(Task(url = "$it", preferences = PreferencesMock), list[it % 3])
-                    }
-                }
-                val scope = CoroutineScope(SupervisorJob())
-
-                scope.launch(Dispatchers.Default) {
-                    while (true) {
-                        delay(1000)
-                        val newEntries =
-                            map.toMap().map { (task, state) ->
-                                val newDownloadState =
-                                    when (state.downloadState) {
-                                        is Canceled -> Idle
-                                        is Completed -> Idle
-                                        is Error -> Idle
-                                        is FetchingInfo -> ReadyWithInfo
-                                        Idle -> FetchingInfo(Job(), task.id)
-                                        ReadyWithInfo -> Running(Job(), task.id)
-                                        is Running -> {
-                                            val preState: Running = state.downloadState
-                                            if (preState.progress >= 1f) Completed(null)
-                                            else preState.copy(progress = preState.progress + 0.1f)
-                                        }
-                                    }
-                                task to state.copy(downloadState = newDownloadState)
-                            }
-                        Snapshot.withMutableSnapshot {
-                            newEntries.forEach { (task, state) ->
-                                delay(100)
-                                map[task] = state
-                            }
-                        }
-                    }
-                }
-            }
-
-            /** getTaskStateMap의 대기열 표시와 사용자 동작을 처리합니다. */
-            override fun getTaskStateMap(): SnapshotStateMap<Task, Task.State> {
-                return map
-            }
-
-            /** cancel의 대기열 표시와 사용자 동작을 처리합니다. */
-            override fun cancel(task: Task): Boolean {
-                return false
-            }
-
-            /** restart의 대기열 표시와 사용자 동작을 처리합니다. */
-            override fun restart(task: Task) {}
-
-            /** enqueue의 대기열 표시와 사용자 동작을 처리합니다. */
-            override fun enqueue(task: Task) {}
-
-            /** enqueue의 대기열 표시와 사용자 동작을 처리합니다. */
-            override fun enqueue(task: Task, state: Task.State) {}
-
-            /** remove의 대기열 표시와 사용자 동작을 처리합니다. */
-            override fun remove(task: Task): Boolean {
-                return true
-            }
-        }
-
-    @Composable
-    @Preview(name = "Light", uiMode = Configuration.UI_MODE_NIGHT_NO)
-    @Preview(name = "Tablet", device = "spec:width=600dp,height=800dp,dpi=240")
-    /** Preview의 대기열 표시와 사용자 동작을 처리합니다. */
-    private fun Preview() {
-
-        val queue: PluginTaskDownloader = mockDownloader
-        SealTheme {
-            Column() {
-                DownloadPageImplV2(
-                    taskDownloadStateMap = queue.getTaskStateMap(),
-                    onActionPost = { task, state -> },
-                    onMenuOpen = {},
-                )
-            }
         }
     }
 }

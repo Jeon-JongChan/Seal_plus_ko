@@ -59,7 +59,6 @@ android {
         versionCode = 200_000_160
 
         versionName = baseVersionName
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables { useSupportLibrary = true }
 
         if (splitApks) {
@@ -169,15 +168,6 @@ android {
 
     namespace = "com.junkfood.seal"
 
-    // 분리 이전 플러그인 필드를 참조하는 보존 테스트는 플러그인 회귀 검사로 대체합니다.
-    sourceSets.getByName("androidTest").java.setSrcDirs(listOf("src/androidTest/java/com/plugin"))
-}
-
-kotlin.sourceSets.getByName("androidTest").kotlin.setSrcDirs(listOf("src/androidTest/java/com/plugin"))
-
-// 3차 개선안의 옛 화질 경계는 플러그인의 6차 표 경계 검사로 대체합니다.
-tasks.withType<Test>().configureEach {
-    filter.excludeTestsMatching("com.junkfood.seal.util.MediaRulesTest.revisionThreeClassificationAndPageIdentity")
 }
 
 ktfmt { kotlinLangStyle() }
@@ -232,9 +222,6 @@ dependencies {
 
     implementation(libs.mmkv)
 
-    testImplementation(libs.junit4)
-    androidTestImplementation(libs.androidx.test.ext)
-    androidTestImplementation(libs.androidx.test.espresso.core)
     implementation(libs.androidx.compose.ui.tooling)
 }
 
@@ -289,6 +276,11 @@ abstract class StoragePrivacyVisitorFactory : AsmClassVisitorFactory<Instrumenta
 
 // 빌드 시에만 원본 함수의 실행 연결을 바꾸며 원본 파일은 읽기 전용으로 보존합니다.
 val components = extensions.getByType<ApplicationAndroidComponentsExtension>()
+// 원본 보호 규칙으로 남겨 둔 테스트 소스를 앱 빌드에 포함하지 않습니다.
+components.beforeVariants(components.selector().all()) { variant ->
+    variant.enableUnitTest = false
+    variant.enableAndroidTest = false
+}
 components.onVariants(components.selector().all()) { variant ->
     variant.instrumentation.transformClassesWith(StoragePrivacyVisitorFactory::class.java, InstrumentationScope.PROJECT) {}
     variant.instrumentation.setAsmFramesComputationMode(FramesComputationMode.COMPUTE_FRAMES_FOR_INSTRUMENTED_METHODS)
