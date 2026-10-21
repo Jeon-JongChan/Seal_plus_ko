@@ -47,7 +47,8 @@ object MediaLibrary {
     )
 
     /** Seal과 지정한 다운로드 폴더의 모든 하위 폴더에서 영상을 읽습니다. */
-    fun listVideos(preferences: DownloadUtil.DownloadPreferences, includeClassified: Boolean = true): List<MediaFile> {
+    fun listVideos(preferences: DownloadUtil.DownloadPreferences, includeClassified: Boolean = true,
+        accepts: (MediaFile) -> Boolean = { true }): List<MediaFile> {
         val extensions = setOf("mp4", "mkv", "webm", "mov", "m4v", "jpg", "jpeg", "png", "webp", "avif", "gif",
             "mp3", "m4a", "aac", "opus", "ogg", "flac", "wav", "alac")
         val roots = if (preferences.sdcard) emptyList() else listOf(File(
@@ -85,7 +86,8 @@ object MediaLibrary {
                 files += listTreeVideos(tree, extensions, includeClassified)
             }
         val history = runBlocking { PluginDatabaseUtil.getDownloadHistory() }.associateBy { it.videoPath }
-        return files.map { file ->
+        // 분석 요청의 범위 밖 파일은 메타데이터 디코딩·이력 보충 전에 제외합니다.
+        return files.filter(accepts).map { file ->
             if (file.path.startsWith("content://") && (PluginMediaMetadataStore.get(file.path)?.excludedFromProcessing ?: false) != file.excludedFromProcessing)
                 PluginMediaMetadataStore.save(file.path, excludedFromProcessing = file.excludedFromProcessing)
             val saved = history[file.path]
@@ -254,10 +256,14 @@ object MediaLibrary {
         val moved = if (file.parentUri == null) {
             val target = File(targetPath)
             check(target.isDirectory && !java.nio.file.Files.isSymbolicLink(target.toPath())) { "대상 폴더를 확인하세요." }
+            if (File(file.path).canonicalFile.parentFile == target.canonicalFile) return file.path
             moveClassifiedFile(File(file.path), File(target, file.name), false).absolutePath
         } else {
             val target = targetDocument
                 ?.takeIf { it.isDirectory && it.canWrite() } ?: error("대상 폴더의 쓰기 권한이 필요합니다.")
+            if (Uri.parse(file.parentUri).authority == target.uri.authority &&
+                android.provider.DocumentsContract.getDocumentId(Uri.parse(file.parentUri)) ==
+                android.provider.DocumentsContract.getDocumentId(target.uri)) return file.path
             moveDocumentCollision(file, target, false)
         }
         // 이동은 확정됐으므로 중단 요청이 와도 이력 경로 갱신까지 완료합니다.

@@ -7,7 +7,20 @@ import kotlin.math.sqrt
 @Serializable
 data class DuplicateOptions(val model: String = "small", val preset: DuplicatePreset = DuplicatePreset.NORMAL,
     val priority: KeepPriority = KeepPriority.SIZE, val rememberExclusions: Boolean = true,
-    val backend: DuplicateBackend = DuplicateBackend.AUTO)
+    val backend: DuplicateBackend = DuplicateBackend.AUTO, val target: DuplicateTarget = DuplicateTarget.ALL)
+
+/** 기존 설정·결과는 전체로 복원하며 공통 미디어 유형 판별값만 허용합니다. */
+@Serializable
+enum class DuplicateTarget(val label: String) {
+    ALL("전체"), VIDEO("동영상"), IMAGE("이미지");
+
+    /** 오디오·알 수 없는 유형은 전체 분석에서도 제외합니다. */
+    fun accepts(kind: Int): Boolean = when (this) {
+        ALL -> kind in 1..2
+        VIDEO -> kind == 1
+        IMAGE -> kind == 2
+    }
+}
 
 /** 기본 자동 모드는 가속기 생성뿐 아니라 실제 추론 실패도 다음 경로로 대체합니다. */
 @Serializable
@@ -52,7 +65,8 @@ data class DuplicateGroup(val members: List<DuplicateMedia>, val exact: Boolean,
 data class DuplicateReport(val root: String = "", val groups: List<DuplicateGroup> = emptyList(),
     val scanned: Int = 0, val failures: Int = 0, val comparisons: Long = 0, val model: String = "small",
     val preset: DuplicatePreset = DuplicatePreset.NORMAL,
-    val backend: DuplicateBackend = DuplicateBackend.AUTO, val engine: String = "이전 CPU 분석")
+    val backend: DuplicateBackend = DuplicateBackend.AUTO, val engine: String = "이전 CPU 분석",
+    val target: DuplicateTarget = DuplicateTarget.ALL)
 
 /** Android 없이도 검증할 후보 판정·보존 규칙입니다. */
 object DuplicateRules {

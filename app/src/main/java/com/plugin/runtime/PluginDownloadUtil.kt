@@ -57,7 +57,6 @@ import com.junkfood.seal.util.PreferenceUtil.COOKIE_HEADER
 import com.junkfood.seal.util.PreferenceUtil.getBoolean
 import com.junkfood.seal.util.PreferenceUtil.getInt
 import com.junkfood.seal.util.PreferenceUtil.getString
-import com.junkfood.seal.util.PreferenceUtil.updateBoolean
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLException
 import com.yausername.youtubedl_android.YoutubeDLRequest
@@ -66,7 +65,6 @@ import com.yausername.youtubedl_android.YoutubeDLResponse
 import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 /** 확장 다운로드 옵션과 소셜·미디어 후처리를 원본 엔진과 별도로 제공합니다. */
@@ -105,10 +103,6 @@ object PluginDownloadUtil {
                     cookieProfileExplicit = explicitCookie != Int.MIN_VALUE,
     ))
     }
-
-    /** 쿠키 프로필·미디어 설정은 등록한 작업의 사본을 기준으로 적용합니다. */
-    fun handles(preferences: DownloadPreferences): Boolean =
-        preferences.cookies || preferences.selectedFolder != null || preferences.socialProcessing || preferences.mediaProcessing || preferences.reuseExisting || preferences.cookieProfileId >= 0
 
     /** CookieScheme의 독립 플러그인 처리를 제공합니다. */
     object CookieScheme {

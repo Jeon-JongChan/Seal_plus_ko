@@ -9,6 +9,10 @@ import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.core.Delegate
 import com.google.mediapipe.tasks.vision.imageembedder.ImageEmbedder
 import kotlinx.serialization.json.Json
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.job
 
 /** 별도 테스트 프레임워크 없이 실제 Android 모델과 가속 대체 경로를 검사합니다. */
 class DuplicateAccelerationCheck : Instrumentation() {
@@ -20,6 +24,31 @@ class DuplicateAccelerationCheck : Instrumentation() {
         val output = Bundle()
         try {
             waitForIdleSync()
+            check(targetContext.assets.list("duplicate-ai").orEmpty().none { it.endsWith(".tflite") }) { "중복 모델이 APK에 남아 있습니다." }
+            // 다운로드는 이 검사의 명시적 실행에서만 요청하고 실제 저장 파일로 두 실행기를 비교합니다.
+            runBlocking {
+                DuplicateModels.models.forEach { model ->
+                    if (model.id !in DuplicateModels.installed(targetContext)) DuplicateModels.download(targetContext, model) { }
+                }
+                val small = DuplicateModels.models.first()
+                val original = DuplicateModels.requireFile(targetContext, small.id)
+                val bytes = original.readBytes()
+                try {
+                    val corrupted = bytes.copyOf().apply { this[0] = (this[0].toInt() xor 1).toByte() }
+                    original.writeBytes(corrupted)
+                    check(small.id !in DuplicateModels.installed(targetContext)) { "동일 크기 손상 모델을 준비됨으로 표시했습니다." }
+                } finally { original.writeBytes(bytes) }
+                // 이미 설치된 정상 파일은 재다운로드 도중 취소되어도 바뀌지 않아야 합니다.
+                val cancelled = launch {
+                    val task = currentCoroutineContext().job
+                    DuplicateModels.download(targetContext, small) { task.cancel() }
+                }
+                cancelled.join()
+                check(cancelled.isCancelled && DuplicateModels.requireFile(targetContext, small.id).readBytes().contentEquals(bytes))
+            }
+            check(Json.decodeFromString<DuplicateOptions>("{}").target == DuplicateTarget.ALL)
+            check(Json.decodeFromString<DuplicateReport>("{}").target == DuplicateTarget.ALL)
+            check(!DuplicateTarget.ALL.accepts(3) && DuplicateTarget.VIDEO.accepts(1) && !DuplicateTarget.VIDEO.accepts(2))
             check(Json.decodeFromString<DuplicateOptions>("{}").backend == DuplicateBackend.AUTO)
             check(Json.decodeFromString<DuplicateOptions>("{\"model\":\"large\"}").backend == DuplicateBackend.AUTO)
             val saved = Json.encodeToString(DuplicateOptions.serializer(), DuplicateOptions(backend = DuplicateBackend.CPU))
@@ -37,7 +66,10 @@ class DuplicateAccelerationCheck : Instrumentation() {
                     val cpu = DuplicateLiteRt(targetContext, size, "CPU").use { it.embed(values) }
                     check(cpu.size == if (size == "small") 1024 else 1280)
                     ImageEmbedder.createFromOptions(targetContext, ImageEmbedder.ImageEmbedderOptions.builder()
-                        .setBaseOptions(BaseOptions.builder().setModelAssetPath("duplicate-ai/mobilenet_v3_$size.tflite")
+                        .setBaseOptions(BaseOptions.builder().setModelAssetBuffer(java.nio.ByteBuffer.allocateDirect(
+                            DuplicateModels.requireFile(targetContext, size).length().toInt()).apply {
+                                put(DuplicateModels.requireFile(targetContext, size).readBytes()); rewind()
+                            })
                             .setDelegate(Delegate.CPU).build()).build()).use { reference ->
                         val image = BitmapImageBuilder(bitmap.copy(Bitmap.Config.ARGB_8888, false)).build()
                         try {

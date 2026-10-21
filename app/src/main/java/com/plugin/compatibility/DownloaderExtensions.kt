@@ -7,11 +7,9 @@ import com.junkfood.seal.download.DownloaderV2
 import com.plugin.queue.PluginTask as Task
 import com.plugin.queue.PluginTask.DownloadState
 import com.plugin.queue.PluginTask.DownloadState.Completed
-import com.junkfood.seal.util.DatabaseUtil
 import com.junkfood.seal.util.ToastUtil
 import com.plugin.compatibility.MediaRules
 import com.plugin.compatibility.MediaLibrary
-import com.plugin.runtime.PluginDownloaderV2
 import com.plugin.runtime.PluginTaskEngine
 import com.plugin.runtime.pluginQueue
 import com.plugin.queue.PluginTaskDownloader

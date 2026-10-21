@@ -1,8 +1,6 @@
 package com.plugin.runtime
 
-import com.junkfood.seal.App
 import com.junkfood.seal.download.DownloaderV2
-import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.loadKoinModules
 import org.koin.dsl.module
 import org.koin.androidx.viewmodel.dsl.viewModel

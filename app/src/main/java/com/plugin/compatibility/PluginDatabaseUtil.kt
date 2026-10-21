@@ -46,6 +46,16 @@ object PluginDatabaseUtil {
                 )
         }
         PluginMediaMetadataStore.updatePath(oldPath, newPath)
+        // 폴더 이동·분류·뷰어의 경로 복구가 완료 대기열에도 같은 결과를 전달합니다.
+        withContext(Dispatchers.Main.immediate) {
+            // 화면 진입 전에는 원본 다운로더가 있을 수 있어 연결된 플러그인 대기열만 갱신합니다.
+            (org.koin.core.context.GlobalContext.getOrNull()?.getOrNull<com.junkfood.seal.download.DownloaderV2>()
+                as? com.plugin.runtime.PluginDownloaderV2)?.queue?.let { queue ->
+                queue.getTaskStateMap().keys.toList().forEach { task ->
+                    queue.getTaskStateMap().updateTaskState(task) { QueueMedia.relocate(it, oldPath, newPath) }
+                }
+            }
+        }
     }
 
     /** 백업 이력을 이동된 파일에 연결하며 같은 파일의 임시 외부 이력만 원자적으로 합칩니다. */

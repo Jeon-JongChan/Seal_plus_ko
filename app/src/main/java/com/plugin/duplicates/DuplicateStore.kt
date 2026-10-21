@@ -13,7 +13,11 @@ import java.io.File
 class DuplicateStore(context: Context) : SQLiteOpenHelper(context,
     TemporarySession.root?.let { File(it, ".data/duplicates.db").apply { parentFile?.mkdirs() }.path } ?: "duplicates.db", null, 1) {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
-    private val reportFile = AtomicFile(File(TemporarySession.root?.let { File(it, ".data") } ?: context.filesDir, "duplicate-report.json"))
+    private val reportRoot = TemporarySession.root?.let { File(it, ".data") } ?: context.filesDir
+
+    /** 전체의 기존 파일명은 유지하고 유형별 결과를 독립적으로 보존합니다. */
+    private fun reportFile(target: DuplicateTarget) = AtomicFile(File(reportRoot,
+        if (target == DuplicateTarget.ALL) "duplicate-report.json" else "duplicate-report-${target.name.lowercase()}.json"))
 
     /** 특징 캐시와 사용자가 남긴 제외 기록은 별도 테이블에 저장합니다. */
     override fun onCreate(db: SQLiteDatabase) {
@@ -51,12 +55,21 @@ class DuplicateStore(context: Context) : SQLiteOpenHelper(context,
 
     /** 후보 목록 갱신은 원자적으로 확정해 프로세스 종료 시 이전 목록을 보존합니다. */
     fun save(report: DuplicateReport) {
+        val reportFile = reportFile(report.target)
         val output = reportFile.startWrite()
         try { output.write(json.encodeToString(report).toByteArray(Charsets.UTF_8)); reportFile.finishWrite(output) }
         catch (failure: Throwable) { reportFile.failWrite(output); throw failure }
     }
 
     /** 저장 결과가 없으면 빈 목록을 제공하고 손상된 결과는 오류로 알립니다. */
-    fun load(): DuplicateReport = if (!reportFile.baseFile.exists() && !File(reportFile.baseFile.path + ".bak").exists()) DuplicateReport()
-        else reportFile.openRead().use { json.decodeFromString<DuplicateReport>(it.readBytes().toString(Charsets.UTF_8)) }
+    fun load(target: DuplicateTarget = DuplicateTarget.ALL): DuplicateReport {
+        val reportFile = reportFile(target)
+        if (!reportFile.baseFile.exists() && !File(reportFile.baseFile.path + ".bak").exists()) return DuplicateReport(target = target)
+        return reportFile.openRead().use { json.decodeFromString<DuplicateReport>(it.readBytes().toString(Charsets.UTF_8)) }.also {
+            check(it.target == target && it.groups.all { group -> group.members.size >= 2 &&
+                group.members.all { media -> target.accepts(if (media.video) 1 else 2) } && group.members.map { media -> media.video }.distinct().size == 1 }) {
+                "저장된 분석 범위가 올바르지 않습니다. 다시 분석하세요."
+            }
+        }
+    }
 }

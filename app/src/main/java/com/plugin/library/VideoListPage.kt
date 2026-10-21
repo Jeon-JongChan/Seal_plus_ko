@@ -32,7 +32,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.produceState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.ModalBottomSheetValue
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
@@ -61,11 +60,9 @@ import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TriStateCheckbox
-import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -217,8 +214,13 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
     }
     val filteredIds = remember(posts) { posts.flatten().map { it.id }.toSet() }
     var visibleCount by remember(mediaFilter, folderFilter, sortByName, viewState.isSearching, searchedIds, aiOnly) { mutableIntStateOf(30) }
+    val scope = rememberCoroutineScope()
     var openedPost by remember { mutableStateOf<Pair<List<String>, String?>?>(null) }
-    openedPost?.let { (paths, initial) -> PostMediaViewer(paths, initial) { openedPost = null } }
+    openedPost?.let { (paths, initial) -> PostMediaViewer(paths, initial) {
+        openedPost = null
+        // 별도 SQLite 연결의 이동·삭제도 뷰어를 닫으면 폴더 목록에 즉시 반영합니다.
+        scope.launch { refreshedVideoList = PluginDatabaseUtil.getDownloadHistory() }
+    } }
     var wallpaperPages by remember { mutableStateOf<List<com.plugin.ui.WallpaperPageItem>?>(null) }
     wallpaperPages?.let { pages ->
         com.plugin.ui.WallpaperPreviewDialog(pages) { wallpaperPages = null }
@@ -232,7 +234,6 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
             )
         else TopAppBarDefaults.pinnedScrollBehavior()
 
-    val scope = rememberCoroutineScope()
     val softKeyboardController = LocalSoftwareKeyboardController.current
     val view = LocalView.current
     val context = LocalContext.current

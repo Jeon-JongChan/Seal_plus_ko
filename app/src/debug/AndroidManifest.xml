@@ -5,4 +5,8 @@
         android:targetPackage="${applicationId}" android:label="중복 분석 회귀 검사" />
     <instrumentation android:name="com.plugin.duplicates.DuplicateAccelerationCheck"
         android:targetPackage="${applicationId}" android:label="중복 분석 가속 검사" />
+    <instrumentation android:name="com.plugin.compatibility.MediaMoveCheck"
+        android:targetPackage="${applicationId}" android:label="폴더 이동 회귀 검사" />
+    <instrumentation android:name="com.plugin.duplicates.DuplicateDeletionCheck"
+        android:targetPackage="${applicationId}" android:label="백그라운드 중복 삭제 회귀 검사" />
 </manifest>

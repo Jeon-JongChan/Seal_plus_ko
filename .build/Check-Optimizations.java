@@ -22,6 +22,13 @@ class CheckOptimizations {
         assert DuplicateBackend.GPU.getRoutes().equals(List.of("GPU", "CPU"));
         assert DuplicateBackend.CPU.getRoutes().equals(List.of("CPU"));
         assert new DuplicateOptions().getBackend() == DuplicateBackend.AUTO;
+        assert new DuplicateOptions().getTarget() == DuplicateTarget.ALL;
+        assert DuplicateTarget.ALL.accepts(1) && DuplicateTarget.ALL.accepts(2) && !DuplicateTarget.ALL.accepts(3);
+        assert DuplicateTarget.VIDEO.accepts(1) && !DuplicateTarget.VIDEO.accepts(2);
+        assert DuplicateTarget.IMAGE.accepts(2) && !DuplicateTarget.IMAGE.accepts(1);
+        assert kotlinx.serialization.json.Json.Default.decodeFromString(DuplicateOptions.Companion.serializer(), "{}").getTarget() == DuplicateTarget.ALL;
+        assert kotlinx.serialization.json.Json.Default.decodeFromString(DuplicateReport.Companion.serializer(), "{}").getTarget() == DuplicateTarget.ALL;
+        assert kotlinx.serialization.json.Json.Default.decodeFromString(DuplicateOptions.Companion.serializer(), "{\"target\":\"IMAGE\"}").getTarget() == DuplicateTarget.IMAGE;
         assert kotlinx.serialization.json.Json.Default.decodeFromString(DuplicateOptions.Companion.serializer(), "{\"model\":\"large\"}").getBackend() == DuplicateBackend.AUTO;
         var a = new DuplicateMedia("/a.jpg", "a.jpg", 100, 1, 100, 100, 0, false, "a");
         var b = new DuplicateMedia("/b.jpg", "b.jpg", 200, 2, 50, 50, 0, false, "b");
@@ -84,6 +91,14 @@ class CheckOptimizations {
     public static void main(String[] args) {
         System.setOut(new PrintStream(System.out, true, StandardCharsets.UTF_8));
         checkDuplicates();
+        // 이동 후 대표 경로·전체 페이지·이력 경로가 함께 바뀌어야 합니다.
+        var beforeMove = completed("/storage/first.mp4", false);
+        var afterMove = QueueMedia.INSTANCE.relocate(beforeMove, "/storage/first.mp4", "/storage/folder/first.mp4");
+        var movedDownload = (PluginTask.DownloadState.Completed) afterMove.getDownloadState();
+        assert movedDownload.getFilePath().equals("/storage/folder/first.mp4");
+        assert movedDownload.getFilePaths().equals(List.of("/storage/folder/first.mp4"));
+        assert QueueMedia.INSTANCE.relocate(beforeMove, "/other.mp4", "/new.mp4") == beforeMove;
+        assert QueueMedia.INSTANCE.relocate(beforeMove, "/storage/first.mp4", "/storage/first.mp4") == beforeMove;
         var items = new ArrayList<Item>();
         for (int i = 0; i < 2000; i++) items.add(new Item(i, i % 97, i % 2 == 0 ? "Name" + i % 29 : "name" + i % 29));
         Collections.shuffle(items, new Random(42));

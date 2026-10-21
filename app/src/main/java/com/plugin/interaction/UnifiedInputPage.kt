@@ -1,6 +1,5 @@
 package com.plugin.interaction
 
-import com.plugin.compatibility.copyPreservingPluginOptions
 import com.plugin.compatibility.*
 
 import androidx.compose.foundation.layout.*
@@ -11,7 +10,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.junkfood.seal.R
-import com.junkfood.seal.ui.component.DrawerSheetSubtitle
 import com.junkfood.seal.ui.page.downloadv2.configure.*
 import com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel.Action
 import com.junkfood.seal.util.DownloadType

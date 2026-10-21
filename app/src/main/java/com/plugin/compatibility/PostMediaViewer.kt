@@ -3,9 +3,8 @@ package com.plugin.compatibility
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.OpenInNew
-import androidx.compose.material.icons.outlined.Wallpaper
 
 import com.plugin.compatibility.*
 import com.plugin.compatibility.PluginPreferences
@@ -55,8 +54,6 @@ import coil.compose.AsyncImage
 import com.junkfood.seal.R
 import com.junkfood.seal.util.FileUtil
 import com.plugin.compatibility.MediaLibrary
-import com.junkfood.seal.util.DatabaseUtil
-import com.plugin.compatibility.PluginPreferences.MEDIA_INFO_OVERLAY
 import com.junkfood.seal.util.PreferenceUtil.getBoolean
 import com.junkfood.seal.util.PreferenceUtil.updateBoolean
 import androidx.compose.ui.graphics.Color
@@ -88,6 +85,8 @@ fun PostMediaViewer(paths: List<String>, initialPath: String?, onDismiss: () -> 
         if (volumeGesture > 0) { showVolume = true; delay(1200); showVolume = false }
     }
     var deleting by remember { mutableStateOf<String?>(null) }
+    var moveMenu by remember { mutableStateOf(false) }
+    var moving by remember { mutableStateOf<List<String>?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf("") }
     var zoomed by remember { mutableStateOf(false) }
@@ -136,6 +135,15 @@ fun PostMediaViewer(paths: List<String>, initialPath: String?, onDismiss: () -> 
     var showWallpaperDialog by remember { mutableStateOf(false) }
     if (showWallpaperDialog) com.plugin.ui.WallpaperPreviewDialog(pages.mapIndexed { index, path -> com.plugin.ui.WallpaperPageItem(path, index) }, pager.currentPage) { showWallpaperDialog = false }
     val currentPostUrl = history[pages.getOrNull(pager.currentPage)]?.videoUrl
+    val movingPost = remember(history, pager.currentPage, pages) {
+        val current = history[pages.getOrNull(pager.currentPage)]
+        // 목록 필터에 가려진 페이지도 같은 소셜 게시글이면 전체 이동에 포함합니다.
+        if (current != null && current.videoUrl.isNotBlank() && current.extractor.lowercase() in setOf("instagram", "tiktok")) history.values
+            .filter { it.extractor.equals(current.extractor, ignoreCase = true) &&
+                MediaRules.identity(it.videoUrl.substringBefore('#')) == MediaRules.identity(current.videoUrl.substringBefore('#')) }
+            .sortedBy { it.postPageIndex }.map { it.videoPath }.distinct()
+        else pages
+    }
     // 창 자체를 시스템 바 뒤까지 확장하고 조작부에만 여백을 줘 뒤 게시글이 비치지 않게 합니다.
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false,
         decorFitsSystemWindows = false)) {
@@ -148,6 +156,19 @@ fun PostMediaViewer(paths: List<String>, initialPath: String?, onDismiss: () -> 
                     }
                     IconButton(enabled = !busy, onClick = { deleting = pages.getOrNull(pager.currentPage) }) {
                         Icon(Icons.Outlined.Delete, stringResource(R.string.loc_delete_page))
+                    }
+                    Box {
+                        IconButton(enabled = !busy, onClick = { moveMenu = true }) {
+                            Icon(Icons.AutoMirrored.Outlined.DriveFileMove, "폴더로 이동")
+                        }
+                        DropdownMenu(moveMenu, onDismissRequest = { moveMenu = false }) {
+                            DropdownMenuItem(text = { Text("현재 페이지 이동") }, onClick = {
+                                moveMenu = false; moving = pages.getOrNull(pager.currentPage)?.let(::listOf)
+                            })
+                            DropdownMenuItem(text = { Text("게시글 전체 이동 · ${movingPost.size}개") }, onClick = {
+                                moveMenu = false; moving = movingPost.toList()
+                            })
+                        }
                     }
                     IconButton(onClick = onDismiss) { Icon(Icons.Outlined.Close, stringResource(R.string.close)) }
                 }
@@ -343,6 +364,9 @@ fun PostMediaViewer(paths: List<String>, initialPath: String?, onDismiss: () -> 
             }
         }
     }
+    moving?.let { selected -> MediaMoveDialog(selected, onMoved = { old, new ->
+        pages = pages.map { if (it == old) new else it }; revision++
+    }, onDismiss = { moving = null }) }
     if (deleting != null) AlertDialog(onDismissRequest = { if (!busy) deleting = null },
         title = { Text(stringResource(R.string.loc_delete_page)) },
         text = { Text(error.ifBlank { context.getString(R.string.revision5_delete_file_hint) }) },

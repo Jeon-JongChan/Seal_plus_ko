@@ -143,10 +143,31 @@ class DuplicateCheck : Instrumentation() {
         }
         val notes = mutableListOf<String>()
         DuplicateStore(context).use { store ->
-            val previous = store.load()
+            val previous = DuplicateTarget.entries.associateWith { store.load(it) }
             check(store.exclusions().isEmpty()) { "기존 제외 기록이 있어 격리된 에뮬레이터에서 검사를 실행해야 합니다." }
             try {
                 for (model in listOf("small", "large")) {
+                    // 혼합 폴더의 범위를 바꿔도 캐시·결과·삭제 권한이 서로 섞이지 않아야 합니다.
+                    for (target in DuplicateTarget.entries) {
+                        DuplicateEngine(context, DuplicateOptions(model = model, target = target, backend = DuplicateBackend.CPU), store).use { scoped ->
+                            val result = scoped.scan(files, root) { _, _, _ -> }
+                            check(result.target == target && result.scanned == files.count { target.accepts(MediaRules.mediaKind(it.path, it.quality?.codec.orEmpty())) })
+                            check(result.failures == 0)
+                            check(result.groups.all { group -> group.members.all { target.accepts(if (it.video) 1 else 2) } && group.members.map { it.video }.distinct().size == 1 })
+                            store.save(result); check(store.load(target).target == target)
+                            DuplicateScanService.results.value = result
+                            val mismatched = DuplicateTarget.entries.first { it != target }
+                            check(runCatching { DuplicateScanService.delete(context, emptyMap(), mismatched, result) }.isFailure)
+                            val poisoned = result.copy(target = mismatched)
+                            DuplicateScanService.results.value = poisoned
+                            if (result.groups.any { group -> group.members.any { !mismatched.accepts(if (it.video) 1 else 2) } }) {
+                                val plan = poisoned.groups.associate { it.id to it.members.first().path }
+                                check(runCatching { DuplicateScanService.delete(context, plan, mismatched, poisoned) }.isFailure)
+                            }
+                            check(files.all { File(it.path).exists() })
+                            check(scoped.scan(emptyList(), root) { _, _, _ -> }.let { it.scanned == 0 && it.groups.isEmpty() && it.target == target })
+                        }
+                    }
                     val options = DuplicateOptions(model = model)
                     DuplicateEngine(context, options, store).use { engine ->
                         val report = engine.scan(files, root) { _, _, _ -> }
@@ -184,7 +205,7 @@ class DuplicateCheck : Instrumentation() {
                 val safe = File(directory, "삭제검사원본.png"); a.copyTo(safe)
                 val victim = File(directory, "삭제검사복사.png"); a.copyTo(victim)
                 val entries = listOf(safe, victim).map { MediaLibrary.MediaFile(it.path, it.name, it.length(), 0.0, quality = MediaLibrary.readMediaQuality(it.path)) }
-                DuplicateEngine(context, DuplicateOptions(), store).use { engine ->
+                DuplicateEngine(context, DuplicateOptions(target = DuplicateTarget.IMAGE), store).use { engine ->
                     val report = engine.scan(entries, root) { _, _, _ -> }
                     check(report.groups.size == 1)
                     DuplicateScanService.results.value = report
@@ -232,7 +253,7 @@ class DuplicateCheck : Instrumentation() {
                     store.save(report); DuplicateScanService.results.value = report
                 }
             } finally {
-                if (!keepUi) { store.save(previous); DuplicateScanService.results.value = previous }
+                if (!keepUi) { previous.values.forEach { store.save(it) }; DuplicateScanService.results.value = previous.getValue(DuplicateTarget.ALL) }
             }
         }
         return notes.joinToString("\n") + "\n검사 파일: ${directory.path}\n"

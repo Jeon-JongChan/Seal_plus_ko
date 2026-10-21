@@ -13,11 +13,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.junkfood.seal.ui.component.BackButton
-import com.junkfood.seal.util.DownloadUtil
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Folder
 import com.plugin.FeaturePlugin
-import com.junkfood.seal.ui.common.Route
 import com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel
 
 /** 영상 인코딩과 컨테이너·저장 파일 재사용 설정을 제공합니다. */

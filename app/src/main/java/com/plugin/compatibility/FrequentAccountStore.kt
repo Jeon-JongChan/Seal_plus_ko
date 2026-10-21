@@ -68,16 +68,6 @@ object FrequentAccountStore {
         }
     }
 
-    /** 전체 계정 목록을 방문 횟수 내림차순(동일 횟수 시 최신순)으로 정렬하여 반환합니다. */
-    @Synchronized
-    fun getAccounts(): List<FrequentAccount> {
-        if (memoryCache.isEmpty()) loadAll()
-        return memoryCache.values.sortedWith(
-            compareByDescending<FrequentAccount> { it.visitCount }
-                .thenByDescending { it.lastVisited }
-        )
-    }
-
     /**
      * 계정 방문을 기록하고 방문 횟수 및 최신 프로필 사진 URL을 갱신합니다.
      * 기존 항목이 있으면 방문 횟수를 1 증가시키고, 없으면 새로 등록합니다.
@@ -116,18 +106,6 @@ object FrequentAccountStore {
         require(key.matches(Regex("[a-z0-9._]{1,30}")) && key !in setOf(".", ".."))
         val account = memoryCache[key]?.takeIf { it.platform == platform } ?: FrequentAccount(key, visitCount = 0, platform = platform)
         androidx.compose.runtime.snapshots.Snapshot.withMutableSnapshot { memoryCache[key] = account.copy(profilePicUrl = picture) }
-        persist()
-    }
-
-    /** 계정을 수동으로 추가하거나 프로필 정보를 갱신합니다. */
-    fun addAccount(username: String, profilePicUrl: String = "", platform: String = "instagram"): Boolean =
-        recordVisit(username, profilePicUrl, platform)
-
-    /** 지정한 계정을 목록에서 삭제합니다. */
-    @Synchronized
-    fun removeAccount(username: String) {
-        val key = username.trim().removePrefix("@").lowercase()
-        memoryCache.remove(key)
         persist()
     }
 

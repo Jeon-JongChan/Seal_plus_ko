@@ -4,6 +4,18 @@ import com.plugin.queue.PluginTask as Task
 
 /** 다운로드 작업은 유지하고 게시물 단위 화면 상태만 계산합니다. */
 object QueueMedia {
+    /** 완료 작업의 대표 파일과 모든 페이지를 함께 바꾸고 관련 없는 상태는 그대로 반환합니다. */
+    fun relocate(state: Task.State, oldPath: String, newPath: String): Task.State {
+        val completed = state.downloadState as? Task.DownloadState.Completed ?: return state
+        if (oldPath == newPath || completed.filePaths.none { MediaRules.sameFilePath(it, oldPath) } &&
+            !MediaRules.sameFilePath(completed.filePath, oldPath)) return state
+        return state.copy(viewState = if (MediaRules.sameFilePath(state.viewState.thumbnailUrl, oldPath))
+            state.viewState.copy(thumbnailUrl = newPath) else state.viewState,
+            downloadState = completed.copy(
+            filePath = if (MediaRules.sameFilePath(completed.filePath, oldPath)) newPath else completed.filePath,
+            filePaths = completed.filePaths.map { if (MediaRules.sameFilePath(it, oldPath)) newPath else it }.distinct()))
+    }
+
     /** 한 번의 계산으로 카드 상태·삭제 수·재시도 표시를 함께 전달하는 불변 UI 자료입니다. */
     data class Snapshot(
         val states: Map<Task, Task.State> = emptyMap(),

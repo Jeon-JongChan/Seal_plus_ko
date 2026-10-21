@@ -5,7 +5,7 @@ import com.google.ai.edge.litert.*;
 import com.plugin.compatibility.enhancement.OptionalNpuProvider;
 import java.util.*;
 
-/** 내장 MobileNetV3 임베딩을 같은 입력 규칙으로 NPU·GPU·CPU에서 실행합니다. */
+/** 검증된 설치 모델의 임베딩을 같은 입력 규칙으로 NPU·GPU·CPU에서 실행합니다. */
 public final class DuplicateLiteRt implements AutoCloseable {
     private Environment environment;
     private CompiledModel model;
@@ -29,7 +29,7 @@ public final class DuplicateLiteRt implements AutoCloseable {
                 throw new IllegalStateException(accelerator + " 가속기를 사용할 수 없습니다.");
             CompiledModel.Options options = new CompiledModel.Options(Collections.singleton(selected));
             options.setCpuOptions(new CompiledModel.CpuOptions(2, null, null));
-            model = CompiledModel.create(context.getAssets(), "duplicate-ai/mobilenet_v3_" + size + ".tflite", options, environment);
+            model = CompiledModel.create(DuplicateModels.INSTANCE.requireFile(context, size).getAbsolutePath(), options, environment);
             TensorType input = model.getInputTensorType("inputs", "serving_default");
             TensorType output = model.getOutputTensorType("feature_vector", "serving_default");
             if (input.getElementType() != TensorType.ElementType.FLOAT

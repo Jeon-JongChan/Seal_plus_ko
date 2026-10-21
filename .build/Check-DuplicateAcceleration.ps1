@@ -1,4 +1,4 @@
-﻿<# .SYNOPSIS 내장 두 모델과 가속 실패 대체를 실행 중인 검증 에뮬레이터에서 확인합니다. #>
+﻿<# .SYNOPSIS 공식 두 모델 다운로드·무결성과 가속 실패 대체를 검증 에뮬레이터에서 확인합니다. #>
 . "$PSScriptRoot/Environment.ps1"
 Push-Location $ProjectRoot
 try {

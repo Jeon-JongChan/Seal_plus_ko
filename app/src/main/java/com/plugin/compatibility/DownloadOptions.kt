@@ -32,7 +32,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import com.junkfood.seal.ui.component.VideoFilterChip
 import com.junkfood.seal.ui.page.settings.network.CookiesQuickSettingsDialog
 import com.junkfood.seal.util.*
-import com.junkfood.seal.util.FileUtil.getCookiesFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext

@@ -1,28 +1,20 @@
 package com.plugin.image
 
-import com.plugin.compatibility.MediaRules
 import com.plugin.PluginRoutes
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.FileDownload
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.junkfood.seal.R
 import com.plugin.FeaturePlugin
-import com.plugin.compatibility.CookieOptions
-import com.plugin.compatibility.MediaDownloadOptions
-import com.junkfood.seal.ui.common.Route
-import com.junkfood.seal.ui.component.BackButton
 import com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel
 import com.junkfood.seal.util.DownloadUtil
-import com.plugin.instagram.InstagramUtil
 import com.plugin.compatibility.*
 
 /** 분석한 혼합 게시물의 전체·영상·이미지 필터를 해당 선택창에만 적용합니다. */

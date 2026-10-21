@@ -34,16 +34,12 @@ import com.plugin.queue.PluginTask.DownloadState.Running
 import com.plugin.queue.PluginTask.RestartableAction.Download
 import com.plugin.queue.PluginTask.RestartableAction.FetchInfo
 import com.plugin.queue.PluginTask.TypeInfo
-import com.junkfood.seal.util.DownloadUtil
 import com.junkfood.seal.util.FileUtil
 import com.plugin.instagram.InstagramUtil
-import com.plugin.compatibility.MediaRules
 import com.plugin.compatibility.MediaLibrary
 import com.junkfood.seal.util.NotificationUtil
-import com.junkfood.seal.util.PreferenceUtil
 import com.junkfood.seal.util.PreferenceUtil.getBoolean
 import com.junkfood.seal.util.PreferenceUtil.updateBoolean
-import com.junkfood.seal.util.DatabaseUtil
 import com.plugin.compatibility.InstagramMedia
 import com.plugin.compatibility.QueueMedia
 import com.plugin.compatibility.keepAv1Original

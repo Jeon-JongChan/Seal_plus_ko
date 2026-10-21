@@ -61,9 +61,6 @@ object EnhancementPreset {
     /** 이미지 기본값입니다. 모델과 선 축소는 단계에 포함하지 않습니다. */
     private val imageDefaults = videoDefaults.mapValues { (_, v) -> v.copy(model = "", shrink = PreDenoise.OFF, engine = PreDenoise.BUILTIN) }
 
-    /** 저장소를 거치지 않는 단계의 기본값입니다(테스트와 되돌리기에서 사용). */
-    internal fun defaultValues(name: String, image: Boolean): Values = (if (image) imageDefaults else videoDefaults).getValue(name)
-
     /** 사용자가 개별 옵션을 바꿀 때마다 올라가 "변경됨" 표시를 다시 계산하게 합니다. */
     var edits by mutableIntStateOf(0); private set
 

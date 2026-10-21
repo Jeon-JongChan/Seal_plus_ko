@@ -186,7 +186,12 @@ object EnhancementModels {
     @OptIn(kotlinx.coroutines.InternalCoroutinesApi::class)
     suspend fun download(context: Context, url: String, recommendation: Recommendation? = null,
         progress: (String) -> Unit): Model = withContext(Dispatchers.IO) {
-        require(recommendation == null || recommendation in recommendations && url == recommendation.url) { "등록된 추천 모델이 아닙니다." }
+        val duplicate = com.plugin.duplicates.DuplicateModels.models.singleOrNull { it.recommendation == recommendation }
+        val downloadLimit = duplicate?.bytes ?: EnhancementRules.MAX_MODEL_BYTES
+        require(recommendation == null || (recommendation in recommendations || duplicate != null) && url == recommendation.url) { "등록된 추천 모델이 아닙니다." }
+        if (duplicate != null) check(com.plugin.duplicates.DuplicateModels.root(context).usableSpace > duplicate.bytes * 2 + 1024 * 1024) {
+            "모델 다운로드에 필요한 저장 공간이 부족합니다. 약 ${duplicate.bytes * 2 / 1_000_000 + 1} MB를 확보하세요."
+        }
         val resolved = if (recommendation != null) recommendation.url else EnhancementRules.modelUrl(url)
         val name = safeName(recommendation?.name ?: Uri.parse(resolved).lastPathSegment.orEmpty())
         val temp = File.createTempFile("model-", ".part", internalRoot(context))
@@ -199,13 +204,13 @@ object EnhancementModels {
                 call.execute().use { response ->
                     check(response.isSuccessful) { "모델 다운로드 실패 (${response.code}). 로그인 필요 모델은 파일 가져오기를 사용하세요." }
                     val body = response.body ?: error("모델 응답이 비어 있습니다.")
-                    check(body.contentLength() <= EnhancementRules.MAX_MODEL_BYTES) { "모델 파일이 너무 큽니다." }
+                    check(body.contentLength() <= downloadLimit) { "모델 파일이 너무 큽니다." }
                     body.byteStream().use { input -> temp.outputStream().use { output ->
                         val buffer = ByteArray(64 * 1024); var total = 0L
                         while (true) {
                             currentCoroutineContext().ensureActive()
                             val read = input.read(buffer); if (read < 0) break
-                            total += read; check(total <= EnhancementRules.MAX_MODEL_BYTES) { "모델 파일이 너무 큽니다." }
+                            total += read; check(total <= downloadLimit) { "모델 파일이 너무 큽니다." }
                             output.write(buffer, 0, read); progress("모델 다운로드: ${total / 1024} KB")
                         }
                         check(total > 0 && (body.contentLength() < 0 || total == body.contentLength())) { "모델 다운로드가 완료되지 않았습니다." }
@@ -213,6 +218,17 @@ object EnhancementModels {
                 }
             } finally { cancel.dispose() }
             if (recommendation != null) check(hash(temp) == recommendation.sha256) { "모델 검증 해시가 일치하지 않습니다." }
+            if (duplicate != null) {
+                currentCoroutineContext().ensureActive()
+                check(temp.length() == duplicate.bytes) { "중복 분석 모델 크기가 일치하지 않습니다." }
+                val output = File(com.plugin.duplicates.DuplicateModels.root(context), name)
+                android.util.AtomicFile(output).let { atomic ->
+                    val stream = atomic.startWrite()
+                    try { temp.inputStream().use { it.copyTo(stream) }; atomic.finishWrite(stream) }
+                    catch (failure: Throwable) { atomic.failWrite(stream); throw failure }
+                }
+                return@withContext Model("중복 분석 · ${duplicate.label}", output.path, output.length())
+            }
             if (resolved.endsWith(".zip")) {
                 // 고정 해시의 공식 압축파일만 읽으며 경로를 풀지 않고 지정된 모델 하나만 추출합니다.
                 java.util.zip.ZipFile(temp).use { archive ->

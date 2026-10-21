@@ -13,7 +13,6 @@ import androidx.compose.ui.unit.dp
 import com.junkfood.seal.R
 import com.junkfood.seal.ui.component.BackButton
 import com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel
-import com.junkfood.seal.util.DownloadUtil
 import com.plugin.FeaturePlugin
 import com.plugin.PluginId
 import com.plugin.compatibility.MediaDirectoryOptions

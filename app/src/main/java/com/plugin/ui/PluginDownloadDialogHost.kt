@@ -13,8 +13,6 @@ import com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel.Sh
 import com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel.SheetValue
 import com.junkfood.seal.ui.page.downloadv2.configure.FormatPage
 import com.junkfood.seal.ui.page.downloadv2.configure.PlaylistSelectionPage
-import com.plugin.PluginId
-import com.plugin.PluginState
 import com.plugin.compatibility.*
 import com.plugin.compatibility.pluginPreferencesState
 import com.plugin.runtime.PluginDownloadDialog

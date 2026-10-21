@@ -6,7 +6,6 @@ import com.plugin.compatibility.MediaRules
 import com.plugin.compatibility.*
 import com.junkfood.seal.R
 import com.junkfood.seal.database.objects.VideoQuality
-import com.junkfood.seal.util.DatabaseUtil
 import com.junkfood.seal.util.DownloadUtil.DownloadPreferences
 import com.junkfood.seal.util.VideoInfo
 import java.io.File

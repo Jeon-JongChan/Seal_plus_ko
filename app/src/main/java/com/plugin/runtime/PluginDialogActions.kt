@@ -1,7 +1,5 @@
 package com.junkfood.seal.ui.page.downloadv2.configure
 
-import com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel.Action
-import com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel.SheetState
 import com.junkfood.seal.util.DownloadUtil
 import com.plugin.compatibility.InstagramMedia
 
@@ -19,8 +17,6 @@ data class InstagramSelectionState(
 
 /** 호환성을 위한 타입 별칭 */
 typealias InstagramSelection = InstagramSelectionState
-typealias InspectInstagram = InspectInstagramAction
-typealias DownloadInstagram = DownloadInstagramAction
 
 /** 인스타그램/소셜 미디어 분석 액션 */
 data class InspectInstagramAction(

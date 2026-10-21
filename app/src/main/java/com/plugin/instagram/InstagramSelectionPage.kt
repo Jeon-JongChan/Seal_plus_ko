@@ -1,8 +1,6 @@
 package com.plugin.instagram
 
 import com.junkfood.seal.ui.page.downloadv2.configure.DownloadDialogViewModel
-import com.plugin.compatibility.CookieOptions
-import com.plugin.compatibility.MediaDownloadOptions
 import com.plugin.compatibility.copyPluginOptions
 import com.plugin.compatibility.mediaSelection
 import com.junkfood.seal.ui.page.downloadv2.configure.InstagramSelectionState

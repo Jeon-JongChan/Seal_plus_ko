@@ -32,7 +32,7 @@ class DuplicateEngine(private val context: Context, private val options: Duplica
         val pixels = IntArray(224 * 224)
         try { scaled.getPixels(pixels, 0, 224, 0, 0, 224, 224) }
         finally { if (scaled !== bitmap) scaled.recycle() }
-        // 내장 모델의 정규화 메타데이터는 mean=0, std=255입니다. 모든 가속기에 같은 값을 전달합니다.
+        // 공식 모델의 정규화 메타데이터는 mean=0, std=255입니다. 모든 가속기에 같은 값을 전달합니다.
         val values = FloatArray(pixels.size * 3) { (pixels[it / 3] ushr (16 - it % 3 * 8) and 255) / 255f }
         while (true) {
             val route = options.backend.routes[routeIndex]
@@ -135,7 +135,8 @@ class DuplicateEngine(private val context: Context, private val options: Duplica
     /** 보존 우선순위로 기준 파일을 먼저 골라 연결만 된 간접 유사 파일을 합치지 않습니다. */
     suspend fun scan(files: List<MediaLibrary.MediaFile>, root: String,
         progress: (Int, Int, String) -> Unit): DuplicateReport {
-        val eligible = files.filter { MediaRules.mediaKind(it.path, it.quality?.codec.orEmpty()) in 1..2 && it.bytes > 0 }
+        DuplicateModels.requireFile(context, options.model)
+        val eligible = files.filter { options.target.accepts(MediaRules.mediaKind(it.name, it.quality?.codec.orEmpty())) && it.bytes > 0 }
             .distinctBy { if (it.path.startsWith("content://")) it.path else File(it.path).canonicalPath }
         val stamps = eligible.associate { it.path to stamp(it) }
         val ordered = eligible.sortedWith(compareByDescending<MediaLibrary.MediaFile> { when (options.priority) {
@@ -202,11 +203,12 @@ class DuplicateEngine(private val context: Context, private val options: Duplica
             catch (_: Exception) { failures++ }
             finally { done++; progress(done, ordered.size, file.name) }
         }
-        return DuplicateReport(root, groups.values.toList(), done, failures, comparisons, options.model, options.preset, options.backend, engine)
+        return DuplicateReport(root, groups.values.toList(), done, failures, comparisons, options.model, options.preset, options.backend, engine, options.target)
     }
 
     /** 사용자가 보존본을 바꿔도 그 파일과 삭제 대상이 직접 일치하는지 재검증합니다. */
     suspend fun verifyPair(keeper: DuplicateMedia, target: DuplicateMedia, preset: DuplicatePreset): Boolean {
+        if (!options.target.accepts(if (keeper.video) 1 else 2) || !options.target.accepts(if (target.video) 1 else 2)) return false
         if (keeper.sha256 == target.sha256 && keeper.bytes == target.bytes && keeper.video == target.video) return true
         /** 캐시에서 생략된 프레임은 삭제 승인 시에만 보충합니다. */
         suspend fun feature(media: DuplicateMedia): DuplicateFeature {

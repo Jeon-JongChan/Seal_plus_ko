@@ -4,11 +4,7 @@ import com.plugin.compatibility.copyPreservingPluginOptions
 import com.plugin.compatibility.useWebsiteFolder
 import android.app.PendingIntent
 import android.content.Context
-import android.util.Log
-import androidx.compose.runtime.mutableStateMapOf
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.snapshots.SnapshotStateMap
-import com.junkfood.seal.App
 import com.junkfood.seal.R
 import com.plugin.queue.PluginTask.DownloadState
 import com.plugin.queue.PluginTask.DownloadState.Canceled
@@ -24,7 +20,6 @@ import com.plugin.queue.PluginTask.TypeInfo
 import com.junkfood.seal.util.DownloadUtil
 import com.junkfood.seal.util.FileUtil
 import com.junkfood.seal.util.NotificationUtil
-import com.junkfood.seal.util.PreferenceUtil
 import com.junkfood.seal.util.VideoInfo
 import com.yausername.youtubedl_android.YoutubeDL
 import kotlin.collections.component1
@@ -32,13 +27,7 @@ import kotlin.collections.component2
 import kotlin.collections.set
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
-import org.koin.core.component.KoinComponent
 import com.plugin.queue.PluginTask as Task
 import com.plugin.compatibility.requireTaskState
 import com.plugin.compatibility.updateTaskState

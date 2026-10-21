@@ -30,7 +30,6 @@ object PluginPreferences {
     const val AV1_CRF = "av1_crf"
     const val AV1_PRESET = "av1_preset"
     const val CLASSIFICATION_RULES = "classification_rules_json"
-    const val INSTAGRAM_ACCOUNTS = "instagram_accounts"
 
     private val kv get() = com.tencent.mmkv.MMKV.defaultMMKV()
 
@@ -70,9 +69,4 @@ object PluginPreferences {
     /** 메뉴 즐겨찾기를 저장합니다. */
     fun updateMenuFavorites(routes: Set<String>) = kv.encode("menu_favorites", routes)
 
-    /** 저장된 Instagram 계정 이름을 읽습니다. */
-    fun getInstagramAccounts(): Set<String> = kv.decodeStringSet(INSTAGRAM_ACCOUNTS) ?: emptySet()
-
-    /** Instagram 계정 이름 목록을 저장합니다. */
-    fun updateInstagramAccounts(accounts: Set<String>) = kv.encode(INSTAGRAM_ACCOUNTS, accounts)
 }
