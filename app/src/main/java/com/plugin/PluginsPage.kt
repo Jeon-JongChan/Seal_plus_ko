@@ -63,7 +63,7 @@ fun PluginsPage(onBack: () -> Unit, onNavigate: (String) -> Unit) {
                         isChecked = com.plugin.compatibility.CompatibilityPlugin.enabled, enabled = false)
                 }
             }
-            PluginId.entries.groupBy { it.category }.forEach { (category, ids) ->
+            PluginId.entries.filter { it.owner == it }.groupBy { it.category }.forEach { (category, ids) ->
             item(key = "category:$category") { Text(category, style = MaterialTheme.typography.titleMedium) }
             items(ids, key = { it.name }) { id ->
                 val (title, description) = when (id) {
@@ -80,6 +80,7 @@ fun PluginsPage(onBack: () -> Unit, onNavigate: (String) -> Unit) {
                     PluginId.FOLDERS -> R.string.plugin_download_folders to R.string.plugin_download_folders_desc
                     PluginId.FACE_SORT -> R.string.plugin_face_sort to R.string.plugin_face_sort_desc
                     PluginId.DUPLICATES -> R.string.plugin_duplicates to R.string.plugin_duplicates_desc
+                    PluginId.PERSON_AI -> R.string.plugin_person_ai to R.string.plugin_person_ai_desc
                     PluginId.POST_INFO -> R.string.loc_post_info_plugin to R.string.loc_post_info_plugin_desc
                 }
                 val enabled = PluginState.isEnabled(id)
@@ -88,7 +89,7 @@ fun PluginsPage(onBack: () -> Unit, onNavigate: (String) -> Unit) {
                     PreferenceSwitch(title = stringResource(title), description = stringResource(description),
                         icon = plugin?.icon ?: Icons.Outlined.Checklist,
                         isChecked = enabled, onClick = {
-                            if (id == PluginId.HIDDEN && enabled && com.plugin.compatibility.TemporarySession.root != null) closeTemporary = true
+                            if (id == PluginId.INTERACTION && enabled && com.plugin.compatibility.TemporarySession.root != null) closeTemporary = true
                             else PluginState.setEnabled(id, !enabled)
                         })
                     if (enabled && plugin != null) {

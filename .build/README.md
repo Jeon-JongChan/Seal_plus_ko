@@ -36,8 +36,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .build/Start-App.ps1
 
 ## 최적화 회귀 검사
 
+로컬 테스트·검증 프로그램과 입력 자료는 Git에서 제외하는 `.build/.test/`에 보관합니다. 이 폴더는 새 체크아웃에 포함되지 않습니다. 기존 JunkFood 원본 테스트는 보존합니다.
+
+Android 검증 진입점·예제 미디어는 일반 APK에서 제외합니다. 로컬 검증 APK가 필요하면 `.build/Build.ps1 -Offline :app:assembleGenericDebug -PlocalChecks`로 빌드합니다. 아래 검증 스크립트는 해당 옵션을 자동 지정합니다.
+
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .build/Check-Optimizations.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .build/.test/Check-Optimizations.ps1
 ```
 
 앱의 실제 JVM 클래스에서 정렬 순서·키 조회 수, 게시물 집계·재시도·AI 복제·삭제 수, 진행률·취소·해시 계약, 중복 판정·보존 우선순위·BK 인덱스를 검사합니다. 별도 테스트 프레임워크를 설치하지 않으며 Android UI·실기기 성능 검사를 대신하지 않습니다.
@@ -56,5 +60,5 @@ adb -s emulator-5556 shell am instrument -w -e restoreSettings true com.junkfood
 중복 비교 가속 옵션과 두 모델의 LiteRT 전처리 동등성·실행 실패 대체는 다음 명령으로 확인합니다. 디버그 APK를 빌드한 뒤 지정된 검증 에뮬레이터를 확인하고 필요하면 시작합니다. 실제 사용자 기기는 사용하지 않으며 NPU 런타임은 다운로드하지 않습니다.
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .build/Check-DuplicateAcceleration.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .build/.test/Check-DuplicateAcceleration.ps1
 ```

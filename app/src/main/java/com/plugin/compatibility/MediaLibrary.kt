@@ -44,6 +44,7 @@ object MediaLibrary {
         val sourceQuality: VideoQuality? = null,
         val external: Boolean = false,
         val excludedFromProcessing: Boolean = false,
+        val qualityClassificationExcluded: Boolean = false,
     )
 
     /** Seal과 지정한 다운로드 폴더의 모든 하위 폴더에서 영상을 읽습니다. */
@@ -159,14 +160,17 @@ object MediaLibrary {
     }
 
     /** SAF 폴더에서도 이동에 필요한 부모 URI를 함께 보관합니다. */
-    private fun listTreeVideos(parent: DocumentFile, extensions: Set<String>, includeClassified: Boolean, excluded: Boolean = false): List<MediaFile> {
+    private fun listTreeVideos(parent: DocumentFile, extensions: Set<String>, includeClassified: Boolean, excluded: Boolean = false,
+        qualityExcluded: Boolean = false): List<MediaFile> {
         // NOFACE도 게시글과 경로를 연결해야 하므로 읽기 목록에는 포함합니다.
         val skipProcessing = excluded || MediaRules.isNoFacePath(parent.name.orEmpty())
+        // 불투명 SAF 문서 ID도 실제 순회 중 확인한 폴더 이름으로 제외합니다.
+        val skipQuality = qualityExcluded || QualityFolderExclusions.names().any { it.equals(parent.name,ignoreCase=true) }
         if (!parent.canRead()) throw SecurityException(context.getString(R.string.revision6_folder_access_error, parent.uri.toString()))
         return parent.listFiles().flatMap { file ->
             if (file.isDirectory) {
                 if (file.name == "tmp" || (!includeClassified && file.name.orEmpty().matches(Regex("[0-9]+(p|x[0-9]+)")))) emptyList()
-                else listTreeVideos(file, extensions, includeClassified, skipProcessing)
+                else listTreeVideos(file, extensions, includeClassified, skipProcessing,skipQuality)
             }
             else if (file.name.orEmpty().substringAfterLast('.').lowercase() in extensions)
                 listOf(
@@ -177,6 +181,7 @@ object MediaLibrary {
                         0.0,
                         parent.uri.toString(),
                         excludedFromProcessing = skipProcessing,
+                        qualityClassificationExcluded = skipQuality,
                     )
                 )
             else emptyList()
@@ -185,6 +190,7 @@ object MediaLibrary {
 
     /** 기존 파일을 덮어쓰지 않고 화질 폴더로 이동하며 이력도 갱신합니다. */
     suspend fun classify(file: MediaFile, preferences: DownloadUtil.DownloadPreferences, replaceDuplicates: Boolean = false): String {
+        if (file.qualityClassificationExcluded || QualityFolderExclusions.contains(file.path)) return file.path
         if (file.excludedFromProcessing || PluginMediaMetadataStore.isProcessingExcluded(file.path) || MediaRules.isNoFacePath(file.parentUri.orEmpty())) return file.path
         val classificationQuality = file.sourceQuality ?: file.quality
         val group = if (preferences.classifyMedia) MediaRules.classificationFolder(classificationQuality,
@@ -297,6 +303,7 @@ object MediaLibrary {
     /** SAF 중복은 먼저 복사 크기를 검증하고 교체 대상은 임시 이름으로 보존해 실패 시 복원합니다. */
     private suspend fun moveDocumentCollision(file: MediaFile, target: DocumentFile, replace: Boolean): String {
         val source = DocumentFile.fromSingleUri(context, Uri.parse(file.path)) ?: error("원본 파일이 없습니다.")
+        val sourceModified = source.lastModified()
         val existing = target.findFile(file.name)
         check(!replace || existing == null || existing.isFile) { "같은 이름의 폴더는 대체할 수 없습니다." }
         val name = if (replace) file.name else MediaRules.availableFileName(file.name) { target.findFile(it) != null }
@@ -309,7 +316,8 @@ object MediaLibrary {
             val bytes = context.contentResolver.openInputStream(source.uri)?.use { input ->
                 context.contentResolver.openOutputStream(copy.uri)?.use { output -> input.copyTo(output) }
             } ?: error("파일을 복사할 수 없습니다.")
-            check(bytes > 0 && bytes == source.length() && copy.length() == bytes) { "복사 파일 검증에 실패했습니다." }
+            check(bytes > 0 && bytes == source.length() && copy.length() == bytes &&
+                (file.bytes <= 0 || bytes == file.bytes) && source.lastModified() == sourceModified) { "복사 파일 검증에 실패했거나 원본이 변경되었습니다." }
             if (replace) {
                 if (existing != null) {
                     check(existing.renameTo(file.name + "." + java.util.UUID.randomUUID() + ".backup")) { "기존 파일을 안전하게 보관할 수 없습니다." }
@@ -590,7 +598,8 @@ object MediaLibrary {
                 val image = actualQuality?.codec?.startsWith("image/") == true
                 val tier = if (preferences.classifyMedia) MediaRules.classificationFolder(originalQuality,
                     preferences.imageTiers, preferences.videoTiers, preferences.codecRatios, preferences.classificationTarget, preferences.classificationUpperFirst) else null
-                if ((video || image) && (mediaRoot != null || preferences.classifyMedia || preserveParent)) {
+                // 화질 이동만 제외하고 변환 결과의 스캔·원본 화질 이력 연결은 그대로 수행합니다.
+                if ((video || image) && !QualityFolderExclusions.contains(file.path) && (mediaRoot != null || preferences.classifyMedia || preserveParent)) {
                     val parent = file.absoluteFile.parentFile ?: error("파일의 상위 폴더가 없습니다.")
                     var base = if (preserveParent) {
                         MediaRules.classificationBase(parent, mediaRoot ?: File(rootPath(preferences)))

@@ -11,5 +11,5 @@
 /archive/
 /Seal/
 /gradle-output/
-/test/__pycache__/
+/.test/
 

@@ -3,6 +3,7 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"
         android:maxSdkVersion="29" />
@@ -199,6 +200,13 @@
                 android:resource="@xml/provider_paths" />
         </provider>
 
+        <service android:name="com.plugin.person.PersonIndexService"
+            android:permission="android.permission.BIND_JOB_SERVICE" android:exported="true" />
+        <service android:name="com.plugin.person.PersonSortService" android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User initiated offline person recognition and media folder classification" />
+        </service>
         <receiver android:name=".NotificationActionReceiver" />
     </application>
 

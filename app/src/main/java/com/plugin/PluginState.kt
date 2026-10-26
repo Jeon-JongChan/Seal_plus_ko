@@ -9,17 +9,23 @@ import com.plugin.compatibility.*
 
 /** 서로 독립적으로 활성화할 수 있는 내장 확장 기능입니다. */
 enum class PluginId {
-    SOCIAL, MEDIA, LIBRARY, QUEUE, INTERACTION, IMAGE_AI, ACCOUNTS, POST_INFO, FOLDERS, FACE_SORT, VIDEO_AI, SHARE_MENU, HIDDEN, DUPLICATES;
+    SOCIAL, MEDIA, LIBRARY, QUEUE, INTERACTION, IMAGE_AI, ACCOUNTS, POST_INFO, FOLDERS, FACE_SORT, VIDEO_AI, SHARE_MENU, HIDDEN, DUPLICATES, PERSON_AI;
 
     val preferenceKey: String get() = "plugin_enabled_${name.lowercase()}"
 
+    /** 예전 저장 키와 호출부를 보존하면서 통합 기능의 소유자를 반환합니다. */
+    val owner: PluginId get() = when (this) {
+        HIDDEN, SHARE_MENU -> INTERACTION
+        ACCOUNTS -> POST_INFO
+        else -> this
+    }
+
     /** 기능과 저장된 활성화 값은 유지하고 관리 화면의 관련 항목만 같은 분류로 묶습니다. */
     val category: String get() = when (this) {
-        SOCIAL, INTERACTION, SHARE_MENU -> "다운로드·입력"
+        SOCIAL, INTERACTION, SHARE_MENU, HIDDEN -> "다운로드·입력"
         MEDIA, LIBRARY, QUEUE, FOLDERS -> "파일·대기열 관리"
-        IMAGE_AI, VIDEO_AI, FACE_SORT, DUPLICATES -> "AI 미디어 처리"
+        IMAGE_AI, VIDEO_AI, FACE_SORT, DUPLICATES, PERSON_AI -> "AI 미디어 처리"
         ACCOUNTS, POST_INFO -> "게시글·계정 정보"
-        HIDDEN -> "임시 공간"
     }
 }
 
@@ -29,17 +35,23 @@ object PluginState {
 
     /** 화면의 스냅샷이 생성되기 전에 저장된 상태를 준비합니다. */
     fun initialize() {
-        PluginId.entries.forEach { id -> enabled[id] = id.preferenceKey.getBoolean(false) }
+        // 기존 기능 중 하나라도 사용 중이면 통합 기능을 유지합니다. 모든 별칭 키도 함께 이관합니다.
+        PluginId.entries.filter { it.owner == it }.forEach { id ->
+            setEnabled(id, PluginId.entries.any { it.owner == id && it.preferenceKey.getBoolean(false) })
+        }
     }
 
     /** 기존 설치를 포함해 저장된 활성화 값이 없으면 기능을 끕니다. */
-    fun isEnabled(id: PluginId): Boolean = enabled[id] ?: id.preferenceKey.getBoolean(false)
+    fun isEnabled(id: PluginId): Boolean = enabled[id.owner]
+        ?: PluginId.entries.any { it.owner == id.owner && it.preferenceKey.getBoolean(false) }
 
     /** 설정만 변경하고 기존 작업·파일·기능별 세부 설정은 보존합니다. */
     fun setEnabled(id: PluginId, value: Boolean) {
-        id.preferenceKey.updateBoolean(value)
-        enabled[id] = value
-        if (id == PluginId.SHARE_MENU) ShareMenuSettings.synchronize(com.junkfood.seal.App.context)
+        PluginId.entries.filter { it.owner == id.owner }.forEach { member ->
+            member.preferenceKey.updateBoolean(value)
+            enabled[member] = value
+        }
+        if (id.owner == PluginId.INTERACTION) ShareMenuSettings.synchronize(com.junkfood.seal.App.context)
     }
 
     /** 새 요청에는 현재 켜진 기능의 설정만 적용합니다. */

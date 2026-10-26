@@ -25,13 +25,14 @@ object TemporarySessionController {
 
     /** 전환 중 새 다운로드가 시작되지 않도록 엔진의 공통 진입점을 잠급니다. */
     private suspend fun change(engine: PluginTaskEngine, block: suspend () -> Unit) = transition.withLock {
-        synchronized(engine) { requireIdle(engine); TemporarySession.changing = true }
+        synchronized(engine) { synchronized(TemporarySession) { requireIdle(engine); TemporarySession.changing = true } }
         try { block() } finally { TemporarySession.changing = false }
     }
 
     /** 작업 중 저장 루트가 바뀌어 파일·이력이 다른 저장소로 넘어가는 것을 막습니다. */
     private fun requireIdle(engine: PluginTaskEngine) {
         check(engine.restored && !EnhancementClient.busy && !EnhancementFiles.busy && !FaceScanService.state.value.running && !MediaScanService.state.value.running &&
+            !com.plugin.person.PersonOnnx.isBusy() && !com.plugin.person.PersonIndexService.isRunning() && !com.plugin.person.PersonSortService.state.value.running &&
             !com.plugin.duplicates.DuplicateScanService.state.value.running && !com.plugin.duplicates.DuplicateScanService.editing.value &&
             engine.getTaskStateMap().values.none { it.downloadState is PluginTask.DownloadState.Cancelable ||
                 it.downloadState == PluginTask.DownloadState.Idle || it.downloadState == PluginTask.DownloadState.ReadyWithInfo }) {

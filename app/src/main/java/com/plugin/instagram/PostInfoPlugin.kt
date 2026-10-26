@@ -35,40 +35,17 @@ object PostInfoPlugin : FeaturePlugin() {
     @Composable
     /** 프로필·계정명·본문·해시태그 표시 여부를 개별 설정합니다. */
     override fun RenderContent(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) {
+        FrequentAccountsPlugin.Page(onBack, onAction)
+    }
+
+    /** 게시글 정보 스위치를 계정 목록 위에서 동일한 저장 키로 표시합니다. */
+    @Composable
+    fun Settings() {
         var showProfile by remember { mutableStateOf(SocialPostMetadataPreferences.showProfile) }
         var showAuthor by remember { mutableStateOf(SocialPostMetadataPreferences.showAuthor) }
         var showText by remember { mutableStateOf(SocialPostMetadataPreferences.showText) }
         var showHashtags by remember { mutableStateOf(SocialPostMetadataPreferences.showHashtags) }
 
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text(stringResource(R.string.loc_post_info_plugin)) },
-                    navigationIcon = { BackButton(onBack) }
-                )
-            }
-        ) { padding ->
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                item {
-                    Surface(
-                        shape = MaterialTheme.shapes.large,
-                        color = MaterialTheme.colorScheme.secondaryContainer
-                    ) {
-                        Text(
-                            text = stringResource(R.string.loc_post_info_plugin_desc),
-                            modifier = Modifier.padding(16.dp),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                }
-
-                item {
                     OutlinedCard(modifier = Modifier.fillMaxWidth()) {
                         PreferenceSwitch(
                             title = stringResource(R.string.loc_post_info_show_profile),
@@ -118,9 +95,5 @@ object PostInfoPlugin : FeaturePlugin() {
                             }
                         )
                     }
-                }
-            }
-        }
     }
 }
-

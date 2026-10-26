@@ -157,6 +157,15 @@ android {
     // 큰 Qualcomm SDK 런타임은 NPU를 선택할 때 고정 해시를 확인하여 내려받습니다.
     sourceSets.getByName("main").jniLibs.srcDir(rootProject.file(".build/runtime/rife/jniLibs"))
 
+    // Git에서 제외한 로컬 검증 자료는 명시적으로 요청한 디버그 빌드에만 포함합니다.
+    if (providers.gradleProperty("localChecks").isPresent) {
+        sourceSets.getByName("debug") {
+            java.srcDir(rootProject.file(".build/.test/android/java"))
+            assets.srcDir(rootProject.file(".build/.test/android/assets"))
+            manifest.srcFile(rootProject.file(".build/.test/android/AndroidManifest.xml"))
+        }
+    }
+
     packaging {
         resources { excludes += "/META-INF/{AL2.0,LGPL2.1}" }
         jniLibs.useLegacyPackaging = true

@@ -375,8 +375,9 @@ object VideoEnhancer {
     private inline fun <T> MediaExtractor.useExtractor(block: (MediaExtractor) -> T): T = try { block(this) } finally { release() }
 
     /** 해상도·YUV 접근을 지원하는 코덱 중 하드웨어를 우선하고 소프트웨어는 대체로 사용합니다. */
-    private fun mediaCodec(mime: String, width: Int, height: Int, encoding: Boolean, fps: Double = 0.0): MediaCodec =
-        MediaCodec.createByCodecName((codecInfo(mime, width, height, encoding, fps)
+    internal fun mediaCodec(mime: String, width: Int, height: Int, encoding: Boolean, fps: Double = 0.0,
+        excluded: Set<String> = emptySet()): MediaCodec =
+        MediaCodec.createByCodecName((codecInfo(mime, width, height, encoding, fps,excluded)
             ?: error("지원하는 코덱 없음(${width}x$height${if (encoding) " ${fps.toInt()}fps" else ""}, 해상도·프레임률·YUV 접근 필요) 후보: ${describeCodecs(mime, width, height, encoding)}")).name)
 
     /** 코덱을 찾지 못했을 때 후보별 거부 원인(YUV·크기·프레임률 범위)을 오류 문구에 남깁니다. */
@@ -410,9 +411,10 @@ object VideoEnhancer {
     }
 
     /** 요청 크기·FPS·YUV 입력을 지원하는 코덱 정보를 반환하며 하드웨어를 먼저 고릅니다. */
-    private fun codecInfo(mime: String, width: Int, height: Int, encoding: Boolean, fps: Double): MediaCodecInfo? {
+    private fun codecInfo(mime: String, width: Int, height: Int, encoding: Boolean, fps: Double,
+        excluded: Set<String> = emptySet()): MediaCodecInfo? {
         return codecList.filter { candidate ->
-            candidate.isEncoder == encoding && mime in candidate.supportedTypes && runCatching {
+            candidate.name !in excluded && candidate.isEncoder == encoding && mime in candidate.supportedTypes && runCatching {
                 val capabilities = candidate.getCapabilitiesForType(mime)
                 MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible in capabilities.colorFormats &&
                     capabilities.videoCapabilities.isSizeSupported(width, height) &&

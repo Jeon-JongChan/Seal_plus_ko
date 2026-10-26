@@ -48,12 +48,12 @@ object PluginFactory {
     com.plugin.videoenhancement.VideoEnhancementPlugin,
     com.plugin.instagram.FrequentAccountsPlugin,
     com.plugin.instagram.PostInfoPlugin, com.plugin.folders.DownloadFoldersPlugin,
-    com.plugin.faces.FaceSortPlugin, com.plugin.duplicates.DuplicatePlugin,
+    com.plugin.faces.FaceSortPlugin, com.plugin.duplicates.DuplicatePlugin, com.plugin.person.PersonPlugin,
     com.plugin.sharemenu.ShareMenuPlugin, com.plugin.temporary.TemporaryPlugin) }
 
     /** 설정 화면도 같은 등록 목록에서 기능의 파사드를 찾습니다. */
     fun create(id: PluginId): FeaturePlugin? = all.firstOrNull { it.id == id }
 
     /** 메뉴와 공통 작업 연결은 활성 플러그인의 전략만 사용합니다. */
-    fun enabled(): List<FeaturePlugin> = all.filter { PluginState.isEnabled(it.id) }
+    fun enabled(): List<FeaturePlugin> = all.filter { it.id.owner == it.id && PluginState.isEnabled(it.id) }
 }

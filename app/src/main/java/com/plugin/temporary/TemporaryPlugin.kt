@@ -31,13 +31,18 @@ object TemporaryPlugin : FeaturePlugin() {
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     override fun RenderContent(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) {
+        com.plugin.interaction.InteractionToolsPage(onBack)
+    }
+
+    /** 통합 편의 화면에서도 동일한 세션 전환과 종료 확인을 사용합니다. */
+    @Composable
+    fun Settings() {
         val engine = koinInject<DownloaderV2>().pluginQueue() as PluginTaskEngine
         val scope = rememberCoroutineScope()
         var confirm by remember { mutableStateOf(false) }
         var busy by remember { mutableStateOf(false) }
         var error by remember { mutableStateOf("") }
-        Scaffold(topBar = { TopAppBar(title = { Text(androidx.compose.ui.res.stringResource(titleResource)) }, navigationIcon = { BackButton(onBack) }) }) { padding ->
-            Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Text(androidx.compose.ui.res.stringResource(R.string.plugin_temporary_desc))
                 TemporarySession.root?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 Button(enabled = !busy, onClick = {
@@ -49,9 +54,8 @@ object TemporaryPlugin : FeaturePlugin() {
                     }
                 }) { Text(androidx.compose.ui.res.stringResource(if (TemporarySession.root == null) R.string.temporary_enter else R.string.temporary_exit)) }
                 if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
-            }
         }
-        if (confirm) TemporaryExitDialog(onDismiss = { confirm = false }, onFinished = onBack)
+        if (confirm) TemporaryExitDialog(onDismiss = { confirm = false }, onFinished = { confirm = false })
     }
 }
 

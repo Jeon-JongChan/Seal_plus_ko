@@ -56,16 +56,12 @@ fun InteractionToolsPage(onBack: () -> Unit) {
         TopAppBar(title = { Text(stringResource(R.string.plugin_interaction)) }, navigationIcon = { BackButton(onBack) })
     }) { padding ->
         Column(Modifier.padding(padding).padding(20.dp).verticalScroll(rememberScrollState())) {
-            Text(stringResource(R.string.loc_menu_favorites))
-            shortcuts.forEach { (route, title) ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(route in favorites, onCheckedChange = { checked ->
-                        favorites = if (checked) favorites + route else favorites - route
-                        PluginPreferences.updateMenuFavorites(favorites)
-                    })
-                    Text(stringResource(title))
-                }
-            }
+            Text(stringResource(R.string.plugin_temporary))
+            com.plugin.temporary.TemporaryPlugin.Settings()
+            androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 16.dp))
+            Text(stringResource(R.string.plugin_share_menu))
+            com.plugin.sharemenu.ShareMenuPlugin.Settings()
+            androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 16.dp))
             Text(stringResource(R.string.plugin_cookie_profile))
             Text(stringResource(R.string.plugin_cookie_profile_hint))
             profiles.forEach { profile ->
@@ -78,6 +74,18 @@ fun InteractionToolsPage(onBack: () -> Unit) {
                     Text(profile.url)
                 }
             }
+            androidx.compose.material3.HorizontalDivider(Modifier.padding(vertical = 16.dp))
+            Text(stringResource(R.string.loc_menu_favorites))
+            shortcuts.forEach { (route, title) ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(route in favorites, onCheckedChange = { checked ->
+                        favorites = if (checked) favorites + route else favorites - route
+                        PluginPreferences.updateMenuFavorites(favorites)
+                    })
+                    Text(stringResource(title))
+                }
+            }
+
         }
     }
 }

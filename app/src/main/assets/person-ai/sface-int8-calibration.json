@@ -1,0 +1,60 @@
+{
+  "model_sha256": "2b0e941e6f16cc048c20aee0c8e31f569118f65d702914540f7bfdc14048d78a",
+  "preprocessing": "sface-five-landmark-similarity-v1",
+  "dataset": "LFW funneled development train/test · YuNet 0.7 · 5-point similarity",
+  "source": "https://github.com/scikit-learn/scikit-learn/blob/main/sklearn/datasets/_lfw.py",
+  "train_pairs": 2200,
+  "test_pairs": 1000,
+  "train_missing": 0,
+  "test_missing": 0,
+  "train_positive": 1100,
+  "train_negative": 1100,
+  "levels": [
+    {
+      "accept": 0.1993956416845322,
+      "reject": 0.1599797010421753,
+      "target_far": 0.1,
+      "far": 0.118,
+      "frr": 0.006,
+      "tar": 0.992,
+      "hold": 0.047
+    },
+    {
+      "accept": 0.26176959276199346,
+      "reject": 0.2208169847726822,
+      "target_far": 0.03,
+      "far": 0.03,
+      "frr": 0.008,
+      "tar": 0.99,
+      "hold": 0.027
+    },
+    {
+      "accept": 0.3205149173736573,
+      "reject": 0.28047215938568115,
+      "target_far": 0.01,
+      "far": 0.008,
+      "frr": 0.014,
+      "tar": 0.982,
+      "hold": 0.011
+    },
+    {
+      "accept": 0.34247428178787237,
+      "reject": 0.32343217730522156,
+      "target_far": 0.003,
+      "far": 0.0,
+      "frr": 0.018,
+      "tar": 0.982,
+      "hold": 0.002
+    },
+    {
+      "accept": 0.371175765991211,
+      "reject": 0.32343217730522156,
+      "target_far": 0.001,
+      "far": 0.0,
+      "frr": 0.018,
+      "tar": 0.978,
+      "hold": 0.004
+    }
+  ],
+  "limits": "공개 벤치마크의 개발 검증 결과입니다. 실제 사용 환경의 정확도·극저 FAR·기기 간 수치 일치를 보장하지 않습니다."
+}

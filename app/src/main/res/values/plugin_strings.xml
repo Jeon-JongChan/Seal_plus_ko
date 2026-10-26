@@ -8,7 +8,7 @@
     <string name="plugin_library_desc">Image/video folders, individual resolution tiers, history filters, grouped posts and file management. Works without video encoding.</string>
     <string name="plugin_queue">Enhanced queue</string>
     <string name="plugin_queue_desc">Grouped posts, detailed information, multi-selection, deletion and an internal viewer. When disabled, use the original queue.</string>
-    <string name="plugin_interaction">Input and menu conveniences</string>
+    <string name="plugin_interaction">편의성(임시/공유메뉴/쿠키/즐겨찾기)</string>
     <string name="plugin_interaction_desc">Show URL input and settings together, with menu favorites and a quick cookie profile. When disabled, use the original two-step input.</string>
     <string name="plugin_social_disabled">Enable the social download plugin and try again.</string>
     <string name="plugin_list_social_hint">Enable social downloads in plugin management to download Instagram accounts or image lists.</string>
@@ -21,7 +21,7 @@
     <string name="loc_disabled_tier_hint">Disabled resolution tiers stay in the base image or video folder. Lower tiers are not substituted.</string>
     <string name="loc_frequent_accounts">Frequent Accounts</string>
     <string name="loc_frequent_accounts_desc">View frequent Instagram accounts and browse posts or profiles.</string>
-    <string name="loc_post_info_plugin">Post Details Display</string>
+    <string name="loc_post_info_plugin">게시글 상세정보·자주 방문하는 계정</string>
     <string name="loc_post_info_plugin_desc">Display author avatar, username, caption, and hashtags in queue and list.</string>
     <string name="loc_wallpaper_setting">Wallpaper</string>
     <string name="loc_wallpaper_preview">Wallpaper Preview &amp; Set</string>

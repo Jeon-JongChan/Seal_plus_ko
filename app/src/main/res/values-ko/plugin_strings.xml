@@ -8,7 +8,7 @@
     <string name="plugin_library_desc">이미지·영상 폴더와 해상도별 분류, 이력 필터, 게시물 묶음·파일 관리를 제공합니다. 영상 인코딩 없이 작동합니다.</string>
     <string name="plugin_queue">대기열 확장</string>
     <string name="plugin_queue_desc">게시물 묶음, 상세 정보, 다중 선택·삭제와 내장 열람을 제공합니다. 끄면 원본 대기열 화면을 사용합니다.</string>
-    <string name="plugin_interaction">입력·메뉴 편의 기능</string>
+    <string name="plugin_interaction">편의성(임시/공유메뉴/쿠키/즐겨찾기)</string>
     <string name="plugin_interaction_desc">URL 입력과 설정을 한 화면에 표시하고 메뉴 즐겨찾기·빠른 쿠키 프로필을 사용합니다. 끄면 원본의 입력 후 설정 화면을 사용합니다.</string>
     <string name="plugin_social_disabled">소셜 다운로드 플러그인을 켠 뒤 다시 시도해 주세요.</string>
     <string name="plugin_list_social_hint">인스타그램 계정·이미지 목록을 받으려면 플러그인 관리에서 소셜 다운로드도 켜 주세요.</string>
@@ -21,7 +21,7 @@
     <string name="loc_disabled_tier_hint">꺼진 해상도 구간은 기본 이미지·영상 폴더에 저장합니다. 낮은 구간으로 대체 분류하지 않습니다.</string>
     <string name="loc_frequent_accounts">자주 방문하는 계정</string>
     <string name="loc_frequent_accounts_desc">자주 방문하거나 다운로드한 인스타그램 계정 목록을 확인하고 게시물·프로필을 조회합니다.</string>
-    <string name="loc_post_info_plugin">게시글 상세 정보 표시</string>
+    <string name="loc_post_info_plugin">게시글 상세정보·자주 방문하는 계정</string>
     <string name="loc_post_info_plugin_desc">계정주 프로필, 계정명, 본문 텍스트 및 해시태그를 대기열과 목록에 표시합니다.</string>
     <string name="loc_wallpaper_setting">배경화면</string>
     <string name="loc_wallpaper_preview">배경화면 미리보기 및 설정</string>

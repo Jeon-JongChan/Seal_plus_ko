@@ -38,6 +38,13 @@ object FrequentAccountsPlugin : FeaturePlugin() {
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     override fun RenderContent(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) {
+        Page(onBack, onAction)
+    }
+
+    /** 게시글 상세 설정 다음에 기존 계정 목록과 프로필 동작을 표시합니다. */
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    fun Page(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) {
         val history by com.junkfood.seal.util.DatabaseUtil.getDownloadHistoryFlow().collectAsStateWithLifecycle(emptyList())
         val accounts by remember { derivedStateOf { FrequentAccountStore.fromHistory(history) } }
         val context = LocalContext.current
@@ -49,8 +56,10 @@ object FrequentAccountsPlugin : FeaturePlugin() {
         }
         DisposableEffect(imageLoader) { onDispose { imageLoader.shutdown() } }
         var picture by remember { mutableStateOf<String?>(null) }
-        Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.loc_frequent_accounts)) }, navigationIcon = { BackButton(onBack) }) }) { padding ->
+        Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.loc_post_info_plugin)) }, navigationIcon = { BackButton(onBack) }) }) { padding ->
             LazyColumn(Modifier.fillMaxSize().padding(padding), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                item { PostInfoPlugin.Settings() }
+                item { Text(stringResource(R.string.loc_frequent_accounts), style = MaterialTheme.typography.titleMedium) }
                 if (accounts.isEmpty()) item { Text("다운로드 이력에서 확인할 수 있는 계정이 없습니다.") }
                 items(accounts, key = { it.platform + ":" + it.username.lowercase() }) { account ->
                     OutlinedCard(Modifier.fillMaxWidth()) {

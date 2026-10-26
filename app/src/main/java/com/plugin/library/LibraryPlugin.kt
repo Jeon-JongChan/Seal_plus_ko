@@ -38,6 +38,10 @@ object LibraryPlugin : FeaturePlugin() {
                     Text(stringResource(R.string.loc_media_file_manager))
                 }
                 MediaDirectoryOptions(preferences, onUpdate = { preferences = it })
+                // 파일 관리 대화상자를 열지 않아도 설정 맨 아래에서 제외 폴더를 직접 등록합니다.
+                key(opened) {
+                    Column(Modifier.padding(20.dp)) { QualityFolderExclusionsSection() }
+                }
             }
         }
         if (opened) MediaFileManagerDialog { opened = false }

@@ -105,7 +105,7 @@ flowchart LR
 powershell -NoProfile -ExecutionPolicy Bypass -File .build/Build.ps1 -Offline :app:assembleGenericDebug
 ```
 
-대기열은 `compatibility.QueueMedia.snapshot`의 불변 자료를 사용한다. 페이지 집계·삭제 수·재시도 표시는 작업 스레드에서 함께 계산하고, 드로어 닫기와 화면 이동은 하나의 취소 가능한 코루틴에서 순서대로 실행한다. `.build/Check-Optimizations.ps1`로 정렬·집계 회귀 검사를 실행할 수 있다.
+대기열은 `compatibility.QueueMedia.snapshot`의 불변 자료를 사용한다. 페이지 집계·삭제 수·재시도 표시는 작업 스레드에서 함께 계산하고, 드로어 닫기와 화면 이동은 하나의 취소 가능한 코루틴에서 순서대로 실행한다. `.build/.test/Check-Optimizations.ps1`로 정렬·집계 회귀 검사를 실행할 수 있다.
 
 번역은 Android 리소스 규칙에 따라 `res/values*/`에 둔다. 소셜 API 접근 제한·로그인 요구, 기기의 인코더·SAF 공급자 차이는 기능 분리만으로 해결되지 않는다.
 

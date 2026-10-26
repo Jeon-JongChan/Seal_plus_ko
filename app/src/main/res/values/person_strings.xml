@@ -1,0 +1,4 @@
+<resources>
+    <string name="plugin_person_ai">AI 동일인물 폴더 분류</string>
+    <string name="plugin_person_ai_desc">이름과 예시 사진으로 동일인물의 사진·영상을 찾아 폴더로 이동합니다.</string>
+</resources>

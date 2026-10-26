@@ -28,11 +28,16 @@ object ShareMenuPlugin : FeaturePlugin() {
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     override fun RenderContent(onBack: () -> Unit, onAction: (DownloadDialogViewModel.Action) -> Unit) {
+        com.plugin.interaction.InteractionToolsPage(onBack)
+    }
+
+    /** 공유 별칭의 안전한 선택 동작을 통합 화면에 제공합니다. */
+    @Composable
+    fun Settings() {
         val context = LocalContext.current
         var selected by remember { mutableIntStateOf(ShareMenuSettings.selected()) }
         var error by remember { mutableStateOf("") }
-        Scaffold(topBar = { TopAppBar(title = { Text(stringResource(titleResource)) }, navigationIcon = { BackButton(onBack) }) }) { padding ->
-            Column(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(stringResource(R.string.plugin_share_menu_desc))
                 listOf(ShareMenuSettings.QUICK to R.string.title_activity_share, ShareMenuSettings.MAIN to R.string.app_name).forEach { (bit, title) ->
                     val checked = selected and bit != 0
@@ -47,7 +52,6 @@ object ShareMenuPlugin : FeaturePlugin() {
                     }
                 }
                 if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error)
-            }
         }
     }
 }

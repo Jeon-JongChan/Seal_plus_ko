@@ -187,8 +187,9 @@ object EnhancementModels {
     suspend fun download(context: Context, url: String, recommendation: Recommendation? = null,
         progress: (String) -> Unit): Model = withContext(Dispatchers.IO) {
         val duplicate = com.plugin.duplicates.DuplicateModels.models.singleOrNull { it.recommendation == recommendation }
-        val downloadLimit = duplicate?.bytes ?: EnhancementRules.MAX_MODEL_BYTES
-        require(recommendation == null || (recommendation in recommendations || duplicate != null) && url == recommendation.url) { "등록된 추천 모델이 아닙니다." }
+        val person = com.plugin.person.PersonModels.models.singleOrNull { it.recommendation == recommendation }
+        val downloadLimit = duplicate?.bytes ?: person?.bytes ?: EnhancementRules.MAX_MODEL_BYTES
+        require(recommendation == null || (recommendation in recommendations || duplicate != null || person != null) && url == recommendation.url) { "등록된 추천 모델이 아닙니다." }
         if (duplicate != null) check(com.plugin.duplicates.DuplicateModels.root(context).usableSpace > duplicate.bytes * 2 + 1024 * 1024) {
             "모델 다운로드에 필요한 저장 공간이 부족합니다. 약 ${duplicate.bytes * 2 / 1_000_000 + 1} MB를 확보하세요."
         }
@@ -218,16 +219,17 @@ object EnhancementModels {
                 }
             } finally { cancel.dispose() }
             if (recommendation != null) check(hash(temp) == recommendation.sha256) { "모델 검증 해시가 일치하지 않습니다." }
-            if (duplicate != null) {
+            if (duplicate != null || person != null) {
                 currentCoroutineContext().ensureActive()
-                check(temp.length() == duplicate.bytes) { "중복 분석 모델 크기가 일치하지 않습니다." }
-                val output = File(com.plugin.duplicates.DuplicateModels.root(context), name)
+                check(temp.length() == (duplicate?.bytes ?: person!!.bytes)) { "분석 모델 크기가 일치하지 않습니다." }
+                val output = File(if (person != null) com.plugin.person.PersonModels.root(context)
+                    else com.plugin.duplicates.DuplicateModels.root(context), name)
                 android.util.AtomicFile(output).let { atomic ->
                     val stream = atomic.startWrite()
                     try { temp.inputStream().use { it.copyTo(stream) }; atomic.finishWrite(stream) }
                     catch (failure: Throwable) { atomic.failWrite(stream); throw failure }
                 }
-                return@withContext Model("중복 분석 · ${duplicate.label}", output.path, output.length())
+                return@withContext Model(person?.label ?: "중복 분석 · ${duplicate!!.label}", output.path, output.length())
             }
             if (resolved.endsWith(".zip")) {
                 // 고정 해시의 공식 압축파일만 읽으며 경로를 풀지 않고 지정된 모델 하나만 추출합니다.

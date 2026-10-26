@@ -8,13 +8,14 @@
 /.idea/navEditor.xml
 /.idea/assetWizardSettings.xml
 /.idea/deploymentTargetDropDown.xml
+/.idea/deploymentTargetSelector.xml
+/.idea/appInsightsSettings.xml
 /.idea/shelf
 .DS_Store
-/build
+build/
 /captures
 .externalNativeBuild
 .cxx
-local.properties
 /keystore.properties
 /AndroidKeys/
 .kotlin
@@ -33,7 +34,16 @@ local.properties
 !.build/Emulator.ps1
 !.build/Start-App.ps1
 !.build/README.md
-!.build/Check-Optimizations.ps1
-!.build/Check-Optimizations.java
-!.build/Check-DuplicateAcceleration.ps1
+!.build/Calibrate-Person.py
+!.build/Prepare-PersonModels.py
+/.build/.test/
+
+# 로컬 실행·검증 과정에서 재생성되는 파일
+__pycache__/
+*.py[cod]
+*.hprof
+hs_err_pid*.log
+replay_pid*.log
+Thumbs.db
+Desktop.ini
 /Start-App.ps1

@@ -21,6 +21,8 @@ object FaceImages {
 
     /** 전체 프레임을 분석하지 않는 애니메이션은 얼굴 없음으로 오판해 이동하지 않습니다. */
     fun decode(context: Context, path: String, maximum: Int): Bitmap {
+        // 앱 내부 파일 URI도 공통 디코더가 기대하는 실제 경로로 한 번만 정규화합니다.
+        if (path.startsWith("file://")) return decode(context,requireNotNull(Uri.parse(path).path) { "파일 URI 경로가 없습니다." },maximum)
         if (Build.VERSION.SDK_INT >= 28) {
             val source = if (path.startsWith("content://")) ImageDecoder.createSource(context.contentResolver, Uri.parse(path))
                 else ImageDecoder.createSource(File(path))

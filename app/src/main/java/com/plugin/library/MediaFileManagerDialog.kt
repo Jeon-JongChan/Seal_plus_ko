@@ -146,7 +146,38 @@ fun MediaFileManagerDialog(onDismiss: () -> Unit) {
                         "\n" + stringResource(R.string.revision6_cleaned, scan.cleaned), style = MaterialTheme.typography.bodySmall)
                 if (error.isNotBlank() || scan.error.isNotBlank()) Text(error.ifBlank { scan.error },
                     color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                QualityFolderExclusionsSection()
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } })
+}
+
+/** 플러그인 설정과 파일 관리에서 같은 명시적 화질 분류 제외 목록을 편집합니다. */
+@Composable
+internal fun QualityFolderExclusionsSection() {
+    var folders by remember { mutableStateOf(QualityFolderExclusions.names()) }
+    var name by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf("") }
+    val scan by MediaScanService.state.collectAsStateWithLifecycle()
+    OutlinedCard(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
+            Text("화질 구분 제외 폴더",style=MaterialTheme.typography.titleMedium)
+            Text("분류한 인물 이름 등 제외할 폴더 이름을 직접 등록하세요. 같은 이름의 폴더와 그 하위 파일은 화질 폴더로 이동하지 않으며 목록에는 계속 표시됩니다.",style=MaterialTheme.typography.bodySmall)
+            OutlinedTextField(value=name,onValueChange={ name=it; error="" },enabled=!scan.running,
+                label={ Text("제외할 폴더 이름") },singleLine=true,modifier=Modifier.fillMaxWidth())
+            OutlinedButton(enabled=!scan.running && name.isNotBlank(),onClick={
+                runCatching { QualityFolderExclusions.save(folders+name.trim()) }
+                    .onSuccess { folders=QualityFolderExclusions.names(); name=""; error="" }
+                    .onFailure { error=it.message.orEmpty() }
+            }) { Text("제외 폴더 추가") }
+            if (folders.isEmpty()) Text("등록된 제외 폴더가 없습니다.",style=MaterialTheme.typography.bodySmall)
+            folders.sorted().forEach { folder -> Row(verticalAlignment=Alignment.CenterVertically) {
+                Text(folder,Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
+                TextButton(enabled=!scan.running,onClick={
+                    QualityFolderExclusions.save(folders-folder); folders=QualityFolderExclusions.names()
+                }) { Text("제외 해제") }
+            } }
+            if (error.isNotBlank()) Text(error,color=MaterialTheme.colorScheme.error,style=MaterialTheme.typography.bodySmall)
+        }
+    }
 }
