@@ -5,9 +5,9 @@ import android.graphics.RectF
 /** 활성 트랙의 제한된 표본과 종료 트랙의 대표 특징을 구분합니다. */
 private data class PersonTrack(val id: Int, var bounds: RectF, var lastMs: Long,
     val intervals: MutableList<PersonInterval>, val samples: MutableList<PersonSample>, var frames: Int = 1,
-    var completed: Boolean = false)
+    var completed: Boolean = false, var center: PersonSample? = null)
 
-/** 단기 연결만 활성 목록에서 검사하고 종료된 표본은 대표 벡터 하나로 축약합니다. */
+/** 단기 연결은 활성 목록만 검사하며 종료 트랙은 대표 벡터와 최대 세 시점의 근거로 축약합니다. */
 internal class PersonTracks(private val uri: String, private val fingerprint: String,
     saved: List<PersonVideoTrackState> = emptyList()) : AutoCloseable {
     private val tracks = mutableListOf<PersonTrack>()
@@ -18,13 +18,13 @@ internal class PersonTracks(private val uri: String, private val fingerprint: St
     /** 최근 프레임의 연결 후보 수이며 총 영상 길이에 따라 늘어나지 않습니다. */
     val activeCount: Int get() = active.size
     /** 검사에서 종료 표본 축약을 확인하는 실제 보유 벡터 수입니다. */
-    val retainedVectors: Int get() = tracks.sumOf { it.samples.size }
+    val retainedVectors: Int get() = tracks.sumOf { track -> track.samples.sumOf { 1+it.evidence.size } }
 
     init {
         saved.forEach { track ->
             val restored = PersonTrack(track.id,RectF(track.bounds[0],track.bounds[1],track.bounds[2],track.bounds[3]),track.lastMs,
                 track.intervals.toMutableList(),track.samples.map { face -> PersonSample(null,face.vector,face.issues,fingerprint,
-                    sourceUri=uri,landmarks=face.landmarks,bounds=face.bounds,representativeMs=face.representativeMs) }.toMutableList(),
+                    sourceUri=uri,landmarks=face.landmarks,bounds=face.bounds,representativeMs=face.representativeMs,evidence=face.evidence) }.toMutableList(),
                 track.frames,track.completed)
             tracks += restored
             if (!restored.completed) active += restored
@@ -48,12 +48,12 @@ internal class PersonTracks(private val uri: String, private val fingerprint: St
         // ponytail: IoU와 근접 프레임 특징은 단기 연결 휴리스틱입니다. ID 교환 실측이 나쁘면 검증된 추적기로 교체합니다.
         val candidates = active.filter { track ->
             track.id !in used && time-track.lastMs <= step*2 && intersection(track.bounds,face.bounds) > .3f &&
-                PersonMath.cosine(representative(track.samples).vector,sample.vector) > .5
+                PersonMath.cosine(center(track).vector,sample.vector) > .5
         }
         val track = candidates.singleOrNull()
         if (track == null) {
             val created = PersonTrack(Math.addExact(tracks.size,1),RectF(face.bounds),time,
-                mutableListOf(PersonInterval(time,time)),mutableListOf(sample))
+                mutableListOf(PersonInterval(time,time)),mutableListOf(sample.copy(representativeMs=time)))
             tracks += created; active += created; used += created.id
             return true
         }
@@ -61,7 +61,7 @@ internal class PersonTracks(private val uri: String, private val fingerprint: St
         val last = track.intervals.last()
         track.intervals[track.intervals.lastIndex] = last.copy(endMs=time)
         used += track.id
-        if (sample.issues.isEmpty() && track.samples.size < 5) { track.samples += sample; return true }
+        if (sample.issues.isEmpty() && track.samples.size < 5) { track.samples += sample.copy(representativeMs=time); track.center=null; return true }
         return false
     }
 
@@ -69,14 +69,15 @@ internal class PersonTracks(private val uri: String, private val fingerprint: St
     fun snapshot(): List<PersonVideoTrackState> = tracks.map { track ->
         PersonVideoTrackState(track.id,floatArrayOf(track.bounds.left,track.bounds.top,track.bounds.right,track.bounds.bottom),
             track.lastMs,track.intervals.toList(),track.samples.map { sample -> PersonStoredFace(sample.vector,sample.issues,
-                sample.landmarks,sample.bounds,representativeMs=sample.representativeMs) },track.frames,track.completed)
+                sample.landmarks,sample.bounds,representativeMs=sample.representativeMs,evidence=sample.evidence) },track.frames,track.completed)
     }
 
     /** 호출자 소유 벡터로 반환하여 추적기 종료와 화면 결과의 수명을 분리합니다. */
     fun results(): List<PersonSample> {
         active.forEach(::complete); active.clear()
         return tracks.map { track -> track.samples.single().copy(vector=track.samples.single().vector.clone(),
-            trackId=track.id,intervals=track.intervals.toList(),frames=track.frames) }
+            trackId=track.id,intervals=track.intervals.toList(),frames=track.frames,
+            evidence=track.samples.single().evidence.map { it.copy(vector=it.vector.clone()) }) }
     }
 
     /** 품질을 통과한 표본 중 다른 표본과 가장 일관된 실제 얼굴을 선택합니다. */
@@ -86,17 +87,25 @@ internal class PersonTracks(private val uri: String, private val fingerprint: St
         return good.maxBy { candidate -> good.sumOf { PersonMath.cosine(candidate.vector,it.vector) } }
     }
 
+    /** 표본이 추가될 때만 합의 중심을 다시 구하고 다섯 표본 확정 후에는 고정합니다. */
+    private fun center(track: PersonTrack): PersonSample = track.center ?: representative(track.samples).also { track.center=it }
+
     /** 합의 중심 주변 표본만 평균하고 불필요한 원본 벡터를 비웁니다. */
     private fun complete(track: PersonTrack) {
         if (track.completed) return
         val good = track.samples.filter { it.issues.isEmpty() }
         val representatives = good.ifEmpty { track.samples }
-        val center = representative(representatives)
+        val center = center(track)
         val vectors = representatives.filter { PersonMath.cosine(it.vector,center.vector) > .5 }
         val mean = FloatArray(128) { i -> (vectors.sumOf { it.vector[i].toDouble() }/vectors.size).toFloat() }
         val issues = if (vectors.size < 2) (center.issues+"다중 프레임 근거 부족").distinct() else center.issues
-        val result = center.copy(vector=PersonMath.normalize(mean),issues=issues)
+        val goodEvidence=vectors.filter { it.issues.isEmpty() }.distinctBy { it.representativeMs }.sortedBy { it.representativeMs }
+        // 트랙당 최대 세 근거만 보존해 영상 길이에 따른 추가 벡터 메모리를 제한합니다.
+        val evidence=if (goodEvidence.size <= 3) goodEvidence else listOf(goodEvidence.first(),goodEvidence[goodEvidence.size/2],goodEvidence.last())
+        val result = center.copy(vector=PersonMath.normalize(mean),issues=issues,
+            evidence=evidence.map { PersonEvidence(it.vector.clone(),it.representativeMs) })
         track.samples.forEach { it.vector.fill(0f) }; track.samples.clear(); track.samples += result
+        track.center = result
         track.completed = true
     }
 
@@ -109,7 +118,7 @@ internal class PersonTracks(private val uri: String, private val fingerprint: St
 
     /** 미반환 중간 벡터만 비우고 복사해 반환한 결과는 유지합니다. */
     override fun close() {
-        tracks.forEach { track -> track.samples.forEach { it.vector.fill(0f) } }
+        tracks.forEach { track -> track.samples.forEach { sample -> sample.vector.fill(0f); sample.evidence.forEach { it.vector.fill(0f) } } }
         tracks.clear(); active.clear(); used.clear()
     }
 }

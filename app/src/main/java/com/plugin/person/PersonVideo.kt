@@ -20,7 +20,7 @@ data class PersonVideoTrackState(val id: Int, val bounds: FloatArray, val lastMs
 @Serializable
 data class PersonVideoCheckpoint(val source: PersonSource, val nextUs: Long, val stepMs: Long,
     val signature: FloatArray, val durationMs: Long, val tracks: List<PersonVideoTrackState>, val version: Int = 1,
-    val trackCount: Int = tracks.size)
+    val trackCount: Int = tracks.size, val evidenceVersion: Int = 0)
 
 /** 프레임을 한 장씩 읽고 얼굴 이동·장면 변화를 고려해 분석 간격을 조절합니다. */
 object PersonVideo {
@@ -44,7 +44,8 @@ object PersonVideo {
         var tracker: PersonTracks? = null
         try {
             val duration = decoder.durationMs
-            val saved = if (store != null && source != null) store.videoCheckpoint(source,fingerprint) else null
+            val saved = (if (store != null && source != null) store.videoCheckpoint(source,fingerprint) else null)
+                ?.takeIf { it.evidenceVersion == 1 }
             check(saved == null || saved.durationMs == duration) { "영상 체크포인트의 길이가 다릅니다." }
             val tracking = PersonTracks(uri.toString(),fingerprint,saved?.tracks.orEmpty()).also { tracker = it }
             var step = saved?.stepMs ?: 500L; var previous: FloatArray? = saved?.signature
@@ -81,7 +82,7 @@ object PersonVideo {
                 val now = android.os.SystemClock.elapsedRealtime()
                 if (store != null && source != null && (checkpointUs < 0 || nextUs-checkpointUs >= 30_000_000 || now-checkpointWall >= 10_000)) {
                     // 중간 프레임 처리 실패 시 이전 확정 지점을 유지하며 부분 변경된 추적 상태는 저장하지 않습니다.
-                    val state = PersonVideoCheckpoint(source,nextUs,step,thumbnail,duration,tracking.snapshot())
+                    val state = PersonVideoCheckpoint(source,nextUs,step,thumbnail,duration,tracking.snapshot(),evidenceVersion=1)
                     store.saveVideoCheckpoint(fingerprint,state)
                     checkpointUs = nextUs; checkpointWall = now
                 }

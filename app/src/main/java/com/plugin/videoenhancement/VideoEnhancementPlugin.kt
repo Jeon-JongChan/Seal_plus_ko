@@ -117,7 +117,8 @@ private fun VideoAiAction(path: String, onSaved: (String, Boolean) -> Unit) {
                         StageHeader("4. 후처리 · 인코딩 직전"); SharpenSettings()
                         StageHeader("5. 저장 · 인코딩"); VideoEncodingSettings()
                     }
-                    Text("경량 모델도 영상 길이·해상도에 따라 처리 시간이 늘어납니다. 결과 확인 전에는 원본을 바꾸지 않습니다.", style = MaterialTheme.typography.bodySmall)
+                    OptionHelp("",emptyList(),summary="영상 보정 원리와 처리 시간",
+                        note="영상 프레임을 한 장씩 보정하고 선택한 FPS·인코딩 설정으로 저장합니다. 경량 모델도 영상 길이·해상도에 따라 처리 시간이 늘어납니다. 결과 확인 전에는 원본을 바꾸지 않습니다.")
                 }
                 }
                 val message = error.ifBlank { if (work.source == path) work.error else "" }

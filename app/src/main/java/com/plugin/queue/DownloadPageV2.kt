@@ -176,13 +176,6 @@ fun EnhancedDownloadPageV2(
     wallpaperPages?.let { pages ->
         com.plugin.ui.WallpaperPreviewDialog(pages) { wallpaperPages = null }
     }
-    LaunchedEffect(Unit) {
-        while (true) {
-            kotlinx.coroutines.withContext(Dispatchers.IO) { queue.refreshCompletedFiles() }
-            delay(10_000)
-        }
-    }
-
     DownloadPageImplV2(
         modifier = modifier,
         taskDownloadStateMap = queue.getTaskStateMap(),
@@ -191,6 +184,11 @@ fun EnhancedDownloadPageV2(
             dialogViewModel.postAction(Action.ShowSheet())
         },
         onMenuOpen = onMenuOpen,
+        onRefreshPost = { task ->
+            try { kotlinx.coroutines.withContext(Dispatchers.IO) { queue.refreshCompletedFiles(QueueMedia.postKey(task)) } }
+            catch (cancel: kotlinx.coroutines.CancellationException) { throw cancel }
+            catch (failure: Exception) { android.util.Log.w("DownloadPageV2", "표시 중인 파일 확인 실패", failure) }
+        },
     ) { task, action ->
         view.slightHapticFeedback()
         when (action) {
@@ -296,6 +294,7 @@ fun DownloadPageImplV2(
     taskDownloadStateMap: SnapshotStateMap<Task, Task.State>,
     downloadCallback: () -> Unit = {},
     onMenuOpen: (() -> Unit) = {},
+    onRefreshPost: suspend (Task) -> Unit = {},
     onActionPost: (Task, UiAction) -> Unit,
 ) {
     var sortByName by rememberSaveable { mutableStateOf(PluginPreferences.queueSortByName) }
@@ -540,6 +539,8 @@ fun DownloadPageImplV2(
                                 visibleTasks,
                             key = { (task, _) -> task.id },
                         ) { (task, state) ->
+                            // 실제 구성된 카드만 검사하며 설정·진행률 변경으로 전체 파일을 재검사하지 않습니다.
+                            LaunchedEffect(task.id, state.downloadState as? Completed) { onRefreshPost(task) }
                             val missingPages = groupedSnapshot.missingPages[task] ?: 0
                             with(state.viewState) {
                                 VideoCardV2(
@@ -583,6 +584,7 @@ fun DownloadPageImplV2(
                             key = { (task, _) -> task.id },
                             span = { GridItemSpan(maxLineSpan) },
                         ) { (task, state) ->
+                            LaunchedEffect(task.id, state.downloadState as? Completed) { onRefreshPost(task) }
                             val missingPages = groupedSnapshot.missingPages[task] ?: 0
                             VideoListItem(
                                 selected = selecting && task.id in selectedIds,

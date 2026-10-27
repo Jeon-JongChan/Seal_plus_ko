@@ -96,11 +96,18 @@ class PersonAnalyzer(private val context: Context, private val engine: PersonOnn
         // ponytail: 정상 파일의 크기·수정 시각을 재사용합니다. 시각 보존 변조까지 지원해야 하면 전체 해시 강제 옵션을 추가합니다.
         val content = if (previous != null && modified > 0 && previous.bytes == bytes && previous.modified == modified) previous.content
             else if (store != null) digest(uri) else ""
-        val source = PersonSource(uri.toString(),content,bytes,modified,video)
+        // 동일 내용의 재분석·캐시 적중은 사용자 분류 태그를 보존하고 변경된 내용은 초기화합니다.
+        val source = if (previous?.content == content) previous.copy(bytes=bytes,modified=modified,video=video)
+            else PersonSource(uri.toString(),content,bytes,modified,video)
         store?.load(content,fingerprint)?.let { record ->
+            // 사진 캐시는 유지하고 시점 근거가 없는 구버전 영상만 실제 사용 시 한 번 갱신합니다.
+            if (video && record.videoEvidenceVersion != 1) {
+                progress("기존 영상 캐시의 시점별 근거 갱신 중 · 최초 한 번 재분석")
+                return@let
+            }
             store.bind(source); reused = true; progress("저장된 얼굴 특징 재사용 · AI 추론 생략")
             val result = record.faces.asSequence().map { face -> PersonSample(null,face.vector,face.issues,fingerprint,face.trackId,face.intervals,
-                face.frames,uri.toString(),face.landmarks,face.bounds,face.representativeMs) }.asIterable()
+                face.frames,uri.toString(),face.landmarks,face.bounds,face.representativeMs,face.evidence) }.asIterable()
             return PersonPages.create(context,uri.toString(),fingerprint,result)
         }
         val samples = if (video) PersonVideo.analyze(context,uri,engine,fingerprint,store,source) { done,total -> progress("영상 분석 ${done/1000}/${total/1000}초") }
@@ -131,7 +138,8 @@ class PersonAnalyzer(private val context: Context, private val engine: PersonOnn
                 val after = metadata(context,uri)
                 check(after.first == bytes && after.second == modified) { "분석 중 원본 파일이 변경되었습니다. 다시 등록하세요." }
                 store.commit(source,PersonRecord(fingerprint,video,PersonPages.stored(samples),
-                    modelId = model,modelVersion = PersonModels.models.single { it.id == model }.version))
+                    modelId = model,modelVersion = PersonModels.models.single { it.id == model }.version,
+                    videoEvidenceVersion=if (video) 1 else 0))
             }
             return samples
         } catch (failure: Throwable) { PersonPages.release(samples,true); throw failure }

@@ -114,8 +114,9 @@ internal fun ModelSettings(onBack: () -> Unit, video: Boolean = false) {
     Scaffold(topBar = { TopAppBar(title = { Text(if (video) "AI 동영상 화질개선" else "AI 이미지 화질개선") }, navigationIcon = { BackButton(onBack) }) }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text(if (video) "프레임을 한 장씩 보정합니다. 이미지와 같은 모델 목록을 사용하며 결과 확인 후 저장합니다."
-                else "이미지를 별도 프로세스로 보정하며 결과를 확인한 뒤 저장합니다.")
+            OptionHelp("",emptyList(),summary="보정 원리와 저장 방식",
+                note=if (video) "프레임을 한 장씩 보정합니다. 이미지와 같은 모델 목록을 사용하며 결과 확인 후 저장합니다."
+                    else "이미지를 별도 프로세스로 보정하며 결과를 확인한 뒤 저장합니다.")
             Text(if (selected.isBlank()) "모델을 먼저 준비하세요" else "사용 중: ${models.firstOrNull { it.source == selected }?.name ?: File(selected).name}", style = MaterialTheme.typography.titleSmall)
             if (status.isNotBlank()) Text(status, style = MaterialTheme.typography.bodySmall)
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -127,7 +128,7 @@ internal fun ModelSettings(onBack: () -> Unit, video: Boolean = false) {
             DenoiseSettings(enabled = !busy, image = !video)
             if (video) ShrinkSettings(enabled = !busy)
             StageHeader("2. AI 업스케일")
-            Text("사용할 모델은 위 '사용 중' 표시, 변경은 맨 아래 '모델 관리', 장치·엔진은 '실행 환경'에서 설정합니다.", style = MaterialTheme.typography.bodySmall)
+            OptionHelp("",emptyList(),summary="업스케일 모델 선택 안내",note="사용할 모델은 위 '사용 중' 표시, 변경은 맨 아래 '모델 관리', 장치·엔진은 '실행 환경'에서 설정합니다.")
             SamplingSettings(enabled = !busy)
             if (video) {
                 StageHeader("3. 프레임 보간")
@@ -141,7 +142,7 @@ internal fun ModelSettings(onBack: () -> Unit, video: Boolean = false) {
             // 모델 파일 관리(폴더·목록·추천·링크)는 처리 옵션이 아니므로 처리 순서 뒤 맨 아래에 둡니다.
             StageHeader("모델 관리 · 업스케일 모델 선택·다운로드")
             Text("모델 폴더", style = MaterialTheme.typography.titleMedium)
-            Text("${EnhancementModels.publicRoot()}\nSD 카드 다운로드를 사용하면 선택한 폴더의 models를 검색합니다.", style = MaterialTheme.typography.bodySmall)
+            OptionHelp("",emptyList(),summary="모델 폴더 위치와 검색 범위",note="${EnhancementModels.publicRoot()}\nSD 카드 다운로드를 사용하면 선택한 폴더의 models를 검색합니다.")
             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(enabled = !busy, onClick = { refresh() }) { Text("새로고침") }
                 TextButton(enabled = !busy, onClick = { importer.launch(arrayOf("*/*")) }) { Text("파일 가져오기") }
@@ -151,7 +152,7 @@ internal fun ModelSettings(onBack: () -> Unit, video: Boolean = false) {
                     else permission.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
                 }) { Text("폴더 권한") }
             }
-            Text("단일 파일 ONNX 또는 기본·추천 모델과 호환되는 정적 RGB FP32 TFLite를 지원합니다. .pth·NCNN·별도 가중치 파일은 변환이 필요합니다.", style = MaterialTheme.typography.bodySmall)
+            OptionHelp("",emptyList(),summary="가져올 수 있는 모델 형식",note="단일 파일 ONNX 또는 기본·추천 모델과 호환되는 정적 RGB FP32 TFLite를 지원합니다. .pth·NCNN·별도 가중치 파일은 변환이 필요합니다.")
             models.forEach { model ->
                 OutlinedCard(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp)) {
@@ -176,7 +177,7 @@ internal fun ModelSettings(onBack: () -> Unit, video: Boolean = false) {
                 OutlinedCard(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp)) {
                         Text(if (recommendation.name.endsWith("x4plus.tflite")) "Real-ESRGAN x4plus · 모바일 4배" else recommendation.name)
-                        Text(recommendation.description, style = MaterialTheme.typography.bodySmall)
+                        OptionHelp("",emptyList(),summary="모델 특징과 출처",title=recommendation.name,note=recommendation.description)
                         val existing = models.firstOrNull { it.name == recommendation.name }
                         TextButton(enabled = !busy, onClick = {
                             if (existing != null) { selected = existing.source; selectedKey.updateString(selected); EnhancementPreset.edited() }
@@ -194,7 +195,7 @@ internal fun ModelSettings(onBack: () -> Unit, video: Boolean = false) {
                 FilterChip(backend == "litert", enabled = !busy, onClick = { backend = "litert"; EnhancementModels.BACKEND.updateString(backend) }, label = { Text("LiteRT v2 · 기본") })
                 FilterChip(backend == "onnx", enabled = !busy, onClick = { backend = "onnx"; EnhancementModels.BACKEND.updateString(backend) }, label = { Text("ONNX") })
             }
-            Text("TFLite 모델은 LiteRT로 GPU·NPU를 시도하고 실패하면 CPU로 실행합니다. 사용자 ONNX 모델은 ONNX로 실행합니다. 4배 모델도 목표 2배 크기로 저장할 수 있습니다.", style = MaterialTheme.typography.bodySmall)
+            OptionHelp("",emptyList(),summary="실행 엔진과 대체 경로",note="TFLite 모델은 LiteRT로 GPU·NPU를 시도하고 실패하면 CPU로 실행합니다. 사용자 ONNX 모델은 ONNX로 실행합니다. 4배 모델도 목표 2배 크기로 저장할 수 있습니다.")
             Text("처리 장치", style = MaterialTheme.typography.titleMedium)
             Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                 Text("하드웨어 가속", Modifier.weight(1f))
@@ -217,13 +218,12 @@ internal fun ModelSettings(onBack: () -> Unit, video: Boolean = false) {
                     }
                 }, label = { Text("NPU·GPU 자동") })
             }
-            Text("NPU는 처음 선택할 때 약 41MB 런타임을 다운로드합니다. GPU·CPU는 추가 다운로드가 필요 없습니다.", style = MaterialTheme.typography.bodySmall)
-            Text("LiteRT는 준비 시간이 짧은 GPU를 기본으로 사용하며 NPU·GPU 자동 경로도 선택할 수 있습니다. ONNX의 NNAPI는 별도 옵션입니다. 가속을 끄면 CPU로 처리합니다.", style = MaterialTheme.typography.bodySmall)
+            OptionHelp("",emptyList(),summary="하드웨어 가속과 추가 다운로드",note="NPU는 처음 선택할 때 약 41MB 런타임을 다운로드합니다. GPU·CPU는 추가 다운로드가 필요 없습니다.\n\nLiteRT는 준비 시간이 짧은 GPU를 기본으로 사용하며 NPU·GPU 자동 경로도 선택할 수 있습니다. ONNX의 NNAPI는 별도 옵션입니다. 가속을 끄면 CPU로 처리합니다.")
             Text("CPU 스레드 · $cpuThreads / $threadLimit", style = MaterialTheme.typography.titleSmall)
             if (threadLimit > 1) Slider(value = cpuThreads.toFloat(), valueRange = 1f..threadLimit.toFloat(), steps = (threadLimit - 2).coerceAtLeast(0),
                 enabled = !busy, onValueChange = { cpuThreads = it.roundToInt().coerceIn(1, threadLimit) },
                 onValueChangeFinished = { EnhancementModels.CPU_THREADS.updateInt(cpuThreads) })
-            Text("CPU 처리와 가속되지 않는 연산에 적용합니다. 기기 CPU 수의 절반까지 선택하며, 높이면 발열과 다운로드 부하가 늘 수 있습니다.", style = MaterialTheme.typography.bodySmall)
+            OptionHelp("",emptyList(),summary="CPU 스레드와 발열·부하",note="CPU 처리와 가속되지 않는 연산에 적용합니다. 기기 CPU 수의 절반까지 선택하며, 높이면 발열과 다운로드 부하가 늘 수 있습니다.")
             if (!video) {
             Text("Google Media Enhancement", style = MaterialTheme.typography.titleMedium)
             Text(when { google == null -> "기기 지원 여부 확인 중"; google?.first != true -> "이 기기에서는 사용할 수 없습니다.";
@@ -241,7 +241,7 @@ internal fun ModelSettings(onBack: () -> Unit, video: Boolean = false) {
                 Text("Google 보정 우선 사용", Modifier.weight(1f))
                 Switch(googleFirst, enabled = !busy && accelerated && (googleFirst || google?.second == true), onCheckedChange = { googleFirst = it; EnhancementModels.GOOGLE_FIRST.updateBoolean(it) })
             }
-            Text("자동 가속 모드에서 우선 사용합니다. 실패하면 선택한 실행 엔진으로 전환하고, CPU 모드에서는 적용하지 않습니다.", style = MaterialTheme.typography.bodySmall)
+            OptionHelp("",emptyList(),summary="Google 보정 우선 사용 조건",note="자동 가속 모드에서 우선 사용합니다. 실패하면 선택한 실행 엔진으로 전환하고, CPU 모드에서는 적용하지 않습니다.")
             }
         }
     }

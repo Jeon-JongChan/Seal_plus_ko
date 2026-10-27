@@ -20,7 +20,7 @@ import java.util.concurrent.Executors
 data class PersonSample(val preview: Bitmap?, val vector: FloatArray, val issues: List<String>, val fingerprint: String,
     val trackId: Int? = null, val intervals: List<PersonInterval> = emptyList(), val frames: Int = 1,
     val sourceUri: String? = null, val landmarks: FloatArray = floatArrayOf(), val bounds: FloatArray = floatArrayOf(),
-    val representativeMs: Long = 0)
+    val representativeMs: Long = 0, val evidence: List<PersonEvidence> = emptyList())
 
 /** 현재 선택한 두 이미지의 상태와 추론 측정값입니다. */
 data class PersonUiState(val first: Uri? = null, val second: Uri? = null,
@@ -78,9 +78,10 @@ class PersonViewModel(private val context: Context) : ViewModel() {
                         if (index == 0) first = samples else second = samples
                     }
                     ensureActive()
-                    mutable.update { it.copy(message = "여러 얼굴 후보·반복 등장 그룹 비교 중") }
-                    val thresholds = PersonCalibration.load(context,PersonModels.models.single { it.id == model })
-                    val relations = PersonRelations.build(first,second,thresholds)
+                    mutable.update { it.copy(message = if (single) "예시 얼굴 정리 중" else "여러 얼굴 후보·반복 등장 그룹 비교 중") }
+                    // 예시 얼굴 등록에서는 사용하지 않는 전체 얼굴 쌍·5단계 그룹 계산을 생략합니다.
+                    val relations = if (single) null else PersonRelations.build(first,second,
+                        PersonCalibration.load(context,PersonModels.models.single { it.id == model }))
                     ensureActive()
                     mutable.update { it.copy(firstFaces = first,secondFaces = second,
                         selectedFirst = if (first.size == 1) 0 else null,

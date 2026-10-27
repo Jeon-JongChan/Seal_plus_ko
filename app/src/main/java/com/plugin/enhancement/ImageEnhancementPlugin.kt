@@ -170,7 +170,8 @@ private fun ImageAiAction(paths: List<String>, batch: Boolean, onSaved: (String,
                         StageHeader("2. AI 업스케일"); SamplingSettings()
                         StageHeader("3. 후처리 · 저장 직전"); SharpenSettings()
                     }
-                    Text("먼저 플러그인 설정에서 모델을 준비하세요. 지원 기기는 Google 보정도 선택할 수 있습니다.", style = MaterialTheme.typography.bodySmall)
+                    OptionHelp("",emptyList(),summary="이미지 보정 원리와 모델 준비",
+                        note="선택한 모델로 이미지를 보정한 뒤 원본과 결과를 비교합니다. 먼저 플러그인 설정에서 모델을 준비하세요. 지원 기기는 Google 보정도 선택할 수 있습니다. 저장은 결과 확인 후 교체 또는 복제로 선택합니다.")
                 }
                 }
                 if (saving) { LinearProgressIndicator(Modifier.fillMaxWidth()); if (batch) Text("저장 중 · ${completed}장 완료") }

@@ -24,23 +24,28 @@ import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 import kotlin.concurrent.withLock
 
+/** 같은 영상 트랙의 시점별 인물 확인에 필요한 제한된 특징입니다. */
+@Serializable
+data class PersonEvidence(val vector: FloatArray, val timeMs: Long)
+
 /** 원본 이미지 대신 재디코딩에 필요한 좌표·시각과 모델 벡터만 저장합니다. */
 @Serializable
 data class PersonStoredFace(val vector: FloatArray, val issues: List<String> = emptyList(),
     val landmarks: FloatArray = floatArrayOf(), val bounds: FloatArray = floatArrayOf(),
     val trackId: Int? = null, val intervals: List<PersonInterval> = emptyList(), val frames: Int = 1,
-    val representativeMs: Long = 0)
+    val representativeMs: Long = 0, val evidence: List<PersonEvidence> = emptyList())
 
 /** 모델 해시·전처리 버전을 포함한 한 원본의 재사용 가능한 분석 결과입니다. */
 @Serializable
 data class PersonRecord(val fingerprint: String, val video: Boolean, val faces: List<PersonStoredFace>,
     val version: Int = 1, val modelId: String = "", val modelVersion: String = "",
-    val preprocessing: String = "sface-five-landmark-similarity-v1", val dimensions: Int = 128)
+    val preprocessing: String = "sface-five-landmark-similarity-v1", val dimensions: Int = 128,
+    val videoEvidenceVersion: Int = 0)
 
 /** 파일 식별과 분석 결과를 연결하며 URI·크기·변경 시각을 저장합니다. */
 @Serializable
 data class PersonSource(val uri: String, val content: String, val bytes: Long, val modified: Long,
-    val video: Boolean)
+    val video: Boolean, val classificationName: String = "", val classificationModel: String = "")
 
 /** 프로세스 종료 후에도 재개할 수 있는 단일 파일 분석 요청입니다. */
 data class PersonPending(val id: Long, val uri: String, val model: String, val state: String, val error: String)
@@ -220,7 +225,7 @@ class PersonStore(private val context: Context, name: String = "analysis.db") : 
     /** 비정상 벡터·서로 다른 모델·지원하지 않는 버전은 저장 전에 거절합니다. */
     private fun validate(record: PersonRecord, fingerprint: String) {
         require(record.version == 1 && record.fingerprint == fingerprint && record.dimensions == 128 &&
-            record.preprocessing == "sface-five-landmark-similarity-v1")
+            record.preprocessing == "sface-five-landmark-similarity-v1" && record.videoEvidenceVersion in 0..1)
         record.faces.forEach(::validateFace)
     }
 
@@ -230,6 +235,9 @@ class PersonStore(private val context: Context, name: String = "analysis.db") : 
         require(face.landmarks.isEmpty() || face.landmarks.size == 10 && face.landmarks.all { it.isFinite() })
         require(face.bounds.isEmpty() || face.bounds.size == 4 && face.bounds.all { it.isFinite() })
         require(face.intervals.all { it.startMs >= 0 && it.endMs >= it.startMs })
+        require(face.evidence.size <= 3 && face.evidence.all { it.timeMs >= 0 && it.vector.size == 128 })
+        require(face.evidence.zipWithNext().all { (a,b) -> a.timeMs < b.timeMs })
+        face.evidence.forEach { PersonMath.normalize(it.vector) }
         PersonMath.normalize(face.vector)
     }
 
@@ -269,7 +277,10 @@ class PersonStore(private val context: Context, name: String = "analysis.db") : 
         requireConsent()
         val db = writableDatabase; db.beginTransaction()
         try {
-            save(source.content,record); bind(source); pruneOrphans()
+            val previous = this.source(source.uri)
+            save(source.content,record); bind(source)
+            // 원본 내용이 바뀐 경우에만 이전 내용의 고아 여부를 인덱스로 확인합니다.
+            if (previous != null && previous.content != source.content) pruneOrphans(previous.content)
             db.delete("video_checkpoint","source=? AND model=?",arrayOf(sourceKey(source.uri),record.fingerprint))
             db.setTransactionSuccessful()
         }
@@ -287,7 +298,9 @@ class PersonStore(private val context: Context, name: String = "analysis.db") : 
             val sameSource = db.rawQuery("SELECT data FROM video_checkpoint WHERE source=? AND model=?",arrayOf(source,fingerprint)).use { cursor ->
                 if (!cursor.moveToFirst()) false else {
                     val payload = decodeData(cursor.getBlob(0),"video:$source:$fingerprint")
-                    try { json.decodeFromString<PersonVideoCheckpoint>(payload.toString(Charsets.UTF_8)).source == state.source }
+                    try { json.decodeFromString<PersonVideoCheckpoint>(payload.toString(Charsets.UTF_8)).let {
+                        it.source == state.source && it.evidenceVersion == state.evidenceVersion
+                    } }
                     finally { payload.fill(0) }
                 }
             }
@@ -337,6 +350,7 @@ class PersonStore(private val context: Context, name: String = "analysis.db") : 
     /** 손상된 시각·표본·좌표를 네이티브 디코더와 추적기에 전달하지 않습니다. */
     private fun validateCheckpoint(state: PersonVideoCheckpoint, fingerprint: String) {
         require(state.version == 1 && state.source.video && state.durationMs in 1..Long.MAX_VALUE/1000-60_000)
+        require(state.evidenceVersion in 0..1)
         require(state.stepMs in 1..1000 && state.nextUs in 1..state.durationMs*1000+1_000_000)
         require(state.signature.size == 256 && state.signature.all { it.isFinite() && it in 0f..255f })
         require(state.trackCount == state.tracks.size)
@@ -364,9 +378,10 @@ class PersonStore(private val context: Context, name: String = "analysis.db") : 
     fun forget(uri: String) = lock.withLock {
         val db = writableDatabase; db.beginTransaction()
         try {
+            val previous = source(uri)
             db.delete("sources","id=?",arrayOf(sourceKey(uri)))
             db.delete("video_checkpoint","source=?",arrayOf(sourceKey(uri)))
-            pruneOrphans()
+            if (previous != null) pruneOrphans(previous.content)
             db.setTransactionSuccessful()
         } finally { db.endTransaction() }
     }
@@ -453,14 +468,16 @@ class PersonStore(private val context: Context, name: String = "analysis.db") : 
         }
     }
 
-    /** 접근 가능한 원본 연결이 없는 고아 분석만 정리합니다. */
-    fun pruneOrphans() = lock.withLock {
+    /** 파일 변경·이동은 해당 내용만 조회하고 명시적 전체 정리에서는 모든 고아를 확인합니다. */
+    fun pruneOrphans(content: String? = null) = lock.withLock {
         val db = writableDatabase; db.beginTransaction()
         try {
-            val affected = db.rawQuery("SELECT DISTINCT model FROM analysis WHERE content NOT IN (SELECT content FROM sources)",null).use { cursor ->
+            val where = "NOT EXISTS (SELECT 1 FROM sources WHERE sources.content=analysis.content)" + if (content == null) "" else " AND content=?"
+            val args = content?.let { arrayOf(it) }
+            val affected = db.rawQuery("SELECT DISTINCT model FROM analysis WHERE $where",args).use { cursor ->
                 buildList { while (cursor.moveToNext()) add(cursor.getString(0)) }
             }
-            db.execSQL("DELETE FROM analysis WHERE content NOT IN (SELECT content FROM sources)")
+            db.delete("analysis",where,args)
             affected.forEach(::invalidate)
             db.setTransactionSuccessful()
         } finally { db.endTransaction() }

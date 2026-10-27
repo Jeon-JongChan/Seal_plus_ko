@@ -113,7 +113,8 @@ object DuplicatePlugin : FeaturePlugin() {
                 item {
                     Text("분석 위치: $root", style = MaterialTheme.typography.bodySmall)
                     Text("이미지·영상만 분석합니다. AI 결과는 검토 후보이며 분석만으로 파일을 삭제하지 않습니다.")
-                    Text("이미지는 전체 모양, 영상은 길이와 시간순 대표 프레임 8개를 비교합니다. 부분 편집 영상은 전체 중복으로 취급하지 않습니다.", style = MaterialTheme.typography.bodySmall)
+                    OptionHelp("",emptyList(),summary="중복 판정 원리와 비교 범위",
+                        note="이미지는 전체 모양, 영상은 길이와 시간순 대표 프레임 8개를 비교합니다. 부분 편집 영상은 전체 중복으로 취급하지 않습니다.")
                     Text("분석 대상", Modifier.padding(top = 12.dp), style = MaterialTheme.typography.titleSmall)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         DuplicateTarget.entries.forEach { target ->
@@ -191,7 +192,8 @@ object DuplicatePlugin : FeaturePlugin() {
                             FilterChip(selected = options.preset == preset, enabled = !busy, onClick = { update(options.copy(preset = preset)) }, label = { Text(preset.label) })
                         }
                     }
-                    Text("엄격은 후보를 좁히며 민감·관대는 후보를 넓힙니다. 실제 파일을 확인한 후 삭제하세요.", style = MaterialTheme.typography.bodySmall)
+                    OptionHelp("",emptyList(),summary="후보 판정 프리셋 설명",
+                        note="엄격은 후보를 좁히며 민감·관대는 후보를 넓힙니다. 실제 파일을 확인한 후 삭제하세요.")
                     Text("삭제하지 않을 파일 우선순위", Modifier.padding(top = 8.dp), style = MaterialTheme.typography.titleSmall)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         KeepPriority.entries.forEach { priority ->

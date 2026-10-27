@@ -13,8 +13,8 @@ if ((Test-Path "$PSScriptRoot/native/rife/Build.ps1") -and -not (Test-Path "$PSS
     & "$PSScriptRoot/native/rife/Build.ps1"
 }
 if (-not $Tasks) { $Tasks = @($PortableProject.BuildTask) }
-# 반복 빌드는 데몬과 프로젝트의 구성 캐시 설정을 재사용합니다.
-$options = @('--console=plain', '--max-workers=2', '-Pkotlin.compiler.execution.strategy=in-process')
+# 다른 실행 권한으로 시작한 데몬을 재사용하지 않으며 프로젝트의 구성 캐시는 유지합니다.
+$options = @('--no-daemon', '--console=plain', '--max-workers=2', '-Pkotlin.compiler.execution.strategy=in-process')
 if ($Offline) { $options += '--offline' }
 Push-Location $ProjectRoot
 try {

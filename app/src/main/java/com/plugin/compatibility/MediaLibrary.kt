@@ -48,7 +48,7 @@ object MediaLibrary {
     )
 
     /** Seal과 지정한 다운로드 폴더의 모든 하위 폴더에서 영상을 읽습니다. */
-    fun listVideos(preferences: DownloadUtil.DownloadPreferences, includeClassified: Boolean = true,
+    fun listVideos(preferences: DownloadUtil.DownloadPreferences, includeClassified: Boolean = true, readQuality: Boolean = true,
         accepts: (MediaFile) -> Boolean = { true }): List<MediaFile> {
         val extensions = setOf("mp4", "mkv", "webm", "mov", "m4v", "jpg", "jpeg", "png", "webp", "avif", "gif",
             "mp3", "m4a", "aac", "opus", "ogg", "flac", "wav", "alac")
@@ -92,7 +92,8 @@ object MediaLibrary {
             if (file.path.startsWith("content://") && (PluginMediaMetadataStore.get(file.path)?.excludedFromProcessing ?: false) != file.excludedFromProcessing)
                 PluginMediaMetadataStore.save(file.path, excludedFromProcessing = file.excludedFromProcessing)
             val saved = history[file.path]
-            val quality = saved?.quality ?: readMediaQuality(file.path)
+            // 목록 연결·개수 집계는 저장된 품질만 사용하고 명시적 분석에서만 원본을 디코딩합니다.
+            val quality = saved?.quality ?: if (readQuality) readMediaQuality(file.path) else null
             // 이전 버전 이력은 파일 관리자에서 처음 읽을 때만 화질 정보를 보충합니다.
             if (saved != null && saved.quality == null && quality != null)
                 PluginMediaMetadataStore.save(saved.videoPath, quality = quality)

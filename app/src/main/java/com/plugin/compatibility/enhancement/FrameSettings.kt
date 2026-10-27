@@ -3,7 +3,18 @@ package com.plugin.compatibility.enhancement
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.HelpOutline
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.FlowRow
@@ -50,14 +61,19 @@ internal fun VideoEncodingSettings(enabled: Boolean = true) {
 
 /**
  * 선택한 옵션의 설명을 강조하고 나머지는 흐리게 나열해, 각 옵션의 결과를 선택 전에 비교할 수 있게 합니다.
- * 메뉴가 길어지지 않도록 기본은 접혀 있고 "설명 보기"를 눌렀을 때만 펼칩니다. [note]는 펼친 설명 끝에 덧붙는 보충입니다.
+ * 기본은 한 줄 요약과 도움말 아이콘만 표시하며 펼친 경우에만 상세 내용과 추가 UI를 구성합니다.
  */
 @Composable
-internal fun OptionHelp(selected: String, items: List<Pair<String, String>>, enabled: Boolean = true, note: String? = null) {
-    var open by remember { mutableStateOf(false) }
-    Text(if (open) "설명 접기 ▴" else "설명 보기 ▾", style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.clickable(role = Role.Button) { open = !open }.padding(vertical = 4.dp))
+internal fun OptionHelp(selected: String, items: List<Pair<String, String>>, enabled: Boolean = true, note: String? = null,
+    summary: String = "옵션 설명", title: String = summary, content: @Composable () -> Unit = {}) {
+    var open by rememberSaveable(title) { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth().heightIn(min=48.dp).clickable(role=Role.Button,onClickLabel=if (open) "$title 접기" else "$title 펼치기") { open=!open }
+        .semantics { stateDescription=if (open) "펼쳐짐" else "접힘" },
+        verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+        Icon(Icons.Outlined.HelpOutline,null,tint=MaterialTheme.colorScheme.primary)
+        Text(summary,Modifier.weight(1f),maxLines=1,overflow=TextOverflow.Ellipsis,style=MaterialTheme.typography.bodySmall)
+        Text(if (open) "접기" else "보기",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
+    }
     if (!open) return
     // 상위 화면의 큰 간격 대신 한 묶음으로 보이도록 촘촘하게 배치합니다.
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -67,6 +83,7 @@ internal fun OptionHelp(selected: String, items: List<Pair<String, String>>, ena
                 color = if (chosen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
         }
         note?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+        content()
     }
 }
 

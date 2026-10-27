@@ -8,7 +8,6 @@ import com.plugin.compatibility.updateTaskState
 import com.plugin.compatibility.removeTaskState
 import com.plugin.compatibility.putBatch
 import com.plugin.compatibility.isDuplicateOf
-import com.plugin.compatibility.refreshCompletedFiles
 import com.plugin.compatibility.quality
 import com.plugin.compatibility.sourceQuality
 import com.plugin.compatibility.withStoredPluginOptions
@@ -112,7 +111,7 @@ class PluginTaskEngine(private val appContext: Context) : PluginTaskDownloader, 
                 }
                 "queue_history_imported".updateBoolean(true)
             }
-            refreshCompletedFiles()
+            // 앱 시작에는 백업만 복원합니다. 실제 파일 확인은 화면에 표시되는 게시물에 한정합니다.
             restored = true
 
             snapshotFlow { TemporarySession.root to taskStateMap.toMap() }

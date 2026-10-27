@@ -167,6 +167,8 @@ data class PluginTask(
         val audioOnlyFormats: List<Format>? = null,
         val isImage: Boolean = false,
         val mediaCount: Int = 1,
+        // 게시물 전체 수를 개별 작업 파일 수와 구분해 묶을 때 중복 합산하지 않습니다.
+        val postPageCount: Int = 1,
         val width: Int = 0,
         val height: Int = 0,
         val imageCount: Int = if (isImage) mediaCount else 0,

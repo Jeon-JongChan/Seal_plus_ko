@@ -246,7 +246,7 @@ fun EnhancedVideoListPage(viewModel: VideoListViewModel = koinViewModel(), enhan
     LaunchedEffect(scan.running) {
         if (enhanced && !scan.running) runCatching {
             withContext(kotlinx.coroutines.Dispatchers.IO) {
-                MediaLibrary.registerExternalFiles(MediaLibrary.listVideos(createPluginPreferences()))
+                MediaLibrary.registerExternalFiles(MediaLibrary.listVideos(createPluginPreferences(),readQuality=false))
             }
             refreshedVideoList = PluginDatabaseUtil.getDownloadHistory()
         }.onFailure { hostState.showSnackbar(it.message.orEmpty()) }

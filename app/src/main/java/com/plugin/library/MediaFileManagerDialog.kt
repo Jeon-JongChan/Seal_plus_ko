@@ -76,7 +76,7 @@ fun MediaFileManagerDialog(onDismiss: () -> Unit) {
             // 권한 요청 전에 수천 개의 파일 정보를 읽느라 버튼이 잠기지 않게 합니다.
             if (needsStoragePermission) { loading = false; count = 0; return@LaunchedEffect }
             loading = true
-            runCatching { withContext(Dispatchers.IO) { MediaLibrary.listVideos(preferences).size } }
+            runCatching { withContext(Dispatchers.IO) { MediaLibrary.listVideos(preferences,readQuality=false).size } }
                 .onSuccess { count = it; error = "" }.onFailure { count = 0; error = it.message.orEmpty() }
             loading = false
         }

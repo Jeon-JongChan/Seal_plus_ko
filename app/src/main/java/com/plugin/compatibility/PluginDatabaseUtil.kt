@@ -109,6 +109,15 @@ object PluginDatabaseUtil {
         DatabaseUtil.getDownloadHistoryFlow().first()
     }
 
+    /** 보이는 게시물의 경로만 조회하여 카드마다 전체 이력 객체를 만들지 않습니다. */
+    suspend fun getDownloadHistory(paths: Collection<String>): List<DownloadedVideoInfo> = withContext(Dispatchers.IO) {
+        if (paths.isEmpty()) return@withContext emptyList()
+        // 원본 DAO의 기존 초기화·임시 저장소 연결점을 사용하며 전체 이력 흐름은 구독하지 않습니다.
+        DatabaseUtil.getDownloadHistoryFlow()
+        val dao=TemporarySession.dao()
+        paths.distinct().mapNotNull { dao.getInfoByPath(it) }
+    }
+
     /** 파일 삭제 실패 시 DB 이력을 보존하며 안전하게 이력을 삭제합니다. */
     suspend fun deleteInfoListSafe(infoList: List<DownloadedVideoInfo>, deleteFile: Boolean = false) = withContext(Dispatchers.IO) {
         val removable = if (!deleteFile) infoList else infoList.filter { info ->

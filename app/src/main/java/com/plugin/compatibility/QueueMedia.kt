@@ -104,7 +104,7 @@ object QueueMedia {
             val largest = sizes.asReversed().maxByOrNull { it.width.toLong() * it.height }
             val total = maxOf(originalCount, attempts.maxOf { entry -> maxOf(
                 (entry.key.type as? Task.TypeInfo.SocialMedia)?.media?.pageCount ?: 0,
-                entry.value.videoInfo?.postPageCount ?: 0) }) + duplicates
+                entry.value.videoInfo?.postPageCount ?: 0, entry.value.viewState.postPageCount) }) + duplicates
             val images = entries.indices.sumOf { index ->
                 val entry = entries[index]
                 if ((entry.key.type as? Task.TypeInfo.SocialMedia)?.media?.image ?: entry.value.viewState.isImage)

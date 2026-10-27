@@ -1,6 +1,6 @@
 package com.plugin.compatibility
 
-import androidx.compose.runtime.snapshots.Snapshot
+import kotlinx.coroutines.ensureActive
 import com.junkfood.seal.App
 import com.junkfood.seal.R
 import com.junkfood.seal.download.DownloaderV2
@@ -84,10 +84,14 @@ fun Task.State.withoutCompletedFile(path: String): Task.State {
     )
 }
 
-    /** 이동된 완료 파일의 경로를 복구하고 접근 가능한 저장소의 삭제된 파일을 표시합니다. */
-    suspend fun PluginTaskDownloader.refreshCompletedFiles() {
-        val history = PluginDatabaseUtil.getDownloadHistory().associateBy { it.videoPath }
-        getTaskStateMap().toMap().forEach { (task, state) ->
+    /** 지정한 게시물만 복구하며 명시적 전체 호출 외에는 화면 밖 파일을 열지 않습니다. */
+    suspend fun PluginTaskDownloader.refreshCompletedFiles(post: String? = null) {
+        val tasks = getTaskStateMap().toMap().filter { (task,state) ->
+            state.downloadState is Completed && (post == null || QueueMedia.postKey(task) == post)
+        }
+        if (tasks.isEmpty()) return
+        tasks.forEach { (task, state) ->
+            kotlinx.coroutines.currentCoroutineContext().ensureActive()
             val completed = state.downloadState as? Completed ?: return@forEach
             if (completed.filePaths.isEmpty()) return@forEach
             val resolved = completed.filePaths.map { old ->
@@ -96,14 +100,18 @@ fun Task.State.withoutCompletedFile(path: String): Task.State {
                 current
             }
             val paths = completed.filePaths.mapIndexed { index, old -> resolved[index] ?: old }
+            // 외부에서 이동된 파일도 복구 후의 경로로 저장된 품질·페이지 정보를 찾습니다.
+            val history = PluginDatabaseUtil.getDownloadHistory(completed.filePaths+paths).associateBy { it.videoPath }
             val updated = Completed(resolved.firstOrNull { it != null } ?: paths.first(), paths, resolved.all { it == null })
             var viewState = state.viewState
-            val records = completed.filePaths.mapNotNull { history[it] }
+            val records = (completed.filePaths+paths).distinct().mapNotNull { history[it] }
             // 과거 이력에서 URL 작업으로 복구하며 빠뜨린 게시물 전체 수도 기존 데이터로 보완합니다.
-            val pageCount = maxOf(state.videoInfo?.postPageCount ?: 0, records.maxOfOrNull { it.postPageCount } ?: 0)
+            val pageCount = maxOf(viewState.postPageCount,state.videoInfo?.postPageCount ?: 0, records.maxOfOrNull { it.postPageCount } ?: 0)
             val videoInfo = if (pageCount > (state.videoInfo?.postPageCount ?: 0)) {
                 (state.videoInfo ?: com.junkfood.seal.util.VideoInfo()).apply { this.postPageCount = pageCount }
             } else state.videoInfo
+            // 확장 메타데이터만 바꾸면 동등성이 같아 UI에 알리지 못하므로 전체 수를 불변 상태에도 보관합니다.
+            viewState=viewState.copy(postPageCount=pageCount)
             if ((viewState.codec.isBlank() || (!viewState.isImage && viewState.duration <= 0)) && !updated.missing) {
                 val saved = records.firstOrNull { it.sourceQuality != null } ?: history[completed.filePath] ?: history[updated.filePath]
                 val quality = saved?.quality ?: updated.filePath?.let { MediaLibrary.readMediaQuality(it) }

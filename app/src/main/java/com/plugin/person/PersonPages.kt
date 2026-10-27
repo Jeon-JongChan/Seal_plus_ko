@@ -73,13 +73,14 @@ class PersonPages private constructor(val file: File, private val uri: String, p
 
         /** 화면 표시와 영구 저장에서 같은 필드 대응을 사용합니다. */
         private fun stored(sample: PersonSample): PersonStoredFace = PersonStoredFace(sample.vector,sample.issues,
-            sample.landmarks,sample.bounds,sample.trackId,sample.intervals,sample.frames,sample.representativeMs)
+            sample.landmarks,sample.bounds,sample.trackId,sample.intervals,sample.frames,sample.representativeMs,sample.evidence)
 
         /** 디스크 목록은 소유권을 반환하고 일반 목록은 기존 메모리 정리 규칙을 따릅니다. */
         fun release(samples: List<PersonSample>, recyclePreviews: Boolean = false) {
             if (samples is PersonPages) samples.close()
             else samples.forEach { sample ->
                 sample.vector.fill(0f)
+                sample.evidence.forEach { it.vector.fill(0f) }
                 if (recyclePreviews) sample.preview?.recycle()
             }
         }
@@ -105,7 +106,7 @@ class PersonPages private constructor(val file: File, private val uri: String, p
                     val face = json.decodeFromString<PersonStoredFace>(cursor.getString(1))
                     require(face.vector.size == 128); PersonMath.cosine(face.vector,face.vector)
                     add(PersonSample(null,face.vector,face.issues,fingerprint,face.trackId,face.intervals,face.frames,
-                        uri,face.landmarks,face.bounds,face.representativeMs))
+                        uri,face.landmarks,face.bounds,face.representativeMs,face.evidence))
                 }
                 check(size == minOf(32,count-page*32)) { "인물 결과 페이지가 누락되었습니다." }
             }.also { cache.put(page,it) }
@@ -127,7 +128,7 @@ class PersonPages private constructor(val file: File, private val uri: String, p
         references--
         if (references != 0) return
         closed = true
-        cache.snapshot().values.forEach { rows -> rows.forEach { it.vector.fill(0f) } }; cache.evictAll()
+        cache.snapshot().values.forEach { rows -> rows.forEach { sample -> sample.vector.fill(0f); sample.evidence.forEach { it.vector.fill(0f) } } }; cache.evictAll()
         try { database.close() } finally { SQLiteDatabase.deleteDatabase(file) }
     }
 

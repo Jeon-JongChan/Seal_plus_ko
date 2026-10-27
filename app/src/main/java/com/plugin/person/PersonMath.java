@@ -72,4 +72,42 @@ public final class PersonMath {
         if (score<reject) return "다른 인물";
         return "판정 보류";
     }
+
+    /** 대상 예시의 엄격 과반수 점수로 판정하고 주의대상과 보류 구간만큼 떨어지지 않으면 보류합니다. */
+    public static String decideReferences(float[][] targets, float[][] cautions, float[] sample,
+            double reject, double accept, boolean quality) {
+        if (targets.length<1 || targets.length>5 || cautions.length>5)
+            throw new IllegalArgumentException("대상 예시는 1~5개, 주의대상은 최대 5개입니다.");
+        double[] scores = new double[targets.length];
+        for (int i=0; i<targets.length; i++) scores[i]=cosine(targets[i],sample);
+        java.util.Arrays.sort(scores);
+        double score=scores[(scores.length-1)/2], other=-2;
+        for (float[] caution: cautions) other=Math.max(other,cosine(caution,sample));
+        String verdict=decide(score,reject,accept,quality);
+        // 보정되지 않은 새 상수를 만들지 않고 기존 보류 구간을 보수적인 분리 폭으로 사용합니다.
+        if (verdict.equals("동일인물") && cautions.length>0 && other>=score-(accept-reject)) return "판정 보류";
+        return verdict;
+    }
+
+    /** 같은 트랙의 250ms 이상 떨어진 표본 중 최소 두 개와 엄격 과반수의 승인을 요구합니다. */
+    public static String decideVideo(float[][] targets, float[][] cautions, float[][] evidence, long[] times,
+            double reject, double accept, boolean quality) {
+        if (evidence.length!=times.length || evidence.length>3 || targets.length<1 || targets.length>5 || cautions.length>5)
+            throw new IllegalArgumentException("영상 근거는 시각이 대응하는 최대 세 표본입니다.");
+        decide(0,reject,accept,quality);
+        int count=0, accepted=0, different=0;
+        long previous=-1, chosen=-1;
+        for (int i=0; i<evidence.length; i++) {
+            if (times[i]<0 || times[i]<=previous) throw new IllegalArgumentException("영상 근거 시각은 증가해야 합니다.");
+            previous=times[i];
+            String verdict=decideReferences(targets,cautions,evidence[i],reject,accept,quality);
+            if (chosen>=0 && times[i]-chosen<250) continue;
+            chosen=times[i]; count++;
+            if (verdict.equals("동일인물")) accepted++;
+            else if (verdict.equals("다른 인물")) different++;
+        }
+        if (count<2) return "판정 보류";
+        if (accepted>=count/2+1) return "동일인물";
+        return different==count ? "다른 인물" : "판정 보류";
+    }
 }
